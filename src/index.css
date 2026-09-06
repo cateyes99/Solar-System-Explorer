@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply overflow-hidden overscroll-none bg-space-950 font-body text-white antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid #4da6ff;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: rgba(77, 166, 255, 0.35);
+  }
+}
+
+@layer components {
+  .glass {
+    @apply border border-white/10 bg-white/[0.07] shadow-panel backdrop-blur-xl;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-medium text-white/85 transition-all duration-150 hover:bg-white/[0.13] hover:text-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-astro-blue;
+  }
+
+  .btn-primary {
+    @apply border-astro-blue/40 bg-astro-blue/15 text-astro-cyan hover:bg-astro-blue/25 hover:text-white;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs font-medium text-white/75 transition hover:bg-white/[0.12] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-astro-blue;
+  }
+
+  .chip-active {
+    @apply border-astro-blue/50 bg-astro-blue/20 text-white shadow-glow;
+  }
+
+  .panel-title {
+    @apply font-display text-xs font-semibold uppercase tracking-[0.18em] text-white/60;
+  }
+
+  .stat-value {
+    @apply font-display text-sm font-semibold text-white;
+  }
+
+  .stat-label {
+    @apply text-[10px] uppercase tracking-wider text-white/45;
+  }
+}
+
+/* Slim, dark scrollbars inside panels */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+input[type='range'] {
+  @apply h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-astro-blue;
+}
+input[type='range']::-webkit-slider-thumb {
+  @apply h-4 w-4 appearance-none rounded-full bg-astro-blue shadow-glow;
+}
+
+/* ---- Loading screen / CSS mini solar system ---- */
+@keyframes mini-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mini-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes mini-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 24px 6px rgba(255, 157, 69, 0.55);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 40px 10px rgba(255, 157, 69, 0.75);
+  }
+}
+
+.mini-orbit {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  animation: mini-orbit linear infinite;
+}
+.mini-planet {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  margin-left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+}
+.mini-sun {
+  @apply absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full;
+  background: radial-gradient(circle, #fff3c4 0%, #ffb84d 45%, #ff6a00 100%);
+  animation: mini-pulse 2.2s ease-in-out infinite;
+}
+.mini-star {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: white;
+  animation: mini-twinkle 2.4s ease-in-out infinite;
+}
+
+.text-glow {
+  text-shadow: 0 0 16px rgba(77, 166, 255, 0.5);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Reduced-motion mode: soften every CSS animation & transition */
+html[data-reduce-motion='true'] .mini-orbit,
+html[data-reduce-motion='true'] .mini-sun,
+html[data-reduce-motion='true'] .mini-star {
+  animation: none !important;
+}
