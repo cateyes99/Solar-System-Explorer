@@ -859,4 +859,5 @@ At the end:
 7. Mention any compromises made for performance or scientific scale.
 8. Do not merely give me a code sample — actually implement the application in the repository.
 
-**"Do not ask me for confirmation between implementation steps. Make reasonable engineering decisions yourself, implement the complete application, run it, inspect the result, and fix problems autonomously."**
+---
+**Do not ask me for confirmation between implementation steps. Make reasonable engineering decisions yourself, implement the complete application, run it, inspect the result, and fix problems autonomously.**
