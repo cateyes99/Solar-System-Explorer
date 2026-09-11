@@ -3,7 +3,7 @@
 An immersive, interactive **3D Solar System** built for curious kids — beautiful enough to say
 "whoa!", educational enough to answer "why?".
 
-Built by using ***Cline*** + ***Z.ai GLM-5.3-Flash*** (a large language model) with **React 18 + TypeScript + Vite + Three.js (React Three Fiber) + Zustand + Framer Motion + Tailwind CSS**.
+Built by using ***Cline*** + ***Z.ai GLM-5.3-Flash*** (a large language model. The particular instance used is a ***free*** one provided by *cline:z-ai/glm-5.3-flash*) with **React 18 + TypeScript + Vite + Three.js (React Three Fiber) + Zustand + Framer Motion + Tailwind CSS**.
 All planet surfaces, rings, starfields and nebulae are **procedurally generated** — zero image assets.
 
 ## Getting started
