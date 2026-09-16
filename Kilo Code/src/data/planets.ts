@@ -1,5 +1,12 @@
 import type { PlanetData, MoonData, ScaleMode } from '../types';
 
+const MIN_ORBIT_RADIUS = 20;
+
+function getSafeScaleDistance(planet: PlanetData, mode: ScaleMode): number {
+  const baseDistance = getScaleValue(planet, mode, 'distance');
+  return Math.max(baseDistance, MIN_ORBIT_RADIUS + planet.scaleRadius[mode] * 2);
+}
+
 export const planetsData: PlanetData[] = [
   {
     id: 'sun',
@@ -12,6 +19,8 @@ export const planetsData: PlanetData[] = [
     moons: 0,
     temperatureC: 5500,
     axialTiltDeg: 7.25,
+    orbitalInclinationDeg: 0,
+    longitudeOfAscendingNodeDeg: 0,
     color: '#ffcc00',
     description: 'Our Sun is a star at the center of the Solar System. It\'s a nearly perfect ball of hot plasma that provides light and heat to all the planets.',
     facts: [
@@ -40,6 +49,8 @@ export const planetsData: PlanetData[] = [
     moons: 0,
     temperatureC: 167,
     axialTiltDeg: 0.03,
+    orbitalInclinationDeg: 7.0,
+    longitudeOfAscendingNodeDeg: 48.3,
     color: '#b5b5b5',
     description: 'Mercury is the smallest planet and closest to the Sun. It has no atmosphere, so it\'s covered in craters like our Moon.',
     facts: [
@@ -66,6 +77,8 @@ export const planetsData: PlanetData[] = [
     moons: 0,
     temperatureC: 464,
     axialTiltDeg: 177.4,
+    orbitalInclinationDeg: 3.39,
+    longitudeOfAscendingNodeDeg: 76.7,
     color: '#e6c87a',
     description: 'Venus is Earth\'s "sister planet" but very different! It has a thick, toxic atmosphere that traps heat, making it the hottest planet.',
     facts: [
@@ -92,6 +105,8 @@ export const planetsData: PlanetData[] = [
     moons: 1,
     temperatureC: 15,
     axialTiltDeg: 23.44,
+    orbitalInclinationDeg: 0.0,
+    longitudeOfAscendingNodeDeg: 0.0,
     color: '#2196f3',
     description: 'Our home! Earth is the only planet known to support life. It has liquid water, a protective atmosphere, and a perfect temperature range.',
     facts: [
@@ -118,6 +133,8 @@ export const planetsData: PlanetData[] = [
     moons: 2,
     temperatureC: -65,
     axialTiltDeg: 25.19,
+    orbitalInclinationDeg: 1.85,
+    longitudeOfAscendingNodeDeg: 49.6,
     color: '#e74c3c',
     description: 'Mars is the Red Planet, named for its rusty iron surface. It has the tallest volcano and deepest canyon in the Solar System.',
     facts: [
@@ -144,6 +161,8 @@ export const planetsData: PlanetData[] = [
     moons: 95,
     temperatureC: -110,
     axialTiltDeg: 3.13,
+    orbitalInclinationDeg: 1.3,
+    longitudeOfAscendingNodeDeg: 100.5,
     color: '#d4a574',
     description: 'Jupiter is the king of planets! It\'s a gas giant so big that all other planets could fit inside it. The Great Red Spot is a storm bigger than Earth.',
     facts: [
@@ -170,6 +189,8 @@ export const planetsData: PlanetData[] = [
     moons: 146,
     temperatureC: -140,
     axialTiltDeg: 26.73,
+    orbitalInclinationDeg: 2.49,
+    longitudeOfAscendingNodeDeg: 113.7,
     color: '#f4e4bc',
     description: 'Saturn is famous for its spectacular rings made of ice and rock. It\'s the least dense planet — it would float in water!',
     facts: [
@@ -196,6 +217,8 @@ export const planetsData: PlanetData[] = [
     moons: 27,
     temperatureC: -195,
     axialTiltDeg: 97.77,
+    orbitalInclinationDeg: 0.77,
+    longitudeOfAscendingNodeDeg: 74.0,
     color: '#7de3f4',
     description: 'Uranus is an ice giant that spins on its side! It rolls around the Sun like a ball, giving it extreme seasons.',
     facts: [
@@ -222,6 +245,8 @@ export const planetsData: PlanetData[] = [
     moons: 16,
     temperatureC: -200,
     axialTiltDeg: 28.32,
+    orbitalInclinationDeg: 1.77,
+    longitudeOfAscendingNodeDeg: 131.8,
     color: '#4b70dd',
     description: 'Neptune is the windiest planet with supersonic winds. It\'s a beautiful deep blue ice giant, the farthest major planet from the Sun.',
     facts: [

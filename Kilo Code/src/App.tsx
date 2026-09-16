@@ -134,13 +134,13 @@ function KeyboardControls() {
 export function App() {
   const { loading, loadingProgress, error, welcomeMessage } = useAppStore();
 
+  // Clear loading immediately - procedural textures are instant
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (loading) {
       useAppStore.getState().setLoading(false);
       useAppStore.getState().setLoadingProgress(100);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    }
+  }, [loading]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-space">

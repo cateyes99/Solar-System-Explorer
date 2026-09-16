@@ -17,6 +17,8 @@ export interface PlanetData {
   moons: number;
   temperatureC: number;
   axialTiltDeg: number;
+  orbitalInclinationDeg: number;
+  longitudeOfAscendingNodeDeg: number;
   color: string;
   description: string;
   facts: string[];
