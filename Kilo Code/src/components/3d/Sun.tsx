@@ -1,7 +1,6 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import { useFrame, useLoader } from '@react-three/fiber';
+import React, { useRef, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { MeshPhysicalMaterial, SphereGeometry, Group, ShaderMaterial, AdditiveBlending, DoubleSide } from 'three';
 
 interface SunProps {
   radius: number;
@@ -12,20 +11,21 @@ interface SunProps {
 export function Sun({ radius, time, isHovered }: SunProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const coronaRef = useRef<THREE.Mesh>(null);
-  const flareRef = useRef<THREE.Mesh>(null);
 
   const sunMaterial = useMemo(() => {
-    const material = new ShaderMaterial({
+    return new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uIntensity: { value: isHovered ? 1.5 : 1.0 },
+        uIntensity: { value: isHovered ? 1.2 : 1.0 },
       },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormal;
+        varying vec3 vWorldPosition;
         void main() {
           vUv = uv;
           vNormal = normalMatrix * normal;
+          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -34,52 +34,71 @@ export function Sun({ radius, time, isHovered }: SunProps) {
         uniform float uIntensity;
         varying vec2 vUv;
         varying vec3 vNormal;
-        
+        varying vec3 vWorldPosition;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
         float noise(vec2 p) {
-          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                     mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
         }
-        
-        float fbm(vec2 p) {
-          float value = 0.0;
-          float amplitude = 0.5;
+
+        float fbm(vec2 p, float time) {
+          float v = 0.0;
+          float a = 0.5;
           for (int i = 0; i < 5; i++) {
-            value += amplitude * noise(p);
-            p *= 2.0;
-            amplitude *= 0.5;
+            v += a * noise(p * (1.0 + float(i) * 0.5) + time * 0.01 * float(i));
+            a *= 0.5;
           }
-          return value;
+          return v;
         }
-        
+
         void main() {
-          vec2 uv = vUv * 10.0;
-          float n = fbm(uv + uTime * 0.05);
-          float n2 = fbm(uv * 2.0 - uTime * 0.03);
-          
-          float intensity = n * 0.5 + n2 * 0.3 + 0.5;
-          intensity = pow(intensity, 1.5) * uIntensity;
-          
-          vec3 color1 = vec3(1.0, 0.8, 0.0);
-          vec3 color2 = vec3(1.0, 0.5, 0.0);
-          vec3 color3 = vec3(1.0, 0.2, 0.0);
-          
-          vec3 color = mix(color3, color2, intensity);
-          color = mix(color, color1, intensity * intensity);
-          
-          float fresnel = pow(1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-          color += vec3(1.0, 0.4, 0.0) * fresnel * 0.5 * uIntensity;
-          
+          vec3 normal = normalize(vWorldPosition);
+          float phi = atan(normal.z, normal.x);
+          float theta = acos(clamp(normal.y, -1.0, 1.0));
+          vec2 uv = vec2(phi / (2.0 * 3.14159) + 0.5, theta / 3.14159);
+
+          // Subtle granulation
+          float gran = fbm(uv * 40.0, uTime) * 0.15;
+          float gran2 = fbm(uv * 80.0 - uTime * 0.005, uTime) * 0.08;
+
+          // Base color - bright yellow-white
+          vec3 color = vec3(1.0, 0.95, 0.7);
+
+          // Add granulation variation
+          color *= 1.0 + gran + gran2;
+
+          // Slight limb darkening
+          vec3 viewDir = normalize(-vWorldPosition);
+          float cosTheta = max(dot(vNormal, viewDir), 0.0);
+          float limb = 0.6 + 0.4 * cosTheta;
+          color *= limb;
+
+          // Warm limb glow
+          float limbGlow = pow(1.0 - cosTheta, 4.0) * 0.25;
+          color += vec3(1.0, 0.5, 0.1) * limbGlow;
+
+          color *= uIntensity;
+
           gl_FragColor = vec4(color, 1.0);
         }
       `,
     });
-    return material;
   }, [isHovered]);
 
+  // Soft corona glow
   const coronaMaterial = useMemo(() => {
-    return new ShaderMaterial({
+    return new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uCameraPosition: { value: new THREE.Vector3() },
+        uRadius: { value: radius },
       },
       vertexShader: `
         varying vec3 vNormal;
@@ -93,119 +112,86 @@ export function Sun({ radius, time, isHovered }: SunProps) {
       fragmentShader: `
         uniform float uTime;
         uniform vec3 uCameraPosition;
+        uniform float uRadius;
         varying vec3 vNormal;
         varying vec3 vWorldPosition;
-        
+
         void main() {
           vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
           float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
-          
-          float pulse = sin(uTime * 2.0) * 0.1 + 0.9;
-          float corona = fresnel * pulse * 0.6;
-          
-          vec3 color = vec3(1.0, 0.6, 0.1);
+
+          float dist = length(vWorldPosition) - uRadius;
+          float fade = smoothstep(uRadius * 0.5, 0.0, dist);
+
+          float pulse = sin(uTime * 0.3) * 0.05 + 0.95;
+
+          float corona = fresnel * fade * pulse * 0.25;
+
+          vec3 color = vec3(1.0, 0.85, 0.5);
           gl_FragColor = vec4(color, corona);
         }
       `,
       transparent: true,
-      blending: AdditiveBlending,
-      side: DoubleSide,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
       depthWrite: false,
     });
-  }, []);
-
-  const flareMaterial = useMemo(() => {
-    return new ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uCameraPosition: { value: new THREE.Vector3() },
-      },
-      vertexShader: `
-        varying vec3 vWorldPosition;
-        void main() {
-          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform vec3 uCameraPosition;
-        varying vec3 vWorldPosition;
-        
-        void main() {
-          vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
-          float flare = pow(max(dot(viewDir, vec3(0.0, 0.0, 1.0)), 0.0), 100.0);
-          flare += pow(max(dot(viewDir, vec3(0.0, 0.0, -1.0)), 0.0), 100.0);
-          
-          float pulse = sin(uTime * 3.0) * 0.2 + 0.8;
-          gl_FragColor = vec4(vec3(1.0, 0.7, 0.2), flare * pulse * 0.5);
-        }
-      `,
-      transparent: true,
-      blending: AdditiveBlending,
-      depthWrite: false,
-    });
-  }, []);
+  }, [radius]);
 
   useFrame((state, delta) => {
     if (meshRef.current) {
-      meshRef.current.rotation.y += delta * 0.001;
-      if (meshRef.current.material instanceof ShaderMaterial) {
+      meshRef.current.rotation.y += delta * 0.0003;
+      if (meshRef.current.material instanceof THREE.ShaderMaterial) {
         meshRef.current.material.uniforms.uTime.value = time;
       }
     }
-    if (coronaRef.current) {
-      coronaRef.current.rotation.y -= delta * 0.0005;
-      coronaRef.current.rotation.x += delta * 0.0002;
-      if (coronaRef.current.material instanceof ShaderMaterial) {
-        coronaRef.current.material.uniforms.uTime.value = time;
-        coronaRef.current.material.uniforms.uCameraPosition.value.copy(state.camera.position);
-      }
-    }
-    if (flareRef.current) {
-      flareRef.current.lookAt(state.camera.position);
-      if (flareRef.current.material instanceof ShaderMaterial) {
-        flareRef.current.material.uniforms.uTime.value = time;
-        flareRef.current.material.uniforms.uCameraPosition.value.copy(state.camera.position);
-      }
+    if (coronaRef.current && coronaRef.current.material instanceof THREE.ShaderMaterial) {
+      coronaRef.current.material.uniforms.uTime.value = time;
+      coronaRef.current.material.uniforms.uCameraPosition.value.copy(state.camera.position);
     }
   });
 
   return (
     <group>
+      {/* Primary sunlight - casts shadows */}
       <pointLight
-        color="#ffcc00"
-        intensity={2.5}
-        distance={2000}
+        color="#fffbe6"
+        intensity={18000}
+        distance={5000}
+        decay={2}
+        position={[0, 0, 0]}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-near={0.1}
+        shadow-camera-far={5000}
+        shadow-bias={-0.0002}
+        shadow-radius={2}
+        shadow-normalBias={0.05}
+      />
+      {/* Fill light - no shadows, softer */}
+      <pointLight
+        color="#ffeebb"
+        intensity={4000}
+        distance={3000}
         decay={2}
         position={[0, 0, 0]}
       />
-      <pointLight
-        color="#ff8800"
-        intensity={1.0}
-        distance={1000}
-        decay={2}
-        position={[0, 0, 0]}
-      />
-      <ambientLight color="#332200" intensity={0.3} />
 
+      {/* Photosphere - bright yellow surface with subtle granulation */}
       <mesh
         ref={meshRef}
-        geometry={new SphereGeometry(radius, 64, 64)}
+        geometry={new THREE.SphereGeometry(radius, 64, 32)}
         material={sunMaterial}
-        scale={isHovered ? 1.05 : 1}
-      >
-        <mesh
-          ref={coronaRef}
-          geometry={new SphereGeometry(radius * 1.15, 32, 32)}
-          material={coronaMaterial}
-        />
-        <mesh
-          ref={flareRef}
-          geometry={new SphereGeometry(radius * 1.3, 16, 16)}
-          material={flareMaterial}
-        />
-      </mesh>
+        scale={isHovered ? 1.02 : 1}
+      />
+
+      {/* Soft corona */}
+      <mesh
+        ref={coronaRef}
+        geometry={new THREE.SphereGeometry(radius * 1.3, 32, 16)}
+        material={coronaMaterial}
+      />
     </group>
   );
 }

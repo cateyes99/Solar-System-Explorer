@@ -1,7 +1,7 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import React, { useRef, useMemo } from 'react';
+import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { createPlanetTexture } from '../../utils/astronomy';
+import { usePlanetTextures, createPlanetTexture } from '../../utils/planetTextures';
 
 interface PlanetProps {
   planet: {
@@ -33,26 +33,48 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
   const ringsRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
 
+  const textures = usePlanetTextures(planet.id);
+
   const planetMaterial = useMemo(() => {
-    const texture = createPlanetTexture(planet.id);
+    let texture: THREE.Texture;
+    let roughness: number;
+    let metalness: number;
+    let normalMap: THREE.Texture | undefined;
+    let roughnessMap: THREE.Texture | undefined;
+
+    // Use real textures if loaded successfully, otherwise procedural
+    if (textures.color && !textures.loading && !textures.error) {
+      texture = textures.color;
+      normalMap = textures.normal;
+      roughnessMap = textures.roughness;
+      roughness = 0.7;
+      metalness = planet.id === 'jupiter' || planet.id === 'saturn' ? 0.1 : planet.id === 'mercury' ? 0.15 : 0.0;
+    } else {
+      texture = createPlanetTexture(planet.id);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      roughness = planet.id === 'earth' ? 0.7 : planet.id === 'jupiter' || planet.id === 'saturn' ? 0.8 : planet.id === 'mars' ? 0.9 : planet.id === 'mercury' ? 0.95 : 0.85;
+      metalness = planet.id === 'jupiter' || planet.id === 'saturn' ? 0.1 : planet.id === 'mercury' ? 0.15 : 0.0;
+    }
+
     const material = new THREE.MeshStandardMaterial({
       map: texture,
-      roughness: 0.9,
-      metalness: 0.1,
-      color: new THREE.Color(planet.color),
+      normalMap: normalMap,
+      roughnessMap: roughnessMap,
+      normalScale: new THREE.Vector2(1, 1),
+      roughness,
+      metalness,
+      color: 0xffffff,
+      envMapIntensity: 0.3,
     });
-    
-    if (planet.id === 'jupiter' || planet.id === 'saturn') {
-      material.roughness = 0.7;
-      material.metalness = 0.2;
-    }
-    
+
     return material;
-  }, [planet.id, planet.color]);
+  }, [planet.id, textures.color, textures.loading, textures.error, textures.normal, textures.roughness]);
 
   const atmosphereMaterial = useMemo(() => {
     if (!planet.textureFeatures?.hasAtmosphere) return null;
-    
+
     return new THREE.ShaderMaterial({
       uniforms: {
         uCameraPosition: { value: new THREE.Vector3() },
@@ -79,7 +101,7 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
           vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
           float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
           float pulse = sin(uTime * 0.5) * 0.1 + 0.9;
-          gl_FragColor = vec4(uColor, fresnel * pulse * 0.4);
+          gl_FragColor = vec4(uColor, fresnel * pulse * 0.25);
         }
       `,
       transparent: true,
@@ -87,28 +109,51 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
       side: THREE.BackSide,
       depthWrite: false,
     });
-  }, [planet.id, planet.color]);
+  }, [planet.id, planet.color, planet.textureFeatures?.hasAtmosphere]);
 
   const cloudsMaterial = useMemo(() => {
     if (!planet.textureFeatures?.hasClouds) return null;
-    
-    const texture = createPlanetTexture(planet.id + '_clouds');
+
+    let cloudTexture: THREE.Texture;
+    let cloudNormal: THREE.Texture | undefined;
+
+    // Use real cloud textures if loaded successfully
+    if (textures.clouds && !textures.loading && !textures.error) {
+      cloudTexture = textures.clouds;
+      cloudNormal = textures.cloudsNormal;
+    } else {
+      cloudTexture = createPlanetTexture(planet.id + '_clouds');
+      cloudTexture.wrapS = THREE.RepeatWrapping;
+      cloudTexture.wrapT = THREE.RepeatWrapping;
+      cloudTexture.colorSpace = THREE.SRGBColorSpace;
+    }
+
     return new THREE.MeshStandardMaterial({
-      map: texture,
+      map: cloudTexture,
+      normalMap: cloudNormal,
+      normalScale: new THREE.Vector2(0.5, 0.5),
       transparent: true,
-      opacity: 0.4,
+      opacity: planet.id === 'earth' ? 0.4 : 0.5,
       depthWrite: false,
       blending: THREE.NormalBlending,
+      roughness: 0.9,
+      metalness: 0,
     });
-  }, [planet.id]);
+  }, [planet.id, planet.textureFeatures?.hasClouds, textures.clouds, textures.loading, textures.error, textures.cloudsNormal]);
 
   const ringsMaterial = useMemo(() => {
     if (!planet.textureFeatures?.hasRings) return null;
-    
+
+    const ringColor = planet.textureFeatures.ringColor || '#c9b896';
+    const ringInner = planet.textureFeatures.ringInnerRadius || 1.2;
+    const ringOuter = planet.textureFeatures.ringOuterRadius || 2.2;
+
     return new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColor: { value: new THREE.Color(planet.textureFeatures.ringColor || '#c9b896') },
+        uColor: { value: new THREE.Color(ringColor) },
+        uInnerRadius: { value: ringInner },
+        uOuterRadius: { value: ringOuter },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -120,6 +165,8 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
       fragmentShader: `
         uniform float uTime;
         uniform vec3 uColor;
+        uniform float uInnerRadius;
+        uniform float uOuterRadius;
         varying vec2 vUv;
         
         float noise(float x) {
@@ -137,8 +184,8 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
             rings += alpha * (0.5 + noise(band * 200.0 + uTime * 0.1) * 0.5);
           }
           
-          rings *= smoothstep(1.0, 0.95, r) * smoothstep(0.2, 0.3, r);
-          gl_FragColor = vec4(uColor, rings * 0.8);
+          rings *= smoothstep(uOuterRadius, uOuterRadius * 0.95, r) * smoothstep(uInnerRadius, uInnerRadius * 1.05, r);
+          gl_FragColor = vec4(uColor, rings * 0.6);
         }
       `,
       transparent: true,
@@ -146,7 +193,7 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
       depthWrite: false,
       blending: THREE.NormalBlending,
     });
-  }, [planet.id, planet.textureFeatures?.ringColor]);
+  }, [planet.id, planet.textureFeatures?.hasRings, planet.textureFeatures?.ringColor, planet.textureFeatures?.ringInnerRadius, planet.textureFeatures?.ringOuterRadius]);
 
   useFrame((state, delta) => {
     if (meshRef.current) {
@@ -168,8 +215,6 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
   });
 
   const hasRings = planet.textureFeatures?.hasRings;
-  const ringInner = planet.textureFeatures?.ringInnerRadius || 1.2;
-  const ringOuter = planet.textureFeatures?.ringOuterRadius || 2.2;
 
   return (
     <group>
@@ -185,7 +230,7 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
       {planet.textureFeatures?.hasAtmosphere && atmosphereMaterial && (
         <mesh
           ref={atmosphereRef}
-          geometry={new THREE.SphereGeometry(radius * 1.08, 32, 32)}
+          geometry={new THREE.SphereGeometry(radius * 1.06, 32, 32)}
           material={atmosphereMaterial}
         />
       )}
@@ -193,7 +238,7 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
       {planet.textureFeatures?.hasClouds && cloudsMaterial && (
         <mesh
           ref={cloudsRef}
-          geometry={new THREE.SphereGeometry(radius * 1.03, 64, 64)}
+          geometry={new THREE.SphereGeometry(radius * 1.025, 64, 64)}
           material={cloudsMaterial}
         />
       )}
@@ -201,7 +246,7 @@ export function Planet({ planet, radius, time, rotationSpeed, isSelected, isHove
       {hasRings && ringsMaterial && (
         <mesh
           ref={ringsRef}
-          geometry={new THREE.RingGeometry(radius * ringInner, radius * ringOuter, 128, 8)}
+          geometry={new THREE.RingGeometry(radius * (planet.textureFeatures?.ringInnerRadius || 1.2), radius * (planet.textureFeatures?.ringOuterRadius || 2.2), 128, 8)}
           material={ringsMaterial}
           rotation={[-Math.PI / 2 + planet.axialTiltDeg * Math.PI / 180, 0, 0]}
         />

@@ -1,5 +1,97 @@
 import * as THREE from 'three';
 
+// Simple, fast hash
+function hash(x: number, y: number): number {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+// 2D value noise
+function noise(x: number, y: number): number {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  
+  const a = hash(ix, iy);
+  const b = hash(ix + 1, iy);
+  const c = hash(ix, iy + 1);
+  const d = hash(ix + 1, iy + 1);
+  
+  const x1 = a + (b - a) * ux;
+  const x2 = c + (d - c) * ux;
+  return x1 + (x2 - x1) * uy;
+}
+
+// Fractal Brownian Motion - returns 0 to 1
+function fbm(x: number, y: number, octaves: number): number {
+  let value = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  for (let i = 0; i < octaves; i++) {
+    value += amplitude * (noise(x * frequency, y * frequency) * 2 - 1);
+    amplitude *= 0.5;
+    frequency *= 2;
+  }
+  return value * 0.5 + 0.5;
+}
+
+// Ridged noise - returns 0 to 1
+function ridge(x: number, y: number, octaves: number): number {
+  let value = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  for (let i = 0; i < octaves; i++) {
+    const n = 1 - Math.abs(noise(x * frequency, y * frequency) * 2 - 1);
+    value += amplitude * n;
+    amplitude *= 0.5;
+    frequency *= 2;
+  }
+  return value;
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function uvToSpherical(u: number, v: number) {
+  const phi = u * Math.PI * 2;
+  const theta = (v - 0.5) * Math.PI;
+  return { lon: phi, lat: theta, latDeg: theta * 180 / Math.PI };
+}
+
+function createTexture(
+  width: number,
+  height: number,
+  generator: (u: number, v: number) => THREE.Color
+): THREE.DataTexture {
+  const data = new Uint8Array(width * height * 4);
+  for (let yy = 0; yy < height; yy++) {
+    for (let xx = 0; xx < width; xx++) {
+      const u = xx / width;
+      const v = yy / height;
+      const color = generator(u, v);
+      const idx = (yy * width + xx) * 4;
+      data[idx] = Math.round(clamp(color.r, 0, 1) * 255);
+      data[idx + 1] = Math.round(clamp(color.g, 0, 1) * 255);
+      data[idx + 2] = Math.round(clamp(color.b, 0, 1) * 255);
+      data[idx + 3] = 255;
+    }
+  }
+  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+  texture.needsUpdate = true;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Star field
 export function createStarField(count: number = 3000): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -9,12 +101,8 @@ export function createStarField(count: number = 3000): THREE.BufferGeometry {
   const twinklePhases = new Float32Array(count);
 
   const colorOptions = [
-    new THREE.Color(0xffffff),
-    new THREE.Color(0xfffafa),
-    new THREE.Color(0xfff0e0),
-    new THREE.Color(0xe0e0ff),
-    new THREE.Color(0xffe0e0),
-    new THREE.Color(0xffffe0),
+    new THREE.Color(0xffffff), new THREE.Color(0xfffafa), new THREE.Color(0xfff0e0),
+    new THREE.Color(0xe0e0ff), new THREE.Color(0xffe0e0), new THREE.Color(0xffffe0),
   ];
 
   for (let i = 0; i < count; i++) {
@@ -27,10 +115,7 @@ export function createStarField(count: number = 3000): THREE.BufferGeometry {
     positions[i * 3 + 2] = radius * Math.cos(phi);
 
     const color = colorOptions[Math.floor(Math.random() * colorOptions.length)];
-    colors[i * 3] = color.r;
-    colors[i * 3 + 1] = color.g;
-    colors[i * 3 + 2] = color.b;
-
+    colors[i * 3] = color.r; colors[i * 3 + 1] = color.g; colors[i * 3 + 2] = color.b;
     sizes[i] = 0.5 + Math.random() * 2;
     twinkleSpeeds[i] = 0.5 + Math.random() * 2;
     twinklePhases[i] = Math.random() * Math.PI * 2;
@@ -41,10 +126,10 @@ export function createStarField(count: number = 3000): THREE.BufferGeometry {
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
   geometry.setAttribute('twinkleSpeed', new THREE.BufferAttribute(twinkleSpeeds, 1));
   geometry.setAttribute('twinklePhase', new THREE.BufferAttribute(twinklePhases, 1));
-
   return geometry;
 }
 
+// Nebula
 export function createNebulaGeometry(count: number = 500): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -54,11 +139,8 @@ export function createNebulaGeometry(count: number = 500): THREE.BufferGeometry 
   const velocities = new Float32Array(count * 3);
 
   const nebulaColors = [
-    new THREE.Color(0x1a0a2e),
-    new THREE.Color(0x2d1b4e),
-    new THREE.Color(0x0f0f23),
-    new THREE.Color(0x16213e),
-    new THREE.Color(0x0d0d1a),
+    new THREE.Color(0x1a0a2e), new THREE.Color(0x2d1b4e), new THREE.Color(0x0f0f23),
+    new THREE.Color(0x16213e), new THREE.Color(0x0d0d1a),
   ];
 
   for (let i = 0; i < count; i++) {
@@ -71,13 +153,9 @@ export function createNebulaGeometry(count: number = 500): THREE.BufferGeometry 
     positions[i * 3 + 2] = radius * Math.cos(phi);
 
     const color = nebulaColors[Math.floor(Math.random() * nebulaColors.length)];
-    colors[i * 3] = color.r;
-    colors[i * 3 + 1] = color.g;
-    colors[i * 3 + 2] = color.b;
-
+    colors[i * 3] = color.r; colors[i * 3 + 1] = color.g; colors[i * 3 + 2] = color.b;
     sizes[i] = 20 + Math.random() * 50;
     opacities[i] = 0.02 + Math.random() * 0.08;
-
     velocities[i * 3] = (Math.random() - 0.5) * 0.02;
     velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
     velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
@@ -88,10 +166,10 @@ export function createNebulaGeometry(count: number = 500): THREE.BufferGeometry 
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
   geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1));
   geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
-
   return geometry;
 }
 
+// Asteroid belt
 export function createAsteroidBelt(count: number = 2000): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -109,10 +187,7 @@ export function createAsteroidBelt(count: number = 2000): THREE.BufferGeometry {
     positions[i * 3 + 2] = radius * Math.sin(theta) * Math.cos(phi);
 
     const gray = 0.3 + Math.random() * 0.4;
-    colors[i * 3] = gray;
-    colors[i * 3 + 1] = gray;
-    colors[i * 3 + 2] = gray;
-
+    colors[i * 3] = gray; colors[i * 3 + 1] = gray; colors[i * 3 + 2] = gray;
     sizes[i] = 0.1 + Math.random() * 0.5;
 
     orbitalData[i * 4] = radius;
@@ -125,7 +200,6 @@ export function createAsteroidBelt(count: number = 2000): THREE.BufferGeometry {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
   geometry.setAttribute('orbitalData', new THREE.BufferAttribute(orbitalData, 4));
-
   return geometry;
 }
 
@@ -178,127 +252,185 @@ export function getSpeedLabel(speed: number): string {
 }
 
 export function calculateOrbitalPosition(radius: number, speed: number, time: number, offset: number = 0): THREE.Vector3 {
-  const angle = (time * speed * 0.01 + offset) % (Math.PI * 2);
-  return new THREE.Vector3(
-    Math.cos(angle) * radius,
-    0,
-    Math.sin(angle) * radius
-  );
+  const angle = (time * speed + offset) % (Math.PI * 2);
+  return new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
 }
 
 export function calculateInclinedOrbitalPosition(
-  radius: number,
-  speed: number,
-  time: number,
-  inclination: number,
-  offset: number = 0
+  radius: number, speed: number, time: number, inclination: number, offset: number = 0
 ): THREE.Vector3 {
-  const angle = (time * speed * 0.01 + offset) % (Math.PI * 2);
+  const angle = (time * speed + offset) % (Math.PI * 2);
   const x = Math.cos(angle) * radius;
   const z = Math.sin(angle) * radius;
   const y = Math.sin(angle) * Math.sin(inclination) * radius * 0.1;
   return new THREE.Vector3(x, y, z);
 }
 
+export function calculateOrbitalPosition3D(
+  radius: number,
+  speed: number,
+  time: number,
+  inclination: number,
+  longitudeOfAscendingNode: number,
+  argumentOfPeriapsis: number = 0,
+  offset: number = 0
+): THREE.Vector3 {
+  const angle = (time * speed + offset) % (Math.PI * 2);
+  
+  // Position in orbital plane (before rotations)
+  const xOrbital = Math.cos(angle) * radius;
+  const yOrbital = Math.sin(angle) * radius;
+  const zOrbital = 0;
+  
+  // Rotation matrices
+  // 1. Argument of periapsis (ω) - rotation around Z in orbital plane
+  const cosW = Math.cos(argumentOfPeriapsis);
+  const sinW = Math.sin(argumentOfPeriapsis);
+  let x1 = xOrbital * cosW - yOrbital * sinW;
+  let y1 = xOrbital * sinW + yOrbital * cosW;
+  let z1 = zOrbital;
+  
+  // 2. Inclination (i) - rotation around X
+  const cosI = Math.cos(inclination);
+  const sinI = Math.sin(inclination);
+  let x2 = x1;
+  let y2 = y1 * cosI - z1 * sinI;
+  let z2 = y1 * sinI + z1 * cosI;
+  
+  // 3. Longitude of ascending node (Ω) - rotation around Z
+  const cosO = Math.cos(longitudeOfAscendingNode);
+  const sinO = Math.sin(longitudeOfAscendingNode);
+  const x3 = x2 * cosO - y2 * sinO;
+  const y3 = x2 * sinO + y2 * cosO;
+  const z3 = z2;
+  
+  return new THREE.Vector3(x3, y3, z3);
+}
+
 export function createRingGeometry(innerRadius: number, outerRadius: number, segments: number = 128): THREE.RingGeometry {
   return new THREE.RingGeometry(innerRadius, outerRadius, segments, 8);
 }
 
-export function createProceduralTexture(
-  width: number,
-  height: number,
-  generator: (x: number, y: number, w: number, h: number) => THREE.Color
-): THREE.DataTexture {
-  const data = new Uint8Array(width * height * 4);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const color = generator(x / width, y / height, width, height);
-      const idx = (y * width + x) * 4;
-      data[idx] = Math.round(color.r * 255);
-      data[idx + 1] = Math.round(color.g * 255);
-      data[idx + 2] = Math.round(color.b * 255);
-      data[idx + 3] = 255;
-    }
-  }
-  const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
-  texture.needsUpdate = true;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  return texture;
-}
-
 export function createPlanetTexture(type: string): THREE.DataTexture {
-  const size = 512;
+  const size = 1024;
+  
   switch (type) {
-    case 'sun':
-      return createProceduralTexture(size, size, (x, y) => {
-        const noise = Math.sin(x * 20) * Math.cos(y * 20) * 0.5 + 0.5;
-        const r = 1.0;
-        const g = 0.5 + noise * 0.4;
-        const b = 0.0 + noise * 0.2;
-        return new THREE.Color(r, g, b);
+    case 'mercury': {
+      return createTexture(size, size, (u, v) => {
+        const s = uvToSpherical(u, v);
+        const craters = ridge(s.lon * 8, s.lat * 8, 4);
+        const smallCraters = fbm(s.lon * 30, s.lat * 30, 5) * 0.3;
+        const roughness = fbm(s.lon * 80, s.lat * 80, 3) * 0.15;
+        const val = 0.1 + craters * 0.12 + smallCraters + roughness;
+        const c = clamp(val, 0.05, 0.35);
+        return new THREE.Color(c * 1.0, c * 0.97, c * 0.92);
       });
-    case 'mercury':
-      return createProceduralTexture(size, size, (x, y) => {
-        const noise = Math.sin(x * 30) * Math.cos(y * 30) + Math.sin(x * 60) * Math.cos(y * 60) * 0.5;
-        const val = 0.4 + noise * 0.15;
-        return new THREE.Color(val, val * 0.98, val * 0.95);
+    }
+    case 'venus': {
+      return createTexture(size, size, (u, v) => {
+        const s = uvToSpherical(u, v);
+        const latDeg = s.latDeg;
+        const bands = Math.sin(s.lat * 12) * 0.12 + Math.sin(s.lat * 28) * 0.04;
+        const swirls = fbm(s.lon * 10, s.lat * 10, 4) * 0.06;
+        const polar = Math.abs(latDeg) > 60 ? (1 - smoothstep(60, 90, Math.abs(latDeg))) * 0.15 : 0;
+        const brightness = 0.92 + bands + swirls + polar;
+        const b = clamp(brightness, 0.8, 1.0);
+        return new THREE.Color(b * 1.0, b * 0.94, b * 0.78);
       });
-    case 'venus':
-      return createProceduralTexture(size, size, (x, y) => {
-        const noise = Math.sin(x * 15) * Math.cos(y * 15) + Math.sin(x * 8) * Math.cos(y * 8) * 0.3;
-        const val = 0.85 + noise * 0.08;
-        return new THREE.Color(val, val * 0.95, val * 0.7);
-      });
-    case 'earth':
-      return createProceduralTexture(size, size, (x, y) => {
-        const lon = x * Math.PI * 2;
-        const lat = (y - 0.5) * Math.PI;
-        const landMask = Math.sin(lon * 3) * Math.cos(lat * 2) + Math.sin(lon * 7) * Math.cos(lat * 5) * 0.5;
-        const isLand = landMask > 0.1;
+    }
+    case 'earth': {
+      return createTexture(size, size, (u, v) => {
+        const s = uvToSpherical(u, v);
+        const lat = s.latDeg;
+        const lon = s.lon;
+        const cont = fbm(lon * 2.2, lat * 2.2, 6);
+        const detail = fbm(lon * 7, lat * 7, 4) * 0.35;
+        const isLand = cont + detail > 0.4;
         if (isLand) {
-          const green = 0.2 + Math.sin(lon * 10) * 0.1;
-          return new THREE.Color(0.15, green, 0.08);
+          const veg = fbm(lon * 10, lat * 10, 3);
+          let g = Math.abs(lat) < 23 ? 0.32 + veg * 0.12 : Math.abs(lat) < 50 ? 0.22 + veg * 0.08 : 0.12 + veg * 0.06;
+          return new THREE.Color(0.1, clamp(g, 0.05, 0.5), 0.05);
         }
-        const depth = Math.sin(lon * 5) * Math.cos(lat * 3) * 0.3 + 0.7;
-        return new THREE.Color(0.05, 0.2 * depth, 0.5 * depth);
+        const deep = fbm(lon * 4, lat * 4, 3);
+        const shallow = fbm(lon * 18, lat * 18, 2) * 0.25;
+        const depth = 0.2 + deep * 0.45 + shallow;
+        if (Math.abs(lat) > 72) {
+          const ice = 0.85 + fbm(lon * 25, lat * 25, 3) * 0.12;
+          return new THREE.Color(ice * 0.96, ice, ice * 1.02);
+        }
+        return new THREE.Color(0.01 + depth * 0.04, 0.06 + depth * 0.18, 0.18 + depth * 0.35);
       });
-    case 'mars':
-      return createProceduralTexture(size, size, (x, y) => {
-        const noise = Math.sin(x * 25) * Math.cos(y * 25) + Math.sin(x * 12) * Math.cos(y * 12) * 0.4;
-        const val = 0.6 + noise * 0.15;
-        return new THREE.Color(val, val * 0.4, val * 0.25);
+    }
+    case 'earth_clouds': {
+      return createTexture(size, size, () => new THREE.Color(1, 1, 1));
+    }
+    case 'mars': {
+      return createTexture(size, size, (u, v) => {
+        const s = uvToSpherical(u, v);
+        const lat = s.latDeg;
+        const terrain = fbm(s.lon * 15, s.lat * 15, 5);
+        const craters = ridge(s.lon * 10, s.lat * 10, 4) * 0.15;
+        const dunes = fbm(s.lon * 35, s.lat * 35, 3) * 0.08;
+        let base = 0.38 + terrain * 0.22 + craters + dunes;
+        base = clamp(base, 0.2, 0.75);
+        if (Math.abs(lat) > 55) {
+          const cap = 1 - smoothstep(55, 85, Math.abs(lat));
+          base = Math.max(base, cap * 0.8);
+        }
+        return new THREE.Color(
+          clamp(base * 1.0, 0.15, 0.8),
+          clamp(base * 0.32, 0.05, 0.3),
+          clamp(base * 0.15, 0.02, 0.15)
+        );
       });
-    case 'jupiter':
-      return createProceduralTexture(size, size, (x, y) => {
-        const bands = Math.sin(y * 40) * 0.5;
-        const spots = Math.sin(x * 60) * Math.cos(y * 30) * 0.2;
-        const val = 0.7 + bands + spots;
-        const r = Math.min(1, val * 1.1);
-        const g = Math.min(1, val * 0.85);
-        const b = Math.min(1, val * 0.55);
-        return new THREE.Color(r, g, b);
+    }
+    case 'jupiter': {
+      return createTexture(size, size, (uu, vv) => {
+        const s = uvToSpherical(uu, vv);
+        const bands = Math.sin(s.lat * 35) * 0.35;
+        const fineBands = Math.sin(s.lat * 100) * 0.08;
+        const turb = fbm(s.lon * 20, Math.abs(s.lat) * 15, 4) * 0.12;
+        const grs = (s.lat > -24 && s.lat < -14 && s.lon > 2.1 && s.lon < 3.4) ? 1 : 0;
+        const val = 0.72 + bands + fineBands + turb + grs * 0.3;
+        const vv2 = clamp(val, 0.3, 1.0);
+        if (grs) return new THREE.Color(0.85, 0.3, 0.12);
+        return new THREE.Color(clamp(vv2 * 1.1, 0.3, 1.0), clamp(vv2 * 0.78, 0.2, 0.8), clamp(vv2 * 0.4, 0.1, 0.5));
       });
-    case 'saturn':
-      return createProceduralTexture(size, size, (x, y) => {
-        const bands = Math.sin(y * 25) * 0.3;
-        const val = 0.85 + bands;
-        return new THREE.Color(val, val * 0.95, val * 0.75);
+    }
+    case 'saturn': {
+      return createTexture(size, size, (uu, vv) => {
+        const s = uvToSpherical(uu, vv);
+        const bands = Math.sin(s.lat * 22) * 0.18;
+        const fine = Math.sin(s.lat * 70) * 0.05;
+        const haze = fbm(s.lon * 12, s.lat * 8, 3) * 0.04;
+        const val = 0.85 + bands + fine + haze;
+        const vv2 = clamp(val, 0.6, 1.0);
+        return new THREE.Color(vv2 * 1.0, vv2 * 0.88, vv2 * 0.62);
       });
-    case 'uranus':
-      return createProceduralTexture(size, size, (x, y) => {
-        const noise = Math.sin(x * 10) * Math.cos(y * 10) * 0.1;
-        const val = 0.55 + noise;
-        return new THREE.Color(val * 0.8, val, val * 1.1);
+    }
+    case 'uranus': {
+      return createTexture(size, size, (uu, vv) => {
+        const s = uvToSpherical(uu, vv);
+        const haze = fbm(s.lon * 6, s.lat * 6, 3) * 0.03;
+        const val = 0.52 + haze;
+        const vv2 = clamp(val, 0.4, 0.65);
+        return new THREE.Color(vv2 * 0.65, vv2 * 0.9, vv2 * 1.0);
       });
-    case 'neptune':
-      return createProceduralTexture(size, size, (x, y) => {
-        const bands = Math.sin(y * 30) * 0.2;
-        const spots = Math.sin(x * 40) * Math.cos(y * 20) * 0.15;
-        const val = 0.35 + bands + spots;
-        return new THREE.Color(val * 0.5, val * 0.7, val * 1.2);
+    }
+    case 'neptune': {
+      return createTexture(size, size, (uu, vv) => {
+        const s = uvToSpherical(uu, vv);
+        const bands = Math.sin(s.lat * 25) * 0.12;
+        const spots = fbm(s.lon * 15, s.lat * 15, 3) * 0.06;
+        const val = 0.3 + bands + spots;
+        const vv2 = clamp(val, 0.15, 0.5);
+        if (s.lat > -24 && s.lat < -14 && s.lon > 4.2 && s.lon < 4.9) {
+          return new THREE.Color(0.08, 0.12, 0.3);
+        }
+        return new THREE.Color(vv2 * 0.4, vv2 * 0.55, vv2 * 1.0);
       });
+    }
     default:
-      return createProceduralTexture(size, size, () => new THREE.Color(0.5, 0.5, 0.5));
+      return createTexture(size, size, () => new THREE.Color(0.5, 0.5, 0.5));
   }
 }

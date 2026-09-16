@@ -83,3 +83,13 @@ export function getCameraDistanceForScale(mode: ScaleMode): number {
     default: return 500;
   }
 }
+
+export function getMinOrbitRadius(mode: ScaleMode): number {
+  switch (mode) {
+    case 'educational': return 25;
+    case 'relative-size': return 25;
+    case 'distances': return 20;
+    case 'custom': return 25;
+    default: return 25;
+  }
+}

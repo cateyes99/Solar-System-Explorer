@@ -1,6 +1,6 @@
 # React + TypeScript + Vite
 
-Built by using ***Kilo Code*** + ***NVIDIA Nemotron Ultra 3 free*** (a large language model. The particular instance used is a ***free*** one provided by *OpenCode Zen*). This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Built by using ***Kilo Code*** + ***NVIDIA Nemotron Ultra 3 free*** (a large language model. The particular instance used is a ***free*** one provided by *Kilo Gateway*). This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
 
