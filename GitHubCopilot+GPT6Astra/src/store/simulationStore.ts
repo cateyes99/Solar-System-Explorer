@@ -36,6 +36,7 @@ interface SimulationState {
   tick: (seconds: number) => void
   set: (values: Partial<SimulationState>) => void
   startTour: () => void
+  jumpToTourStop: (index: number) => void
   nextTour: () => void
   exitTour: () => void
 }
@@ -57,6 +58,11 @@ export const useSimulation = create<SimulationState>((set, get) => ({
   },
   set: values => set(values),
   startTour: () => set(state => ({ tour: 0, tourPaused: false, panel: null, selected: null, cameraMode: 'system', cameraRevision: state.cameraRevision + 1, missionActive: false })),
+  jumpToTourStop: index => {
+    if (!Number.isInteger(index) || index < 0 || index >= tourStops.length) return
+    const selected = tourStops[index].body
+    set(state => ({ tour: index, tourPaused: false, selected, cameraMode: selected ? 'follow' : 'system', cameraRevision: state.cameraRevision + 1 }))
+  },
   nextTour: () => {
     const state = get()
     const next = (state.tour ?? -1) + 1

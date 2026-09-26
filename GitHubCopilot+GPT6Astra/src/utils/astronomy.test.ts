@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { planets } from '../data/planets'
+import { planets, tourStops } from '../data/planets'
 import { gravityAcceleration, orbitFor, positionFor, radiusFor } from './astronomy'
 import { useSimulation } from '../store/simulationStore'
 
@@ -58,5 +58,33 @@ describe('simulation controls', () => {
     useSimulation.getState().exitTour()
     expect(useSimulation.getState().tour).toBeNull()
     expect(useSimulation.getState().cameraMode).toBe('system')
+  })
+  it('jumps to every tour stop in either direction and resumes playback', () => {
+    useSimulation.getState().startTour()
+    for (const index of [9, 3, 0, 11, 6, 5, 7, 8, 10, 2, 1, 4]) {
+      useSimulation.getState().set({ tourPaused: true })
+      const revision = useSimulation.getState().cameraRevision
+      useSimulation.getState().jumpToTourStop(index)
+      expect(useSimulation.getState()).toMatchObject({
+        tour: index, tourPaused: false, selected: tourStops[index].body,
+        cameraMode: tourStops[index].body ? 'follow' : 'system', cameraRevision: revision + 1,
+      })
+    }
+    useSimulation.getState().nextTour()
+    expect(useSimulation.getState().tour).toBe(5)
+    useSimulation.getState().jumpToTourStop(tourStops.length - 1)
+    useSimulation.getState().nextTour()
+    expect(useSimulation.getState().tour).toBeNull()
+  })
+  it('restarts the current tour stop and ignores invalid destinations', () => {
+    useSimulation.getState().startTour()
+    const revision = useSimulation.getState().cameraRevision
+    useSimulation.getState().jumpToTourStop(0)
+    expect(useSimulation.getState().cameraRevision).toBe(revision + 1)
+    const state = useSimulation.getState()
+    for (const index of [-1, tourStops.length, 1.5, NaN]) {
+      useSimulation.getState().jumpToTourStop(index)
+      expect(useSimulation.getState()).toBe(state)
+    }
   })
 })
