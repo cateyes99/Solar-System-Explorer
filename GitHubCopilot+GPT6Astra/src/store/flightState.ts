@@ -1,0 +1,1 @@
+export const flight = { speed: 0, distance: 0, arrived: false, autoPilot: true, orbitPath: false }
