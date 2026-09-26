@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { tourStops } from '../src/data/planets'
 
 test('renders the solar system, animates pixels, and selects Earth', async ({ page }) => {
   const errors: string[] = []
@@ -77,6 +78,99 @@ test('tour supports start, pause, resume, skip, and exit', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Pause tour' })).toBeVisible()
   await page.getByRole('button', { name: 'Exit tour', exact: true }).last().click()
   await expect(page.getByRole('region', { name: 'Cinematic tour' })).toHaveCount(0)
+})
+
+test('tour steps jump in either direction and restart automatic playback', async ({ page }) => {
+  await page.clock.install()
+  await page.goto('/?fallback')
+  await page.clock.pauseAt(new Date(Date.now() + 1000))
+  await page.getByRole('button', { name: 'Cinematic Tour' }).click()
+  const popup = page.getByRole('region', { name: 'Cinematic tour' })
+  const steps = popup.getByRole('navigation', { name: 'Tour steps' }).getByRole('button')
+  await expect(steps).toHaveCount(12)
+  await page.getByRole('button', { name: 'Pause tour' }).click()
+  for (const index of [9, 3, 0, 11, 6, 5, 7, 8, 10, 2, 1, 4]) {
+    await steps.nth(index).click()
+    await expect(popup.getByRole('heading')).toHaveText(tourStops[index].title)
+    await expect(steps.nth(index)).toHaveAttribute('aria-current', 'step')
+    await expect(popup.getByRole('button', { name: 'Pause tour' })).toBeVisible()
+  }
+  await page.clock.runFor(10000)
+  await steps.nth(4).focus()
+  await page.keyboard.press('Enter')
+  await page.clock.runFor(1000)
+  await expect(steps.nth(4)).toHaveAttribute('aria-current', 'step')
+  await page.clock.runFor(9500)
+  await expect(steps.nth(5)).toHaveAttribute('aria-current', 'step')
+  await expect(popup.getByRole('heading')).toHaveText(tourStops[5].title)
+  await steps.last().click()
+  await page.clock.runFor(10500)
+  await expect(popup).toHaveCount(0)
+})
+
+test('tour popup drags, stays on screen, and adjusts opacity in one-percent steps', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cinematic Tour' }).click()
+  const popup = page.getByRole('region', { name: 'Cinematic tour' })
+  const handle = page.getByRole('button', { name: 'Move tour popup' })
+  const opacity = page.getByRole('slider', { name: 'Opacity' })
+  await page.getByRole('button', { name: 'Pause tour' }).click()
+  await expect(opacity).toHaveAttribute('step', '1')
+  await opacity.fill('37')
+  await expect(popup.locator('output')).toHaveText('37%')
+  await expect(popup.locator('.tour-narration')).toHaveCSS('opacity', '0.37')
+  await opacity.press('ArrowRight')
+  await expect(opacity).toHaveValue('38')
+  await opacity.fill('0')
+  await expect(popup.locator('.tour-narration')).toHaveCSS('opacity', '0')
+  await expect(popup.locator('.tour-narration')).toHaveAttribute('inert', '')
+  await expect(popup.locator('.tour-toolbar')).toBeVisible()
+  await opacity.fill('100')
+  await expect(popup.locator('.tour-narration')).toHaveCSS('opacity', '1')
+  await expect(popup.locator('.tour-narration')).not.toHaveAttribute('inert', '')
+
+  const initial = (await popup.boundingBox())!
+  const grip = (await handle.boundingBox())!
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(grip.x - 300, grip.y + 150, { steps: 8 })
+  await page.mouse.up()
+  const moved = (await popup.boundingBox())!
+  expect(moved.x).toBeLessThan(initial.x - 250)
+  expect(moved.y).toBeGreaterThan(initial.y + 100)
+  await opacity.fill('61')
+  await page.getByRole('button', { name: 'Next stop' }).click()
+  await expect(opacity).toHaveValue('61')
+  expect((await popup.boundingBox())!.x).toBe(moved.x)
+  await handle.focus()
+  await handle.press('ArrowLeft')
+  expect((await popup.boundingBox())!.x).toBe(moved.x - 10)
+  await expect(page.locator('canvas')).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/tour-popup-desktop.png' })
+  const currentGrip = (await handle.boundingBox())!
+  await page.mouse.move(currentGrip.x + 18, currentGrip.y + 18)
+  await page.mouse.down()
+  await page.mouse.move(-200, -200, { steps: 5 })
+  expect((await popup.boundingBox())!.x).toBe(8)
+  expect((await popup.boundingBox())!.y).toBe(8)
+  await page.mouse.move(1600, 1100, { steps: 5 })
+  await page.mouse.up()
+  const corner = (await popup.boundingBox())!
+  expect(corner.x + corner.width).toBeLessThanOrEqual(1432)
+  expect(corner.y + corner.height).toBeLessThanOrEqual(892)
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+    await page.setViewportSize(viewport)
+    await expect.poll(async () => {
+      const bounds = (await popup.boundingBox())!
+      return bounds.x >= 8 && bounds.y >= 8 && bounds.x + bounds.width <= viewport.width - 8 && bounds.y + bounds.height <= viewport.height - 8
+    }).toBe(true)
+    await expect(opacity).toBeVisible()
+    await page.screenshot({ path: `test-results/tour-popup-${viewport.width}.png` })
+  }
+  await popup.getByRole('button', { name: 'Exit tour', exact: true }).click()
+  await expect(popup).toHaveCount(0)
 })
 
 test('all eight lessons have working interactive controls', async ({ page }) => {

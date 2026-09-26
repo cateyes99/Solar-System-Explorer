@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ArrowRight, AudioLines, BookOpen, Check, ChevronRight, Compass, Focus, Globe2, Maximize, Minimize, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Settings2, Shuffle, SkipForward, Sparkles, Telescope, Volume2, VolumeX, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, AudioLines, BookOpen, Check, ChevronRight, Compass, Focus, Globe2, GripHorizontal, Maximize, Minimize, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Settings2, Shuffle, SkipForward, Sparkles, Telescope, Volume2, VolumeX, X } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -110,22 +110,81 @@ export function DiscoveryTools() {
   </>
 }
 
+function constrainTourPosition(left: number, top: number, element: HTMLElement) {
+  return {
+    left: Math.max(8, Math.min(left, window.innerWidth - element.offsetWidth - 8)),
+    top: Math.max(8, Math.min(top, window.innerHeight - element.offsetHeight - 8)),
+  }
+}
+
 export function TourControls() {
   const tour = useSimulation(state => state.tour)
   const paused = useSimulation(state => state.tourPaused)
   const reduced = useSimulation(state => state.reducedMotion)
+  const cameraRevision = useSimulation(state => state.cameraRevision)
+  const [opacity, setOpacity] = useState(100)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const popup = useRef<HTMLElement>(null)
+  const drag = useRef<{ pointerId: number; left: number; top: number } | null>(null)
+  const active = tour !== null
+  useEffect(() => {
+    const element = popup.current
+    if (!active || !element) return
+    const constrain = () => {
+      const bounds = element.getBoundingClientRect()
+      const next = constrainTourPosition(bounds.left, bounds.top, element)
+      setPosition(current => current?.left === next.left && current?.top === next.top ? current : next)
+    }
+    const observer = new ResizeObserver(constrain)
+    observer.observe(element)
+    window.addEventListener('resize', constrain)
+    constrain()
+    return () => { observer.disconnect(); window.removeEventListener('resize', constrain); drag.current = null }
+  }, [active])
   useEffect(() => {
     if (tour === null || paused || reduced) return
     const timer = setTimeout(() => useSimulation.getState().nextTour(), 10500)
     return () => clearTimeout(timer)
-  }, [tour, paused, reduced])
+  }, [tour, paused, reduced, cameraRevision])
   if (tour === null) return null
   const stop = tourStops[tour]
-  return <section className="tour-narration" aria-label="Cinematic tour">
-    <div className="tour-progress">{tourStops.map((_, index) => <span className={index <= tour ? 'complete' : ''} key={index} />)}</div>
-    <div className="panel-top"><span className="eyebrow">THE GRAND TOUR <span className="muted">/ {String(tour + 1).padStart(2, '0')} OF {tourStops.length}</span></span><IconButton label="Exit tour" onClick={() => useSimulation.getState().exitTour()}><X size={18} /></IconButton></div>
-    <div aria-live="polite"><h2>{stop.title}</h2><p>{stop.text}</p></div>
-    <div className="tour-actions"><button onClick={() => useSimulation.getState().set({ tourPaused: !paused })}>{paused ? <Play size={15} /> : <Pause size={15} />}{paused ? 'Resume tour' : 'Pause tour'}</button><button onClick={() => useSimulation.getState().nextTour()}>Next stop <SkipForward size={15} /></button></div>
+  return <section ref={popup} className="tour-window" aria-label="Cinematic tour" style={position ? { left: position.left, top: position.top, right: 'auto' } : undefined}>
+    <div className="tour-toolbar">
+      <IconButton label="Move tour popup" className="tour-drag-handle"
+        onPointerDown={event => {
+          if (!event.isPrimary || event.button !== 0 || !popup.current) return
+          const bounds = popup.current.getBoundingClientRect()
+          drag.current = { pointerId: event.pointerId, left: event.clientX - bounds.left, top: event.clientY - bounds.top }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerMove={event => {
+          if (!drag.current || drag.current.pointerId !== event.pointerId || !popup.current) return
+          setPosition(constrainTourPosition(event.clientX - drag.current.left, event.clientY - drag.current.top, popup.current))
+        }}
+        onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
+        onLostPointerCapture={() => { drag.current = null }}
+        onKeyDown={event => {
+          if (!popup.current || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+          event.preventDefault()
+          const bounds = popup.current.getBoundingClientRect()
+          const distance = event.shiftKey ? 40 : 10
+          setPosition(constrainTourPosition(
+            bounds.left + (event.key === 'ArrowRight' ? distance : event.key === 'ArrowLeft' ? -distance : 0),
+            bounds.top + (event.key === 'ArrowDown' ? distance : event.key === 'ArrowUp' ? -distance : 0),
+            popup.current,
+          ))
+        }}><GripHorizontal size={18} /></IconButton>
+      <label htmlFor="tour-opacity">Opacity</label>
+      <input id="tour-opacity" type="range" min="0" max="100" step="1" value={opacity} aria-valuetext={`${opacity}%`} onChange={event => setOpacity(Number(event.target.value))} />
+      <output htmlFor="tour-opacity">{opacity}%</output>
+      <IconButton label="Exit tour" onClick={() => useSimulation.getState().exitTour()}><X size={18} /></IconButton>
+    </div>
+    <div className="tour-narration" style={{ opacity: opacity / 100, pointerEvents: opacity === 0 ? 'none' : 'auto' }} inert={opacity === 0}>
+      <nav className="tour-progress" aria-label="Tour steps">{tourStops.map((tourStop, index) => <button key={index} className={index <= tour ? 'complete' : ''} aria-label={`Step ${index + 1}: ${tourStop.title}`} title={`Step ${index + 1}: ${tourStop.title}`} aria-current={index === tour ? 'step' : undefined} onClick={() => useSimulation.getState().jumpToTourStop(index)} />)}</nav>
+      <div className="panel-top"><span className="eyebrow">THE GRAND TOUR <span className="muted">/ {String(tour + 1).padStart(2, '0')} OF {tourStops.length}</span></span></div>
+      <div aria-live="polite"><h2>{stop.title}</h2><p>{stop.text}</p></div>
+      <div className="tour-actions"><button onClick={() => useSimulation.getState().set({ tourPaused: !paused })}>{paused ? <Play size={15} /> : <Pause size={15} />}{paused ? 'Resume tour' : 'Pause tour'}</button><button onClick={() => useSimulation.getState().nextTour()}>Next stop <SkipForward size={15} /></button></div>
+    </div>
   </section>
 }
 
