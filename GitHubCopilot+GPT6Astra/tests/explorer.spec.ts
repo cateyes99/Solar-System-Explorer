@@ -1,6 +1,128 @@
 import { test, expect } from '@playwright/test'
 import { tourStops } from '../src/data/planets'
 
+test('Earth cloud shapes evolve independently of rotation and respect motion controls', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
+  const canvas = page.locator('.scene canvas')
+  const cloudState = (settings: Record<string, unknown> = {}, compareShapes = false) => page.evaluate(async ({ settings, compareShapes }) => {
+    const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+    const storePath = resources.find(name => new URL(name).pathname === '/src/store/simulationStore.ts')!
+    const fiberPath = resources.find(name => new URL(name).pathname.endsWith('/@react-three_fiber.js'))!
+    const { useSimulation } = await import(storePath)
+    const { _roots } = await import(fiberPath)
+    useSimulation.getState().set(settings)
+    const element = document.querySelector<HTMLCanvasElement>('.scene canvas')!
+    const { scene, camera, gl } = _roots.get(element).store.getState()
+    const clouds = scene.getObjectByName('earth-clouds')
+    const clock = clouds.material.userData.cloudTime
+    let changedPixels = 0
+    if (compareShapes) {
+      const renderer = element.getContext('webgl2')!
+      const before = new Uint8Array(element.width * element.height * 4)
+      const after = new Uint8Array(before.length)
+      clock.value = 0
+      gl.render(scene, camera)
+      renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, before)
+      clock.value = 8
+      gl.render(scene, camera)
+      renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, after)
+      for (let index = 0; index < before.length; index += 4) {
+        if (Math.abs(before[index] - after[index]) + Math.abs(before[index + 1] - after[index + 1]) + Math.abs(before[index + 2] - after[index + 2]) > 24) changedPixels++
+      }
+    }
+    return { time: clock.value as number, rotation: clouds.rotation.y as number, changedPixels }
+  }, { settings, compareShapes })
+  await cloudState({ speed: 0, paused: true, reducedMotion: true })
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const before = await cloudState()
+    const after = await cloudState({}, true)
+    expect(after.rotation).toBe(before.rotation)
+    expect(after.changedPixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/earth-cloud-shapes-${width}.png` })
+  }
+  const moving = await cloudState({ paused: false, reducedMotion: false })
+  await expect.poll(async () => (await cloudState()).time).toBeGreaterThan(moving.time + .2)
+  expect((await cloudState()).rotation).toBeGreaterThan(moving.rotation)
+  for (const settings of [{ paused: true }, { paused: false, reducedMotion: true }, { reducedMotion: false, experiment: 'no-spin' }]) {
+    const stopped = await cloudState(settings)
+    await page.evaluate(() => new Promise<void>(resolve => {
+      let frames = 0
+      const next = () => { if (++frames === 8) resolve(); else requestAnimationFrame(next) }
+      requestAnimationFrame(next)
+    }))
+    expect(await cloudState()).toEqual(stopped)
+  }
+  const resumed = await cloudState({ experiment: 'none' })
+  await expect.poll(async () => (await cloudState()).time).toBeGreaterThan(resumed.time)
+  expect(errors).toEqual([])
+})
+
+test('Earth atmosphere drifts subtly and respects motion controls', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
+  const canvas = page.locator('.scene canvas')
+  const atmosphereTime = (settings: Record<string, unknown> = {}) => page.evaluate(async settings => {
+    const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+    const storePath = resources.find(name => new URL(name).pathname === '/src/store/simulationStore.ts')!
+    const fiberPath = resources.find(name => new URL(name).pathname.endsWith('/@react-three_fiber.js'))!
+    const { useSimulation } = await import(storePath)
+    const { _roots } = await import(fiberPath)
+    useSimulation.getState().set(settings)
+    const scene = _roots.get(document.querySelector('.scene canvas')).store.getState().scene
+    let time: number | undefined
+    scene.traverse((object: { material?: { uniforms?: { motion?: { value: number }; time: { value: number } } } }) => {
+      if (object.material?.uniforms?.motion?.value === 1) time = object.material.uniforms.time.value
+    })
+    if (time === undefined) throw new Error('Earth atmosphere material was not found.')
+    return time
+  }, settings)
+  await atmosphereTime({ speed: 0, paused: false, reducedMotion: false })
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const before = await atmosphereTime()
+    const first = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+    await expect.poll(() => atmosphereTime()).toBeGreaterThan(before + .2)
+    await expect.poll(() => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(first)
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(40 * 40 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 20, Math.floor(centerY) - 20, 40, 40, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 20).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/earth-atmosphere-${width}.png` })
+  }
+  for (const settings of [{ paused: true }, { paused: false, reducedMotion: true }, { reducedMotion: false, experiment: 'no-spin' }]) {
+    const stopped = await atmosphereTime(settings)
+    await page.evaluate(() => new Promise<void>(resolve => {
+      let frames = 0
+      const next = () => { if (++frames === 8) resolve(); else requestAnimationFrame(next) }
+      requestAnimationFrame(next)
+    }))
+    expect(await atmosphereTime()).toBe(stopped)
+  }
+  const resumed = await atmosphereTime({ experiment: 'none' })
+  await expect.poll(() => atmosphereTime()).toBeGreaterThan(resumed)
+  expect(errors).toEqual([])
+})
+
 test('renders the solar system, animates pixels, and selects Earth', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

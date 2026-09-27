@@ -116,9 +116,17 @@ export function makeClouds(): CanvasTexture {
   context.filter = 'blur(3px)'
   for (let cloud = 0; cloud < 650; cloud++) {
     context.fillStyle = `rgba(255,255,255,${random() * .5})`
-    context.beginPath()
-    context.ellipse(random() * 1024, random() * 512, 5 + random() * 45, 2 + random() * 9, -.25, 0, Math.PI * 2)
-    context.fill()
+    const horizontal = random() * 1024
+    const vertical = random() * 512
+    const width = 5 + random() * 45
+    const height = 2 + random() * 9
+    for (const offset of [-1024, 0, 1024]) {
+      context.beginPath()
+      context.ellipse(horizontal + offset, vertical, width, height, -.25, 0, Math.PI * 2)
+      context.fill()
+    }
   }
-  return new CanvasTexture(canvas)
+  const texture = new CanvasTexture(canvas)
+  texture.wrapS = RepeatWrapping
+  return texture
 }
