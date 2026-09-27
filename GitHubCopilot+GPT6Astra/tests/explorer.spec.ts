@@ -75,7 +75,7 @@ test('Halley has an inspectable nucleus, full orbit, and dated active appearance
   expect(errors).toEqual([])
 })
 
-test('Halley crosses aphelion and the date limit pauses visibly with restart', async ({ page }) => {
+test('Halley crosses aphelion with a closed orbit', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/')
@@ -108,20 +108,72 @@ test('Halley crosses aphelion and the date limit pauses visibly with restart', a
     expect(litPixels).toBeGreaterThan(100)
     await page.screenshot({ path: `test-results/halley-closed-orbit-${width}.png` })
   }
-  await page.evaluate(async () => {
-    const modulePath = performance.getEntriesByType('resource').map(entry => entry.name).find(name => new URL(name).pathname === '/src/store/simulationStore.ts')
-    if (!modulePath) throw new Error('The simulation store was not loaded.')
-    const { useSimulation } = await import(modulePath)
-    useSimulation.getState().set({ days: 24999, speed: 365, paused: false })
-  })
-  await expect(page.getByRole('status').filter({ hasText: 'END OF DATE RANGE' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Advance one day', exact: true })).toBeDisabled()
-  await page.getByRole('button', { name: 'Slow', exact: true }).click()
-  await page.getByRole('button', { name: 'Restart simulation', exact: true }).click()
-  await expect(page.locator('time')).toHaveAttribute('dateTime', /^2026/)
-  await expect(page.getByRole('button', { name: 'Pause simulation', exact: true })).toBeVisible()
   expect(errors).toEqual([])
 })
+
+for (const width of [1440, 390]) {
+  test(`JPL limit consent and approximate reset work at ${width}px`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/')
+    await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+    await page.locator('.index-item').filter({ hasText: "Halley's Comet" }).click()
+    const reachBoundary = async (manual = false) => page.evaluate(async manualStep => {
+      const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+      const storePath = resources.find(name => new URL(name).pathname === '/src/store/simulationStore.ts')!
+      const astronomyPath = resources.find(name => new URL(name).pathname === '/src/utils/astronomy.ts')!
+      const { useSimulation } = await import(storePath)
+      const { MAX_DAYS } = await import(astronomyPath)
+      useSimulation.getState().set({ days: MAX_DAYS - .05, speed: 1, paused: manualStep, reducedMotion: false })
+    }, manual)
+    await reachBoundary()
+    const dialog = page.getByRole('dialog', { name: 'JPL data limit' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toContainText('Now it has reached the date limit of JPL data')
+    await expect(dialog).toContainText('Would you like to switch to approximate orbital calculations outside the available data range?')
+    await expect(dialog.getByRole('button', { name: 'No', exact: true })).toBeFocused()
+    await page.screenshot({ path: `test-results/jpl-consent-${width}.png` })
+    await dialog.getByRole('button', { name: 'No', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByRole('button', { name: 'Play simulation', exact: true })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toHaveCount(0)
+    const stoppedDate = await page.locator('time').getAttribute('dateTime')
+    await page.getByRole('button', { name: 'Advance one day', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).not.toBeVisible()
+    await expect(page.locator('time')).toHaveAttribute('dateTime', stoppedDate!)
+    await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Yes', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Pause simulation', exact: true })).toBeVisible()
+    await expect(page.locator('time')).not.toHaveAttribute('dateTime', stoppedDate!)
+    const canvas = page.locator('.scene canvas')
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const pixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(80 * 80 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 40, Math.floor(centerY) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 12).length
+    })
+    expect(pixels).toBeGreaterThan(100)
+    await page.screenshot({ path: `test-results/jpl-approximate-${width}.png` })
+    await page.getByRole('button', { name: 'Reset simulation date', exact: true }).click()
+    await expect(page.locator('time')).toHaveAttribute('dateTime', /^2026/)
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toHaveCount(0)
+    await reachBoundary(true)
+    await page.getByRole('button', { name: 'Advance one day', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Reset simulation date', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.locator('time')).toHaveText('26 Sept 2026')
+    expect(errors).toEqual([])
+  })
+}
 
 test('time, keyboard, camera, labels, and reduced motion work', async ({ page }) => {
   await page.goto('/')

@@ -1,11 +1,15 @@
-import { Body, HelioVector, GeoMoon, MakeTime, RotateVector, Rotation_EQJ_ECL } from 'astronomy-engine'
+import { AstroTime, Body, HelioVector, GeoMoon, MakeTime, RotateVector, Rotation_EQJ_ECL } from 'astronomy-engine'
 import { bodyById, DAY_MS, EPOCH, type BodyId } from '../data/planets'
-import { halleyOrbitAt, halleyVectorAt } from './halley'
+import { halleyEnd, halleyOrbitAt, halleyStart, halleyVectorAt } from './halley'
 
 export type ScaleMode = 'educational' | 'relative' | 'distances' | 'custom'
 export type Point3 = [number, number, number]
-export const MIN_DAYS = -25000
-export const MAX_DAYS = 25000
+export const MIN_DAYS = (AstroTime.FromTerrestrialTime(halleyStart - 2451545).date.getTime() + 1 - EPOCH) / DAY_MS
+export const MAX_DAYS = (AstroTime.FromTerrestrialTime(halleyEnd - 2451545).date.getTime() - 1 - EPOCH) / DAY_MS
+
+export function usesApproximatePositions(days: number): boolean {
+  return days < MIN_DAYS || days > MAX_DAYS
+}
 
 const eclipticRotation = Rotation_EQJ_ECL()
 const moonMeanDistanceAU = 384400 / 149597870.7

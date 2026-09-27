@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useShallow } from 'zustand/react/shallow'
 import { allFacts, bodies, bodyById, DAY_MS, EPOCH, planets, tourStops } from '../../data/planets'
 import { useSimulation } from '../../store/simulationStore'
-import { formatDate, MAX_DAYS } from '../../utils/astronomy'
+import { formatDate, usesApproximatePositions } from '../../utils/astronomy'
 
 export function IconButton({ label, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
   return <button {...props} className={`icon-button ${props.className ?? ''}`} aria-label={label} title={label}>{children}</button>
@@ -80,23 +80,43 @@ export function PlanetPanel() {
   </motion.aside>}</AnimatePresence>
 }
 
+function DateLimitDialog() {
+  const open = useSimulation(state => state.dateLimitPrompt)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const decline = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (open) { dialog.current?.showModal(); decline.current?.focus() }
+    else dialog.current?.close()
+  }, [open])
+  return <dialog ref={dialog} className="date-limit-dialog" aria-labelledby="date-limit-title" aria-describedby="date-limit-message date-limit-question" onCancel={event => { event.preventDefault(); useSimulation.getState().resolveDateLimit(false) }}>
+    <h2 id="date-limit-title">JPL data limit</h2>
+    <p id="date-limit-message">Now it has reached the date limit of JPL data</p>
+    <p id="date-limit-question">Would you like to switch to approximate orbital calculations outside the available data range?</p>
+    <div className="date-limit-actions">
+      <button onClick={() => useSimulation.getState().resetDate()}><RotateCcw size={16} />Reset simulation date</button>
+      <button ref={decline} onClick={() => useSimulation.getState().resolveDateLimit(false)}>No</button>
+      <button className="confirm-approximation" onClick={() => useSimulation.getState().resolveDateLimit(true)}>Yes</button>
+    </div>
+  </dialog>
+}
+
 export function TimeControls() {
   const paused = useSimulation(state => state.paused)
   const speed = useSimulation(state => state.speed)
   const reduced = useSimulation(state => state.reducedMotion)
   const [days, setDays] = useState(useSimulation.getState().days)
-  const atDateLimit = days >= MAX_DAYS
+  const approximate = usesApproximatePositions(days)
   useEffect(() => {
     const interval = setInterval(() => setDays(useSimulation.getState().days), 250)
     return () => clearInterval(interval)
   }, [])
-  return <footer className="time-bar">
-    <div className="time-label"><span className="eyebrow" role="status">{atDateLimit ? 'END OF DATE RANGE' : 'THE COSMIC CLOCK'}</span><time dateTime={new Date(Date.UTC(2026, 8, 26, 12) + days * 86400000).toISOString()}>{formatDate(days)}</time></div>
-    <div className="transport"><IconButton label="Reset simulation date" onClick={() => { useSimulation.getState().set({ days: 0 }); setDays(0) }}><RotateCcw size={17} /></IconButton><IconButton label={atDateLimit ? 'Restart simulation' : paused || reduced ? 'Play simulation' : 'Pause simulation'} className="play-control" onClick={() => { if (atDateLimit) { useSimulation.getState().set({ days: 0, paused: false, reducedMotion: false }); setDays(0) } else useSimulation.getState().set(reduced ? { reducedMotion: false, paused: false } : { paused: !paused }) }}>{atDateLimit ? <RotateCcw size={19} /> : paused || reduced ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</IconButton><IconButton label="Advance one day" disabled={atDateLimit} onClick={() => { useSimulation.getState().advance(1); setDays(useSimulation.getState().days) }}><SkipForward size={18} /></IconButton></div>
+  return <><footer className="time-bar">
+    <div className="time-label"><span className={`eyebrow ${approximate ? 'position-accuracy' : ''}`} role="status">{approximate ? 'Approximate positions' : 'THE COSMIC CLOCK'}</span><time dateTime={new Date(EPOCH + days * DAY_MS).toISOString()}>{formatDate(days)}</time></div>
+    <div className="transport"><IconButton label="Reset simulation date" onClick={() => { useSimulation.getState().resetDate(); setDays(0) }}><RotateCcw size={17} /></IconButton><IconButton label={paused || reduced ? 'Play simulation' : 'Pause simulation'} className="play-control" onClick={() => useSimulation.getState().set(reduced ? { reducedMotion: false, paused: false } : { paused: !paused })}>{paused || reduced ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</IconButton><IconButton label="Advance one day" onClick={() => { useSimulation.getState().advance(1); setDays(useSimulation.getState().days) }}><SkipForward size={18} /></IconButton></div>
     <div className="speed-controls" aria-label="Simulation speed">{[{ label: 'Slow', value: 1 }, { label: 'Normal', value: 8 }, { label: 'Fast', value: 30 }, { label: 'Very Fast', value: 365 }].map(item => <button key={item.value} className={speed === item.value ? 'active' : ''} aria-pressed={speed === item.value} onClick={() => useSimulation.getState().set({ speed: item.value })}>{item.label}</button>)}</div>
     <div className="speed-readout"><AudioLines size={16} /><span><strong>{reduced || paused ? 'PAUSED' : `${speed} DAYS / SEC`}</strong><small>Simulation speed: {(speed * 86400).toLocaleString()}x</small></span></div>
     <span className="timeline-decoration" aria-hidden="true" />
-  </footer>
+  </footer><DateLimitDialog /></>
 }
 
 export function DiscoveryTools() {
@@ -124,6 +144,7 @@ function constrainTourPosition(left: number, top: number, element: HTMLElement) 
 
 export function TourControls() {
   const tour = useSimulation(state => state.tour)
+  const dateLimitPrompt = useSimulation(state => state.dateLimitPrompt)
   const paused = useSimulation(state => state.tourPaused)
   const reduced = useSimulation(state => state.reducedMotion)
   const cameraRevision = useSimulation(state => state.cameraRevision)
@@ -147,10 +168,10 @@ export function TourControls() {
     return () => { observer.disconnect(); window.removeEventListener('resize', constrain); drag.current = null }
   }, [active])
   useEffect(() => {
-    if (tour === null || paused || reduced) return
+    if (tour === null || paused || reduced || dateLimitPrompt) return
     const timer = setTimeout(() => useSimulation.getState().nextTour(), 10500)
     return () => clearTimeout(timer)
-  }, [tour, paused, reduced, cameraRevision])
+  }, [tour, paused, reduced, cameraRevision, dateLimitPrompt])
   if (tour === null) return null
   const stop = tourStops[tour]
   return <section ref={popup} className="tour-window" aria-label="Cinematic tour" style={position ? { left: position.left, top: position.top, right: 'auto' } : undefined}>

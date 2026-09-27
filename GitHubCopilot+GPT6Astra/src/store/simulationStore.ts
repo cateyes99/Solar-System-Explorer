@@ -13,6 +13,8 @@ interface SimulationState {
   speed: number
   paused: boolean
   days: number
+  approximationAllowed: boolean
+  dateLimitPrompt: boolean
   reducedMotion: boolean
   labels: boolean
   orbits: boolean
@@ -33,6 +35,8 @@ interface SimulationState {
   select: (id: BodyId, focus?: boolean) => void
   viewSystem: () => void
   advance: (days: number) => void
+  resolveDateLimit: (accept: boolean) => void
+  resetDate: () => void
   tick: (seconds: number) => void
   set: (values: Partial<SimulationState>) => void
   startTour: () => void
@@ -44,6 +48,7 @@ interface SimulationState {
 export const useSimulation = create<SimulationState>((set, get) => ({
   selected: null, cameraMode: 'system', cameraRevision: 0,
   speed: 8, paused: false, days: 0,
+  approximationAllowed: false, dateLimitPrompt: false,
   reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   labels: true, orbits: true, audio: false, panel: null,
   scale: 'educational', size: 1, spacing: 1,
@@ -51,13 +56,22 @@ export const useSimulation = create<SimulationState>((set, get) => ({
   missionDestination: 'earth', missionActive: false, thrust: 0, steer: 0, missionReset: 0,
   select: (selected, focus = true) => set(state => ({ selected, cameraMode: focus ? 'follow' : state.cameraMode, cameraRevision: state.cameraRevision + 1, panel: null })),
   viewSystem: () => set(state => ({ cameraMode: 'system', cameraRevision: state.cameraRevision + 1, selected: null })),
-  advance: days => set(state => ({ days: clampDays(state.days + days) })),
+  advance: amount => {
+    const state = get()
+    if (state.dateLimitPrompt || !Number.isFinite(amount)) return
+    const days = state.days + amount
+    if (!state.approximationAllowed && ((amount > 0 && days >= MAX_DAYS) || (amount < 0 && days <= MIN_DAYS))) {
+      set({ days: clampDays(days), paused: true, dateLimitPrompt: true })
+    } else set({ days })
+  },
+  resolveDateLimit: accept => {
+    if (!get().dateLimitPrompt) return
+    set({ dateLimitPrompt: false, approximationAllowed: accept, paused: !accept, ...(accept ? { reducedMotion: false } : {}) })
+  },
+  resetDate: () => set(state => ({ days: 0, approximationAllowed: false, dateLimitPrompt: false, cameraRevision: state.cameraRevision + 1 })),
   tick: seconds => {
     const state = get()
-    if (!state.paused && !state.reducedMotion) {
-      const days = clampDays(state.days + Math.min(seconds, .2) * state.speed)
-      set({ days, paused: days === MAX_DAYS || days === MIN_DAYS })
-    }
+    if (!state.paused && !state.reducedMotion && !state.dateLimitPrompt) get().advance(Math.min(seconds, .2) * state.speed)
   },
   set: values => set(values),
   startTour: () => set(state => ({ tour: 0, tourPaused: false, panel: null, selected: null, cameraMode: 'system', cameraRevision: state.cameraRevision + 1, missionActive: false })),

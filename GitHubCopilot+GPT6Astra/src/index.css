@@ -77,6 +77,15 @@ h1, h2, h3 { font-family: 'Manrope', sans-serif; }
 .time-label { min-width: 182px; }
 .time-label .eyebrow { font-size: 8px; color: #74848c; letter-spacing: 1.8px; }
 .time-label time { display: block; font-family: 'Manrope', sans-serif; font-size: 18px; margin-top: 7px; font-variant-numeric: tabular-nums; }
+.time-label .position-accuracy { font-size: 10px; letter-spacing: 0; color: #efcd8e; }
+.date-limit-dialog { width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 24px; color: #e2e9ec; background: #151e24; border: 1px solid #647982; border-radius: 6px; box-shadow: 0 24px 80px #0008; }
+.date-limit-dialog::backdrop { background: #03070bbb; }
+.date-limit-dialog h2 { margin: 0 0 16px; font-size: 22px; letter-spacing: 0; }
+.date-limit-dialog p { font-size: 14px; line-height: 1.6; margin: 12px 0; }
+.date-limit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.date-limit-actions button { gap: 8px; padding: 10px 14px; border: 1px solid #647982; border-radius: 4px; font-size: 13px; }
+.date-limit-actions button:first-child { margin-right: auto; }
+.date-limit-actions .confirm-approximation { color: #11271d; background: #b5eacb; border-color: #b5eacb; }
 .transport { display: flex; align-items: center; gap: 12px; }
 .play-control { height: 43px; width: 43px; border: 1px solid #95a7ab4f; border-radius: 50%; color: #c8d9d3; }
 .speed-controls { display: flex; padding: 5px; background: #ffffff03; border: 1px solid var(--line); border-radius: 5px; gap: 4px; }

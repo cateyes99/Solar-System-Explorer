@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DAY_MS, EPOCH, planets, tourStops, type BodyId } from '../data/planets'
-import { gravityAcceleration, orbitFor, orbitPathFor, positionFor, radiusFor, type ScaleMode } from './astronomy'
+import { gravityAcceleration, MAX_DAYS, MIN_DAYS, orbitFor, orbitPathFor, positionFor, radiusFor, usesApproximatePositions, type ScaleMode } from './astronomy'
 import { useSimulation } from '../store/simulationStore'
-import { cometActivity, halleyEnd, halleyOrbitAt, halleySamples, halleyStart, halleyVectorAt } from './halley'
+import { cometActivity, halleyOrbitAt, halleySamples, halleyVectorAt } from './halley'
 
 describe('Halley JPL Horizons ephemeris', () => {
   it('closes the full orbit guide without a gap at any supported date', () => {
@@ -52,12 +52,32 @@ describe('Halley JPL Horizons ephemeris', () => {
     const expected = [-19.35855837231821, 27.46779996876238, -9.854644267040809]
     actual.forEach((value, axis) => expect(value).toBeCloseTo(expected[axis], 7))
   })
-  it('preserves tabulated states and rejects extrapolation', () => {
+  it('preserves tabulated states and rejects nonfinite dates', () => {
     for (const index of [0, 1, 1000, halleySamples.length - 1]) {
       const sample = halleySamples[index]
       expect(halleyVectorAt(sample[0])).toEqual(sample.slice(1, 4))
     }
-    for (const invalid of [halleyStart - 1, halleyEnd + 1, NaN]) expect(() => halleyVectorAt(invalid)).toThrow(RangeError)
+    for (const invalid of [-Infinity, Infinity, NaN]) expect(() => halleyVectorAt(invalid)).toThrow(RangeError)
+  })
+  it('transitions to approximate orbits without position or velocity jumps', () => {
+    for (const [sample, direction] of [[halleySamples[0], -1], [halleySamples[halleySamples.length - 1], 1]] as const) {
+      const interval = .001 * direction
+      const outside = halleyVectorAt(sample[0] + interval)
+      outside.forEach((value, axis) => {
+        expect(Math.abs(value - sample[axis + 1])).toBeLessThan(.00001)
+        expect((value - sample[axis + 1]) / interval).toBeCloseTo(sample[axis + 4], 7)
+      })
+      for (const offset of [1, 100, 30000, 1000000]) {
+        const date = sample[0] + direction * offset
+        const point = halleyVectorAt(date)
+        expect(point.every(Number.isFinite)).toBe(true)
+        expect(Math.hypot(...point)).toBeGreaterThan(.5)
+        expect(Math.hypot(...point)).toBeLessThan(37)
+        const path = halleyOrbitAt(date)
+        expect(path.flat().every(Number.isFinite)).toBe(true)
+        expect(path[0]).toEqual(path[path.length - 1])
+      }
+    }
   })
   it('matches independent near-perihelion JPL vectors between sample dates', () => {
     for (const [date, expected] of [[2446471, [.3300490784851872, -.4562801522776002, .166034061363485]], [2474033, [.3657381440466182, -.4335240533378054, .1743591884465248]]] as const) {
@@ -167,11 +187,42 @@ describe('astronomy and educational scale', () => {
 })
 
 describe('simulation controls', () => {
-  beforeEach(() => useSimulation.setState({ days: 0, speed: 8, paused: false, reducedMotion: false, tour: null }))
+  beforeEach(() => useSimulation.setState({ days: 0, speed: 8, paused: false, reducedMotion: false, tour: null, approximationAllowed: false, dateLimitPrompt: false }))
   it('pauses explicitly when playback reaches the supported date boundary', () => {
-    useSimulation.setState({ days: 24999, speed: 365 })
+    useSimulation.setState({ days: MAX_DAYS - 1, speed: 365 })
     useSimulation.getState().tick(.1)
-    expect(useSimulation.getState()).toMatchObject({ days: 25000, paused: true })
+    expect(useSimulation.getState()).toMatchObject({ days: MAX_DAYS, paused: true, dateLimitPrompt: true })
+  })
+  it('requires consent for manual steps at either JPL boundary', () => {
+    for (const [boundary, direction] of [[MIN_DAYS, -1], [MAX_DAYS, 1]]) {
+      useSimulation.setState({ days: boundary, dateLimitPrompt: false })
+      useSimulation.getState().advance(direction)
+      expect(useSimulation.getState()).toMatchObject({ days: boundary, paused: true, dateLimitPrompt: true })
+      useSimulation.getState().advance(direction * 100)
+      expect(useSimulation.getState().days).toBe(boundary)
+      useSimulation.getState().resolveDateLimit(false)
+      expect(useSimulation.getState()).toMatchObject({ paused: true, dateLimitPrompt: false, approximationAllowed: false })
+    }
+  })
+  it('continues from the boundary after Yes and clears consent on reset', () => {
+    useSimulation.setState({ days: MAX_DAYS - 1, speed: 30 })
+    useSimulation.getState().tick(.1)
+    useSimulation.getState().resolveDateLimit(true)
+    expect(useSimulation.getState()).toMatchObject({ days: MAX_DAYS, paused: false, approximationAllowed: true })
+    useSimulation.getState().tick(.1)
+    expect(useSimulation.getState().days).toBeCloseTo(MAX_DAYS + 3)
+    expect(usesApproximatePositions(useSimulation.getState().days)).toBe(true)
+    useSimulation.getState().resetDate()
+    expect(useSimulation.getState()).toMatchObject({ days: 0, approximationAllowed: false, dateLimitPrompt: false })
+    expect(usesApproximatePositions(0)).toBe(false)
+  })
+  it('uses the actual bundled JPL coverage as clock boundaries', () => {
+    for (const days of [MIN_DAYS, MAX_DAYS]) {
+      expect(positionFor('halley', days, 'educational').every(Number.isFinite)).toBe(true)
+      expect(usesApproximatePositions(days)).toBe(false)
+    }
+    expect(usesApproximatePositions(MIN_DAYS - 1)).toBe(true)
+    expect(usesApproximatePositions(MAX_DAYS + 1)).toBe(true)
   })
   it('advances, pauses, and resumes simulation time', () => {
     useSimulation.getState().tick(.1)
