@@ -212,6 +212,49 @@ test('time, keyboard, camera, labels, and reduced motion work', async ({ page })
   await expect(page.getByRole('complementary', { name: 'Earth information' })).toHaveCount(0)
 })
 
+test('Ctrl-drag pans horizontally and vertically without snapping back in follow mode', async ({ page }) => {
+  test.setTimeout(150000)
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  const canvas = page.locator('.scene canvas')
+  const label = page.locator('#scene-label-earth')
+  const labelPosition = () => label.evaluate(element => {
+    const anchor = element.style.transform.split(')')[0] + ')'
+    const transform = new DOMMatrix(anchor)
+    return { x: transform.m41, y: transform.m42 }
+  })
+  for (const view of ['overview', 'follow']) {
+    if (view === 'follow') await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    for (const [horizontal, vertical] of [[70, 0], [0, -60]]) {
+      const before = await labelPosition()
+      await page.keyboard.down('Control')
+      await page.mouse.move(850, 520)
+      await page.mouse.down()
+      await page.mouse.move(850 + horizontal, 520 + vertical, { steps: 8 })
+      await page.mouse.up()
+      await page.keyboard.up('Control')
+      await expect.poll(async () => {
+        const after = await labelPosition()
+        return horizontal ? after.x - before.x : before.y - after.y
+      }).toBeGreaterThan(25)
+      await expect.poll(async () => {
+        const first = await labelPosition()
+        await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+        const second = await labelPosition()
+        return Math.hypot(second.x - first.x, second.y - first.y)
+      }).toBeLessThan(.1)
+      const after = await labelPosition()
+      expect(horizontal ? after.x - before.x : before.y - after.y).toBeGreaterThan(25)
+    }
+    await page.screenshot({ path: `test-results/ctrl-pan-${view}.png` })
+  }
+  await page.keyboard.press('h')
+  await expect(page.getByRole('complementary', { name: 'Earth information' })).toHaveCount(0)
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+})
+
 test('tour supports start, pause, resume, skip, and exit', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.loading-screen')).toHaveCount(0)

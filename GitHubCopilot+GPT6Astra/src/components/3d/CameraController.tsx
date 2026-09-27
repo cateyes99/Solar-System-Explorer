@@ -65,12 +65,10 @@ export function CameraController() {
       camera.position.lerp(desired.current, easing)
       control.target.lerp(target.current, easing)
       if (camera.position.distanceTo(desired.current) < Math.min(.08, radius * .04) && control.target.distanceTo(target.current) < Math.min(.08, radius * .04)) moving.current = false
-    } else if (state.cameraMode === 'follow' && state.selected && !state.tourPaused) {
-      control.target.copy(target.current)
     }
     lastTarget.current.copy(target.current)
     gl.domElement.dataset.cameraMoving = String(moving.current)
     control.update()
   })
-  return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={.07} minDistance={selected === 'halley' && scale === 'relative' ? .0002 : .6} maxDistance={20000} maxPolarAngle={Math.PI * .94} onStart={() => { moving.current = false }} />
+  return <OrbitControls ref={controls} makeDefault enablePan screenSpacePanning enableDamping dampingFactor={.07} minDistance={selected === 'halley' && scale === 'relative' ? .0002 : .6} maxDistance={20000} maxPolarAngle={Math.PI * .94} onStart={() => { moving.current = false }} />
 }

@@ -106,7 +106,7 @@ export function Planet({ body }: { body: CelestialBody }) {
 
   return <group ref={group}>
     <group rotation={[0, 0, body.tilt * Math.PI / 180]}>
-      <mesh ref={surface} scale={radius * (hovered ? 1.035 : 1)} onPointerOver={event => { event.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer' }} onPointerOut={() => { setHovered(false); document.body.style.cursor = '' }} onClick={event => { event.stopPropagation(); click() }} onDoubleClick={event => { event.stopPropagation(); click() }}>
+      <mesh ref={surface} scale={radius * (hovered ? 1.035 : 1)} onPointerOver={event => { event.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer' }} onPointerOut={() => { setHovered(false); document.body.style.cursor = '' }} onClick={event => { event.stopPropagation(); if (!event.ctrlKey && !event.metaKey && !event.shiftKey) click() }} onDoubleClick={event => { event.stopPropagation(); if (!event.ctrlKey && !event.metaKey && !event.shiftKey) click() }}>
         {body.id === 'halley' ? <NucleusGeometry /> : <sphereGeometry args={[1, 64, 40]} />}
         {body.id === 'sun' && experiment !== 'no-sun'
           ? <shaderMaterial ref={sun} vertexShader={sunVertex} fragmentShader={sunFragment} uniforms={{ time: { value: 0 } }} />

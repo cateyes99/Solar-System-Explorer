@@ -32,7 +32,7 @@ The production site is generated in `dist/`. Browser tests use an isolated headl
 - Halley's Comet with a JPL Horizons trajectory, an elongated irregular nucleus, a near-Sun coma, and separate dust/ion tails. Select it in the object index for a full-orbit view or dated 1986/2061 perihelion visits.
 - Procedural rocky and banded surfaces, Jupiter's Great Red Spot, Saturn's rings, a shader-driven Sun, atmospheric rims, and locally hosted Earth imagery with clouds.
 - Click a planet or its accessible HTML label to learn about it. Double-clicking a 3D planet also focuses it. The planet index is an equivalent keyboard-accessible route.
-- Smooth fly-ins, a fixed planet view, follow mode, and a full-system view. Orbit by dragging; zoom with the wheel or pinch; pan with right-drag or a two-finger gesture.
+- Smooth fly-ins, a fixed planet view, follow mode, and a full-system view. Orbit by dragging; zoom with the wheel or pinch; hold Ctrl and left-drag to pan horizontally or vertically in the screen plane. Right-drag and two-finger panning also work. Panning preserves your offset in follow mode; H or View Solar System recenters the overview.
 - Four scale modes: educational, relative body diameters, distance-emphasized, and custom planet sizes and orbital spacing.
 - Pause, resume, step by one day, reset the date, and choose 1, 8, 30, or 365 simulated days per real second. The clock starts at 26 September 2026, 12:00 UTC.
 - A guided 12-stop tour with narration, pause/resume, skip, and exit.
