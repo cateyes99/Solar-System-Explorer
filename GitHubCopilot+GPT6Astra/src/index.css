@@ -124,6 +124,10 @@ details p { margin-top: 12px; }
 .camera-modes { display: flex; gap: 4px; border: 1px solid var(--line); border-radius: 4px; padding: 4px; margin-top: 21px; }
 .camera-modes button { font-size: 9px; padding: 8px 6px; flex: 1; color: #8b9ba4; }
 .camera-modes button.active { background: #b5eacb12; color: var(--accent); }
+.comet-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.comet-controls button { gap: 6px; padding: 8px; font-size: 10px; color: var(--accent); border: 1px solid var(--line); border-radius: 4px; }
+.index-item:has(.halley) { font-size: 10px; gap: 8px; }
+.mini-planet.halley { border-radius: 43% 58% 46% 39%; transform: scaleY(.55) rotate(-20deg); }
 .data-note { display: block; font-size: 8px; line-height: 1.6; color: #778790; margin-top: 15px; }
 .settings-section { margin: 25px 0; }
 .settings-section label { font-size: 12px; display: flex; justify-content: space-between; margin: 17px 0 10px; }

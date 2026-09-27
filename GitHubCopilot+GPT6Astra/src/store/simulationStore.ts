@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import { tourStops, type BodyId } from '../data/planets'
-import { clampDays, type ScaleMode } from '../utils/astronomy'
+import { clampDays, MAX_DAYS, MIN_DAYS, type ScaleMode } from '../utils/astronomy'
 
 export type Panel = 'learn' | 'experiments' | 'mission' | 'settings' | null
-export type CameraMode = 'system' | 'planet' | 'follow'
+export type CameraMode = 'system' | 'planet' | 'follow' | 'orbit'
 export type Experiment = 'none' | 'two-moons' | 'giant-earth' | 'no-sun' | 'no-spin'
 
 interface SimulationState {
@@ -54,7 +54,10 @@ export const useSimulation = create<SimulationState>((set, get) => ({
   advance: days => set(state => ({ days: clampDays(state.days + days) })),
   tick: seconds => {
     const state = get()
-    if (!state.paused && !state.reducedMotion) set({ days: clampDays(state.days + Math.min(seconds, .2) * state.speed) })
+    if (!state.paused && !state.reducedMotion) {
+      const days = clampDays(state.days + Math.min(seconds, .2) * state.speed)
+      set({ days, paused: days === MAX_DAYS || days === MIN_DAYS })
+    }
   },
   set: values => set(values),
   startTour: () => set(state => ({ tour: 0, tourPaused: false, panel: null, selected: null, cameraMode: 'system', cameraRevision: state.cameraRevision + 1, missionActive: false })),

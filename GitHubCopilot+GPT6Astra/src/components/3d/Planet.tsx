@@ -5,6 +5,7 @@ import type { CelestialBody } from '../../data/planets'
 import { useSimulation } from '../../store/simulationStore'
 import { positionFor, radiusFor } from '../../utils/astronomy'
 import { makeClouds, makeGlow, makeSurface } from '../../utils/textures'
+import { CometActivity, NucleusGeometry } from './Comet'
 
 const sunVertex = `varying vec3 vPosition;
 void main(){vPosition=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`
@@ -85,7 +86,10 @@ export function Planet({ body }: { body: CelestialBody }) {
     }
     if (secondMoon.current) secondMoon.current.position.set(Math.cos(simulation.days * .15) * radius * 3.8, .3, -Math.sin(simulation.days * .15) * radius * 3.8)
     if (!simulation.reducedMotion && !simulation.paused && !(body.id === 'earth' && simulation.experiment === 'no-spin')) {
-      if (surface.current) surface.current.rotation.y += Math.min(delta, .1) * simulation.speed * 24 / Math.abs(body.day) * .16
+      if (surface.current && body.id === 'halley') {
+        const spin = simulation.days * 24 / body.day
+        surface.current.rotation.set(.4 * Math.sin(spin * .37), spin * .16, .3 * Math.sin(spin * .19))
+      } else if (surface.current) surface.current.rotation.y += Math.min(delta, .1) * simulation.speed * 24 / Math.abs(body.day) * .16
       if (cloudsMesh.current) cloudsMesh.current.rotation.y += Math.min(delta, .1) * .025
       if (sun.current) sun.current.uniforms.time.value += Math.min(delta, .1)
     }
@@ -103,15 +107,16 @@ export function Planet({ body }: { body: CelestialBody }) {
   return <group ref={group}>
     <group rotation={[0, 0, body.tilt * Math.PI / 180]}>
       <mesh ref={surface} scale={radius * (hovered ? 1.035 : 1)} onPointerOver={event => { event.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer' }} onPointerOut={() => { setHovered(false); document.body.style.cursor = '' }} onClick={event => { event.stopPropagation(); click() }} onDoubleClick={event => { event.stopPropagation(); click() }}>
-        <sphereGeometry args={[1, 64, 40]} />
+        {body.id === 'halley' ? <NucleusGeometry /> : <sphereGeometry args={[1, 64, 40]} />}
         {body.id === 'sun' && experiment !== 'no-sun'
           ? <shaderMaterial ref={sun} vertexShader={sunVertex} fragmentShader={sunFragment} uniforms={{ time: { value: 0 } }} />
-          : <meshStandardMaterial map={surfaceMap} color={body.id === 'sun' ? '#08090b' : '#ffffff'} roughness={body.id === 'earth' ? .73 : .96} metalness={0} emissive={body.color} emissiveIntensity={hovered ? .15 : .018} />}
+          : <meshStandardMaterial map={body.id === 'halley' ? null : surfaceMap} color={body.id === 'sun' ? '#08090b' : body.id === 'halley' ? '#343433' : '#ffffff'} roughness={body.id === 'earth' ? .73 : .96} metalness={0} emissive={body.color} emissiveIntensity={hovered ? .15 : body.id === 'halley' ? .045 : .018} />}
       </mesh>
       {body.id === 'saturn' && <Rings radius={radius} />}
       {body.id === 'earth' && cloudMap && <mesh ref={cloudsMesh} scale={radius * 1.012}><sphereGeometry args={[1, 48, 32]} /><meshStandardMaterial map={cloudMap} transparent opacity={.55} depthWrite={false} /></mesh>}
       {['earth', 'venus', 'uranus', 'neptune'].includes(body.id) && <Atmosphere radius={radius} color={body.id === 'venus' ? [1, .7, .25] : [.2, .6, 1]} />}
     </group>
+    {body.id === 'halley' && <CometActivity radius={radius} />}
     {body.id === 'sun' && experiment !== 'no-sun' && <>
       <pointLight intensity={55} decay={1} distance={400} color="#fff1d6" />
       <sprite ref={glow} scale={radius * 6}><spriteMaterial map={glowMap} transparent blending={AdditiveBlending} depthWrite={false} /></sprite>

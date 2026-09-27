@@ -1,4 +1,4 @@
-export type BodyId = 'sun' | 'mercury' | 'venus' | 'earth' | 'moon' | 'mars' | 'jupiter' | 'saturn' | 'uranus' | 'neptune'
+export type BodyId = 'sun' | 'mercury' | 'venus' | 'earth' | 'moon' | 'mars' | 'jupiter' | 'saturn' | 'uranus' | 'neptune' | 'halley'
 
 export interface CelestialBody {
   id: BodyId
@@ -31,7 +31,9 @@ export const bodies: CelestialBody[] = [
   { id: 'neptune', name: 'Neptune', kind: 'Ice giant', diameter: 49244, distanceAU: 30.069, year: 60182, day: 16.11, moons: '16+ known', temperature: '-200 C cloud tops', color: '#598eee', radius: 1.23, orbit: 47, tilt: 28.32, description: 'Cold, blue, and wonderfully wild. Our most distant planet has some of the fastest winds ever measured.', facts: ['Neptune takes about 165 Earth years to travel around the Sun.', 'Winds on Neptune can exceed 2,000 kilometers per hour.', 'Neptune was predicted with mathematics before it was seen through a telescope.'] },
 ]
 
-export const planets = bodies.filter(body => body.id !== 'sun' && body.id !== 'moon')
+bodies.push({ id: 'halley', name: "Halley's Comet", kind: '1P/Halley / Periodic comet', diameter: 11, distanceAU: 17.93, year: 27795.5, day: 52.8, moons: 'None known', temperature: 'Varies along orbit', color: '#8d9698', radius: .65, orbit: 242, tilt: 0, description: 'A dark, irregular nucleus of ice and dust on a steeply tilted, retrograde journey. Near the Sun, escaping gas and dust form a glowing coma and two different tails.', facts: ['Giotto revealed an elongated nucleus about 15 by 8 km across, reflecting only about 3% of incoming sunlight.', 'Halley last reached perihelion in February 1986 and is expected to return in July 2061. Planetary gravity and outgassing change each orbit.', 'Its ion tail points away from the Sun; its dust tail curves as particles spread along their own orbits. Far from the Sun, both fade.', 'Halley tumbles in a complex rotation. The surface relief shown here is an observation-inspired reconstruction, not a measured terrain map.'] })
+
+export const planets = bodies.filter(body => body.id !== 'sun' && body.id !== 'moon' && body.id !== 'halley')
 export const bodyById = Object.fromEntries(bodies.map(body => [body.id, body])) as Record<BodyId, CelestialBody>
 export const allFacts = bodies.flatMap(body => body.facts.map(text => ({ body: body.id, text })))
 export const EPOCH = Date.UTC(2026, 8, 26, 12)
@@ -39,6 +41,6 @@ export const DAY_MS = 86400000
 
 export const tourStops: { body: BodyId | null; title: string; text: string }[] = [
   { body: null, title: 'A star. Eight worlds. One home.', text: 'Welcome to our solar system. Our journey starts with the star that holds it all together.' },
-  ...bodies.map(body => ({ body: body.id, title: body.name === 'Earth' ? 'There is no place like home.' : body.name === 'Saturn' ? 'A thousand rings of wonder.' : `Meet ${body.name}.`, text: body.description })),
+  ...bodies.filter(body => body.id !== 'halley').map(body => ({ body: body.id, title: body.name === 'Earth' ? 'There is no place like home.' : body.name === 'Saturn' ? 'A thousand rings of wonder.' : `Meet ${body.name}.`, text: body.description })),
   { body: null, title: 'Keep looking up.', text: 'Every world has a story. Your next discovery is only a little curiosity away.' },
 ]

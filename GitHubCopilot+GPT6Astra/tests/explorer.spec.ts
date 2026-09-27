@@ -28,6 +28,101 @@ test('renders the solar system, animates pixels, and selects Earth', async ({ pa
   expect(errors).toEqual([])
 })
 
+test('Halley has an inspectable nucleus, full orbit, and dated active appearances', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  await page.locator('.index-item').filter({ hasText: "Halley's Comet" }).click()
+  const panel = page.getByRole('complementary', { name: "Halley's Comet information" })
+  const canvas = page.locator('.scene canvas')
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText('15 x 8')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  const nucleus = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  await page.screenshot({ path: 'test-results/halley-nucleus-desktop.png' })
+  await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+  await expect.poll(async () => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(nucleus)
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  await page.getByRole('button', { name: 'View full orbit', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/halley-orbit-desktop.png' })
+  await page.getByRole('button', { name: '1986 perihelion', exact: true }).click()
+  await expect(page.locator('time')).toHaveText('09 Feb 1986')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  expect(await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(nucleus)
+  await page.screenshot({ path: 'test-results/halley-active-desktop.png' })
+  await page.getByRole('button', { name: '2061 perihelion', exact: true }).click()
+  await expect(page.locator('time')).toHaveText('28 Jul 2061')
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(80 * 80 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 40, Math.floor(centerY) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 12).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/halley-active-${width}.png` })
+  }
+  await page.getByRole('button', { name: 'View full orbit', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/halley-orbit-mobile.png' })
+  expect(errors).toEqual([])
+})
+
+test('Halley crosses aphelion and the date limit pauses visibly with restart', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.locator('.index-item').filter({ hasText: "Halley's Comet" }).click()
+  await page.evaluate(async () => {
+    const modulePath = performance.getEntriesByType('resource').map(entry => entry.name).find(name => new URL(name).pathname === '/src/store/simulationStore.ts')
+    if (!modulePath) throw new Error('The simulation store was not loaded.')
+    const { useSimulation } = await import(modulePath)
+    useSimulation.getState().set({ days: (Date.UTC(2023, 11, 1) - Date.UTC(2026, 8, 26, 12)) / 86400000, paused: true, reducedMotion: false, speed: 365 })
+  })
+  const canvas = page.locator('.scene canvas')
+  await page.getByRole('button', { name: 'View full orbit', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await expect(page.locator('time')).toHaveText('01 Dec 2023')
+  const before = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+  await expect.poll(async () => Date.parse((await page.locator('time').getAttribute('dateTime'))!)).toBeGreaterThanOrEqual(Date.UTC(2024, 0, 1))
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  expect(await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(before)
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(element.width * element.height * 4)
+      renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 25).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    await page.screenshot({ path: `test-results/halley-closed-orbit-${width}.png` })
+  }
+  await page.evaluate(async () => {
+    const modulePath = performance.getEntriesByType('resource').map(entry => entry.name).find(name => new URL(name).pathname === '/src/store/simulationStore.ts')
+    if (!modulePath) throw new Error('The simulation store was not loaded.')
+    const { useSimulation } = await import(modulePath)
+    useSimulation.getState().set({ days: 24999, speed: 365, paused: false })
+  })
+  await expect(page.getByRole('status').filter({ hasText: 'END OF DATE RANGE' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Advance one day', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Slow', exact: true }).click()
+  await page.getByRole('button', { name: 'Restart simulation', exact: true }).click()
+  await expect(page.locator('time')).toHaveAttribute('dateTime', /^2026/)
+  await expect(page.getByRole('button', { name: 'Pause simulation', exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test('time, keyboard, camera, labels, and reduced motion work', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.loading-screen')).toHaveCount(0)

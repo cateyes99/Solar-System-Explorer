@@ -1,7 +1,98 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { planets, tourStops } from '../data/planets'
-import { gravityAcceleration, orbitFor, positionFor, radiusFor } from './astronomy'
+import { DAY_MS, EPOCH, planets, tourStops, type BodyId } from '../data/planets'
+import { gravityAcceleration, orbitFor, orbitPathFor, positionFor, radiusFor, type ScaleMode } from './astronomy'
 import { useSimulation } from '../store/simulationStore'
+import { cometActivity, halleyEnd, halleyOrbitAt, halleySamples, halleyStart, halleyVectorAt } from './halley'
+
+describe('Halley JPL Horizons ephemeris', () => {
+  it('closes the full orbit guide without a gap at any supported date', () => {
+    for (const days of [-25000, -1100, 0, 10000, 25000]) {
+      const path = orbitPathFor('halley', days, 'educational')
+      expect(path[path.length - 1]).toEqual(path[0])
+    }
+  })
+  it('draws a smooth, Sun-focused ellipse containing the current JPL position', () => {
+    for (const date of [2446471, 2461309.5, 2474033]) {
+      const path = halleyOrbitAt(date)
+      const perihelion = path[0]
+      const aphelion = path[512]
+      const semiMajor = (Math.hypot(...perihelion) + Math.hypot(...aphelion)) / 2
+      const secondFocus = perihelion.map((value, axis) => value + aphelion[axis])
+      for (const point of [...path, halleyVectorAt(date)]) {
+        const focalDistance = Math.hypot(...point) + Math.hypot(...point.map((value, axis) => value - secondFocus[axis]))
+        expect(focalDistance).toBeCloseTo(semiMajor * 2, 6)
+      }
+      const closingStep = path[0].map((value, axis) => value - path[path.length - 2][axis])
+      const openingStep = path[1].map((value, axis) => value - path[0][axis])
+      const cosine = closingStep.reduce((sum, value, axis) => sum + value * openingStep[axis], 0) / Math.hypot(...closingStep) / Math.hypot(...openingStep)
+      expect(cosine).toBeGreaterThan(.999)
+    }
+  })
+  it('continues moving through the December 2023 aphelion', () => {
+    const start = (Date.UTC(2023, 11, 1) - EPOCH) / DAY_MS
+    useSimulation.setState({ days: start, speed: 365, paused: false, reducedMotion: false })
+    let previous = positionFor('halley', start, 'educational')
+    const distances: number[] = []
+    for (let index = 0; index < 90; index++) {
+      useSimulation.getState().tick(1 / 365)
+      const point = positionFor('halley', useSimulation.getState().days, 'educational')
+      const movement = Math.hypot(...point.map((value, axis) => value - previous[axis]))
+      expect(movement).toBeGreaterThan(.005)
+      expect(movement).toBeLessThan(.02)
+      distances.push(Math.hypot(...point))
+      previous = point
+    }
+    const aphelion = distances.indexOf(Math.max(...distances))
+    expect(aphelion).toBeGreaterThan(0)
+    expect(aphelion).toBeLessThan(distances.length - 1)
+    expect(useSimulation.getState().days).toBeCloseTo(start + 90)
+  })
+  it('matches an independently queried JPL vector on 26 September 2026 TDB', () => {
+    const actual = halleyVectorAt(2461309.5)
+    const expected = [-19.35855837231821, 27.46779996876238, -9.854644267040809]
+    actual.forEach((value, axis) => expect(value).toBeCloseTo(expected[axis], 7))
+  })
+  it('preserves tabulated states and rejects extrapolation', () => {
+    for (const index of [0, 1, 1000, halleySamples.length - 1]) {
+      const sample = halleySamples[index]
+      expect(halleyVectorAt(sample[0])).toEqual(sample.slice(1, 4))
+    }
+    for (const invalid of [halleyStart - 1, halleyEnd + 1, NaN]) expect(() => halleyVectorAt(invalid)).toThrow(RangeError)
+  })
+  it('matches independent near-perihelion JPL vectors between sample dates', () => {
+    for (const [date, expected] of [[2446471, [.3300490784851872, -.4562801522776002, .166034061363485]], [2474033, [.3657381440466182, -.4335240533378054, .1743591884465248]]] as const) {
+      const actual = halleyVectorAt(date)
+      expect(Math.hypot(...actual.map((value, axis) => value - expected[axis]))).toBeLessThan(.000002)
+    }
+  })
+  it('keeps dated positions and orbit guides finite and outside the enlarged Sun in all scales', () => {
+    for (const scale of ['educational', 'relative', 'distances', 'custom'] as ScaleMode[]) {
+      for (const days of [-25000, 0, 25000]) {
+        expect(positionFor('halley', days, scale, .8, 2).every(Number.isFinite)).toBe(true)
+        const path = orbitPathFor('halley', days, scale, .8, 2)
+        expect(path.flat().every(Number.isFinite)).toBe(true)
+        expect(Math.min(...path.map(point => Math.hypot(...point))) - radiusFor('halley', scale, 2)).toBeGreaterThan(radiusFor('sun', scale))
+      }
+    }
+    expect(planets).toHaveLength(8)
+    expect(tourStops).toHaveLength(12)
+  })
+  it('has a retrograde, highly eccentric orbit with observed 1986 perihelion', () => {
+    const perihelion = halleyVectorAt(2446470.5)
+    expect(Math.hypot(...perihelion)).toBeCloseTo(.5871, 3)
+    const before = halleyVectorAt(2461309.5)
+    const after = halleyVectorAt(2461310.5)
+    expect(before[0] * after[1] - before[1] * after[0]).toBeLessThan(0)
+    expect(Math.hypot(...before)).toBeGreaterThan(34)
+    expect(Math.abs(before[2])).toBeGreaterThan(9)
+  })
+  it('only develops a coma and tails in the inner solar system', () => {
+    expect(cometActivity(.587)).toBe(1)
+    expect(cometActivity(2)).toBeGreaterThan(0)
+    expect(cometActivity(4)).toBe(0)
+    expect(cometActivity(35)).toBe(0)
+  })
+})
 
 describe('astronomy and educational scale', () => {
   it('keeps the planets ordered and visible', () => {
@@ -14,17 +105,60 @@ describe('astronomy and educational scale', () => {
     expect(orbitFor('mercury', 'relative') - radiusFor('mercury', 'relative')).toBeGreaterThan(radiusFor('sun', 'relative'))
   })
   it('keeps custom-sized inner planets outside the star', () => {
-    expect(orbitFor('mercury', 'custom', .8) - radiusFor('mercury', 'custom', 2)).toBeGreaterThan(radiusFor('sun', 'custom', 2))
+    for (const days of [-25000, 0, 25000]) {
+      const points = orbitPathFor('mercury', days, 'custom', .8, 2)
+      const perihelion = Math.min(...points.map(point => Math.hypot(...point)))
+      expect(perihelion - radiusFor('mercury', 'custom', 2)).toBeGreaterThan(radiusFor('sun', 'custom', 2))
+      expect(points[256]).toEqual(positionFor('mercury', days, 'custom', .8, 2))
+    }
   })
   it('uses finite ephemerides and moves Earth over time', () => {
     expect(positionFor('earth', 0, 'educational').every(Number.isFinite)).toBe(true)
     expect(positionFor('earth', 90, 'educational')[0]).not.toBeCloseTo(positionFor('earth', 0, 'educational')[0])
     expect(positionFor('sun', 90, 'educational')).toEqual([0, 0, 0])
   })
+  it('preserves Mercury eccentricity and full orbital inclination', () => {
+    const positions = Array.from({ length: 360 }, (_, index) => positionFor('mercury', index * 87.97 / 360, 'educational'))
+    const distances = positions.map(point => Math.hypot(...point))
+    expect(Math.min(...distances) / orbitFor('mercury', 'educational')).toBeCloseTo(.794, 2)
+    expect(Math.max(...distances) / orbitFor('mercury', 'educational')).toBeCloseTo(1.206, 2)
+    expect(Math.max(...positions.map((point, index) => Math.abs(point[1]) / distances[index]))).toBeCloseTo(Math.sin(7 * Math.PI / 180), 2)
+  })
   it('keeps the Moon near Earth at custom scales', () => {
     const earth = positionFor('earth', 0, 'custom', 1.4, 2)
     const moon = positionFor('moon', 0, 'custom', 1.4, 2)
     expect(Math.hypot(...moon.map((value, index) => value - earth[index]))).toBeLessThan(5)
+  })
+  it('preserves eccentricity in every display scale', () => {
+    for (const scale of ['educational', 'relative', 'distances', 'custom'] as ScaleMode[]) {
+      for (const [id, eccentricity] of [['mercury', .2056], ['venus', .0068], ['earth', .0167], ['mars', .0934], ['jupiter', .0484], ['saturn', .0539], ['uranus', .0473], ['neptune', .0086]] as const) {
+        const distances = orbitPathFor(id, 0, scale, 1.4).map(point => Math.hypot(...point))
+        const closest = Math.min(...distances)
+        const farthest = Math.max(...distances)
+        expect(Math.abs((farthest - closest) / (farthest + closest) - eccentricity)).toBeLessThan(.01)
+      }
+    }
+  })
+  it('draws orbit guides from the same dated 3D positions as planets', () => {
+    for (const body of planets) {
+      for (const days of [-25000, 0, 25000]) {
+        const points = orbitPathFor(body.id as Exclude<BodyId, 'sun' | 'moon'>, days, 'custom', 1.3)
+        expect(points).toHaveLength(513)
+        expect(points.flat().every(Number.isFinite)).toBe(true)
+        expect(points[256]).toEqual(positionFor(body.id, days, 'custom', 1.3))
+        expect(points[0]).toEqual(positionFor(body.id, days - body.year / 2, 'custom', 1.3))
+        expect(points[512]).toEqual(positionFor(body.id, days + body.year / 2, 'custom', 1.3))
+      }
+    }
+  })
+  it('preserves lunar distance variation and inclination relative to Earth', () => {
+    const offsets = Array.from({ length: 60 }, (_, index) => {
+      const earth = positionFor('earth', index, 'educational')
+      return positionFor('moon', index, 'educational').map((value, axis) => value - earth[axis])
+    })
+    const distances = offsets.map(point => Math.hypot(...point))
+    expect(Math.max(...distances) / Math.min(...distances)).toBeGreaterThan(1.1)
+    expect(Math.max(...offsets.map((point, index) => Math.abs(point[1]) / distances[index]))).toBeGreaterThan(.08)
   })
   it('demonstrates the inverse square law', () => {
     expect(gravityAcceleration(2, 1)).toBe(2)
@@ -34,6 +168,11 @@ describe('astronomy and educational scale', () => {
 
 describe('simulation controls', () => {
   beforeEach(() => useSimulation.setState({ days: 0, speed: 8, paused: false, reducedMotion: false, tour: null }))
+  it('pauses explicitly when playback reaches the supported date boundary', () => {
+    useSimulation.setState({ days: 24999, speed: 365 })
+    useSimulation.getState().tick(.1)
+    expect(useSimulation.getState()).toMatchObject({ days: 25000, paused: true })
+  })
   it('advances, pauses, and resumes simulation time', () => {
     useSimulation.getState().tick(.1)
     expect(useSimulation.getState().days).toBe(.8)

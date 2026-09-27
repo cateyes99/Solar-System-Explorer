@@ -38,8 +38,8 @@ export function Spacecraft() {
     target.current.set(...positionFor(simulation.missionDestination, simulation.days, simulation.scale, simulation.spacing, simulation.size))
     if (flight.orbitPath) {
       if (!simulation.paused && !simulation.reducedMotion) pathAngle.current += delta * .15
-      const radius = orbitFor(simulation.missionDestination, simulation.scale, simulation.spacing)
-      target.current.set(Math.cos(pathAngle.current) * radius, 1, -Math.sin(pathAngle.current) * radius)
+      const pathDays = simulation.days + pathAngle.current / (Math.PI * 2) * bodyById[simulation.missionDestination].year
+      target.current.set(...positionFor(simulation.missionDestination, pathDays, simulation.scale, simulation.spacing, simulation.size))
     }
     const destinationRadius = flight.orbitPath ? .1 : bodyById[simulation.missionDestination].radius * 2.5 + 1
     const distance = position.current.distanceTo(target.current)
