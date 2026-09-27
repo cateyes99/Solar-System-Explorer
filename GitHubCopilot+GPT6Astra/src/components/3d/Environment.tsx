@@ -50,6 +50,7 @@ export function OrbitPaths() {
   return <group visible={visible}>
     {planets.map(body => <OrbitPath key={body.id} id={body.id as Exclude<BodyId, 'sun' | 'moon'>} scale={scale} spacing={spacing} size={size} />)}
     <OrbitPath id="halley" scale={scale} spacing={spacing} size={size} />
+    <OrbitPath id="pluto" scale={scale} spacing={spacing} size={size} />
   </group>
 }
 

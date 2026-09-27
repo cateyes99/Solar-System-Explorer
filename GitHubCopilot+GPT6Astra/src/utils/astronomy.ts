@@ -1,4 +1,5 @@
-import { AstroTime, Body, HelioVector, GeoMoon, MakeTime, RotateVector, Rotation_EQJ_ECL } from 'astronomy-engine'
+import { AstroTime, Body, HelioVector, GeoMoon, MakeTime, RotateVector, RotationAxis, Rotation_EQJ_ECL, Vector } from 'astronomy-engine'
+import { Matrix4, Quaternion, Vector3 } from 'three'
 import { bodyById, DAY_MS, EPOCH, type BodyId } from '../data/planets'
 import { halleyEnd, halleyOrbitAt, halleyStart, halleyVectorAt } from './halley'
 
@@ -64,6 +65,18 @@ function halleyScenePoint(point: Point3, scale: ScaleMode, spacing: number, size
 
 export function formatDate(days: number): string {
   return new Date(EPOCH + days * DAY_MS).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
+export function plutoOrientation(days: number): Quaternion {
+  const date = new Date(EPOCH + days * DAY_MS)
+  const axis = RotationAxis(Body.Pluto, date)
+  const rightAscension = axis.ra * Math.PI / 12
+  const node = RotateVector(eclipticRotation, new Vector(-Math.sin(rightAscension), Math.cos(rightAscension), 0, MakeTime(date)))
+  const pole = RotateVector(eclipticRotation, axis.north)
+  const north = new Vector3(pole.x, pole.z, -pole.y)
+  const prime = new Vector3(node.x, node.z, -node.y).applyAxisAngle(north, (axis.spin % 360) * Math.PI / 180)
+  const east = new Vector3().crossVectors(prime, north).normalize()
+  return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(prime, north, east))
 }
 
 export function clampDays(days: number): number {

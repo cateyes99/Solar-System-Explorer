@@ -28,6 +28,53 @@ test('renders the solar system, animates pixels, and selects Earth', async ({ pa
   expect(errors).toEqual([])
 })
 
+test('Pluto loads its observed surface and rotates with the date on desktop and mobile', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const texture = page.waitForResponse(response => response.url().endsWith('/textures/pluto.jpg'))
+  await page.goto('/')
+  expect((await texture).status()).toBe(200)
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  const canvas = page.locator('.scene canvas')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/pluto-overview-desktop.png' })
+  const indexBounds = (await page.getByRole('complementary', { name: 'Celestial objects' }).boundingBox())!
+  const clockBounds = (await page.locator('.time-bar').boundingBox())!
+  expect(indexBounds.y + indexBounds.height).toBeLessThan(clockBounds.y)
+  await page.getByRole('button', { name: 'Pluto 10', exact: true }).click()
+  const panel = page.getByRole('complementary', { name: 'Pluto information' })
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText('Dwarf planet / Kuiper Belt')
+  await expect(panel).toContainText('2,377')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.getByRole('button', { name: 'View Planet', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  const first = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  await page.screenshot({ path: 'test-results/pluto-focus-desktop.png' })
+  await page.getByRole('button', { name: 'Advance one day', exact: true }).click()
+  await expect.poll(async () => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(first)
+  await page.getByRole('button', { name: 'Follow Planet', exact: true }).click()
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(40 * 40 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 20, Math.floor(centerY) - 20, 40, 40, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 20).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/pluto-focus-${width}.png` })
+  }
+  await page.getByRole('button', { name: 'Close planet information', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/pluto-overview-mobile.png' })
+  expect(errors).toEqual([])
+})
+
 test('Halley has an inspectable nucleus, full orbit, and dated active appearances', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

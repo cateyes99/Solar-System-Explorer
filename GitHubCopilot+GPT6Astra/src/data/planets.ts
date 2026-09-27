@@ -1,4 +1,4 @@
-export type BodyId = 'sun' | 'mercury' | 'venus' | 'earth' | 'moon' | 'mars' | 'jupiter' | 'saturn' | 'uranus' | 'neptune' | 'halley'
+export type BodyId = 'sun' | 'mercury' | 'venus' | 'earth' | 'moon' | 'mars' | 'jupiter' | 'saturn' | 'uranus' | 'neptune' | 'halley' | 'pluto'
 
 export interface CelestialBody {
   id: BodyId
@@ -33,7 +33,9 @@ export const bodies: CelestialBody[] = [
 
 bodies.push({ id: 'halley', name: "Halley's Comet", kind: '1P/Halley / Periodic comet', diameter: 11, distanceAU: 17.93, year: 27795.5, day: 52.8, moons: 'None known', temperature: 'Varies along orbit', color: '#8d9698', radius: .65, orbit: 242, tilt: 0, description: 'A dark, irregular nucleus of ice and dust on a steeply tilted, retrograde journey. Near the Sun, escaping gas and dust form a glowing coma and two different tails.', facts: ['Giotto revealed an elongated nucleus about 15 by 8 km across, reflecting only about 3% of incoming sunlight.', 'Halley last reached perihelion in February 1986 and is expected to return in July 2061. Planetary gravity and outgassing change each orbit.', 'Its ion tail points away from the Sun; its dust tail curves as particles spread along their own orbits. Far from the Sun, both fade.', 'Halley tumbles in a complex rotation. The surface relief shown here is an observation-inspired reconstruction, not a measured terrain map.'] })
 
-export const planets = bodies.filter(body => body.id !== 'sun' && body.id !== 'moon' && body.id !== 'halley')
+bodies.push({ id: 'pluto', name: 'Pluto', kind: 'Dwarf planet / Kuiper Belt', diameter: 2377, distanceAU: 39.482, year: 90560, day: -153.2928, moons: '5 known', temperature: '-226 to -240 C', color: '#cbb8a6', radius: .45, orbit: 55, tilt: 122.53, description: 'An icy world with nitrogen glaciers, water-ice mountains, and a bright heart-shaped region. Pluto follows a tilted, elongated orbit through the Kuiper Belt.', facts: ['New Horizons revealed Pluto in July 2015. Its bright heart includes Sputnik Planitia, a vast plain of nitrogen ice.', 'Pluto takes about 248 Earth years to circle the Sun. Its tilted orbit carries it from about 30 to 49 astronomical units away.', 'Pluto rotates backward in about 6.39 Earth days. Pluto and its largest moon, Charon, keep the same faces toward each other.', 'Pluto is a dwarf planet, not one of the eight major planets. Its five known moons are Charon, Styx, Nix, Kerberos, and Hydra.'] })
+
+export const planets = bodies.filter(body => body.id !== 'sun' && body.id !== 'moon' && body.id !== 'halley' && body.id !== 'pluto')
 export const bodyById = Object.fromEntries(bodies.map(body => [body.id, body])) as Record<BodyId, CelestialBody>
 export const allFacts = bodies.flatMap(body => body.facts.map(text => ({ body: body.id, text })))
 export const EPOCH = Date.UTC(2026, 8, 26, 12)
@@ -41,6 +43,6 @@ export const DAY_MS = 86400000
 
 export const tourStops: { body: BodyId | null; title: string; text: string }[] = [
   { body: null, title: 'A star. Eight worlds. One home.', text: 'Welcome to our solar system. Our journey starts with the star that holds it all together.' },
-  ...bodies.filter(body => body.id !== 'halley').map(body => ({ body: body.id, title: body.name === 'Earth' ? 'There is no place like home.' : body.name === 'Saturn' ? 'A thousand rings of wonder.' : `Meet ${body.name}.`, text: body.description })),
+  ...bodies.filter(body => body.id !== 'halley' && body.id !== 'pluto').map(body => ({ body: body.id, title: body.name === 'Earth' ? 'There is no place like home.' : body.name === 'Saturn' ? 'A thousand rings of wonder.' : `Meet ${body.name}.`, text: body.description })),
   { body: null, title: 'Keep looking up.', text: 'Every world has a story. Your next discovery is only a little curiosity away.' },
 ]

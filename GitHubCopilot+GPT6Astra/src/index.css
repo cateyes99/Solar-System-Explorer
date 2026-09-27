@@ -48,6 +48,7 @@ h1, h2, h3 { font-family: 'Manrope', sans-serif; }
 .system-coordinate>svg:first-child { color: var(--accent); }
 .system-coordinate small { display: block; font-size: 7px; color: #76828a; margin-top: 5px; }
 .planet-index { position: absolute; z-index: 10; left: 47px; top: 348px; width: 156px; }
+@media (min-width: 801px) { .planet-index { bottom: 160px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #465654 transparent; } }
 .index-heading { font-size: 8px; letter-spacing: 1.3px; margin-bottom: 14px; justify-content: space-between; color: #728089; }
 .index-heading>span { color: #9fabae; }
 .index-item { height: 34px; width: 100%; justify-content: flex-start; gap: 12px; color: #abb3b9; font-size: 11px; padding: 0 9px; margin-left: -9px; border: 1px solid transparent; border-radius: 4px; }

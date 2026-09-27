@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Box3, PerspectiveCamera, Vector3 } from 'three'
 import type { OrbitControls as Controls } from 'three-stdlib'
 import { useSimulation } from '../../store/simulationStore'
-import { orbitFor, orbitPathFor, positionFor, radiusFor } from '../../utils/astronomy'
+import { orbitFor, orbitPathFor, plutoOrientation, positionFor, radiusFor } from '../../utils/astronomy'
 
 export function CameraController() {
   const controls = useRef<Controls>(null)
@@ -57,10 +57,13 @@ export function CameraController() {
       control.target.add(shift)
     }
     if (moving.current) {
-      const radius = orbitView ? orbitRadius.current : focused ? radiusFor(state.selected!, state.scale, state.size) : orbitFor('neptune', state.scale, state.spacing)
+      const radius = orbitView ? orbitRadius.current : focused ? radiusFor(state.selected!, state.scale, state.size) : orbitFor('pluto', state.scale, state.spacing) * 1.26
       const aspect = viewport.width / viewport.height
       const distance = focused ? Math.max(radius * (viewport.width <= 800 ? 12 : state.selected === 'saturn' ? 7 : 5.8), state.selected === 'halley' ? .001 : 3) : radius * Math.max(orbitView ? 2.5 : 1.65, (orbitView ? 2.5 : 1.7) / aspect)
-      desired.current.copy(target.current).add(new Vector3(distance * .28, distance * (focused ? .32 : .68), distance * .93))
+      const offset = focused && state.selected === 'pluto'
+        ? new Vector3(-.866, .5, 0).applyQuaternion(plutoOrientation(state.days)).multiplyScalar(distance)
+        : new Vector3(distance * .28, distance * (focused ? .32 : .68), distance * .93)
+      desired.current.copy(target.current).add(offset)
       const easing = state.reducedMotion ? .72 : 1 - Math.exp(-delta * 2.6)
       camera.position.lerp(desired.current, easing)
       control.target.lerp(target.current, easing)

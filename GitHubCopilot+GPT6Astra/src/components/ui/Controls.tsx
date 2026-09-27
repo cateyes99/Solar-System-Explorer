@@ -44,7 +44,7 @@ export function PlanetIndex() {
   return <aside className="planet-index" aria-label="Celestial objects">
     <div className="eyebrow index-heading">OUR SOLAR SYSTEM <span>{bodies.length - 1}</span></div>
     {bodies.filter(body => body.id !== 'moon').map((body, index) => <button key={body.id} className={`index-item ${selected === body.id ? 'active' : ''}`} onClick={() => useSimulation.getState().select(body.id)} aria-pressed={selected === body.id}>
-      <span className={`mini-planet ${body.id}`} style={{ '--planet-color': body.color } as React.CSSProperties} /><span>{body.name}</span><small>{index === 0 ? <Sparkles size={11} /> : `0${index}`}</small>
+      <span className={`mini-planet ${body.id}`} style={{ '--planet-color': body.color } as React.CSSProperties} /><span>{body.name}</span><small>{index === 0 ? <Sparkles size={11} /> : String(index).padStart(2, '0')}</small>
     </button>)}
     <button className="index-moon" onClick={() => useSimulation.getState().select('moon')}><span className="moon-dot" /> Earth's Moon <ChevronRight size={12} /></button>
     <div className="index-footer"><span className="live-dot" /> LIVE SIMULATION</div>

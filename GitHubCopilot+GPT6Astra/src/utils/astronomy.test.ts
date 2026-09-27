@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DAY_MS, EPOCH, planets, tourStops, type BodyId } from '../data/planets'
-import { gravityAcceleration, MAX_DAYS, MIN_DAYS, orbitFor, orbitPathFor, positionFor, radiusFor, usesApproximatePositions, type ScaleMode } from './astronomy'
+import { gravityAcceleration, MAX_DAYS, MIN_DAYS, orbitFor, orbitPathFor, plutoOrientation, positionFor, radiusFor, usesApproximatePositions, type ScaleMode } from './astronomy'
 import { useSimulation } from '../store/simulationStore'
 import { cometActivity, halleyOrbitAt, halleySamples, halleyVectorAt } from './halley'
 
@@ -203,6 +203,32 @@ describe('astronomy and educational scale', () => {
   it('demonstrates the inverse square law', () => {
     expect(gravityAcceleration(2, 1)).toBe(2)
     expect(gravityAcceleration(1, 2)).toBe(.25)
+  })
+})
+
+describe('Pluto ephemeris', () => {
+  it('uses dated IAU rotation with a 6.39-day period, including paused date jumps', () => {
+    const initial = plutoOrientation(0)
+    expect(initial.angleTo(plutoOrientation(1)) * 180 / Math.PI).toBeCloseTo(56.3625225, 3)
+    expect(initial.angleTo(plutoOrientation(360 / 56.3625225))).toBeLessThan(.00001)
+    expect(initial.angleTo(plutoOrientation(400))).toBeGreaterThan(.1)
+  })
+  it('preserves Pluto eccentricity, inclination, and orbital motion', () => {
+    const points = orbitPathFor('pluto', 0, 'educational')
+    const distances = points.map(point => Math.hypot(...point) / orbitFor('pluto', 'educational') * 39.482)
+    expect(Math.min(...distances)).toBeGreaterThan(29)
+    expect(Math.min(...distances)).toBeLessThan(31)
+    expect(Math.max(...distances)).toBeGreaterThan(48)
+    expect(Math.max(...distances)).toBeLessThan(50)
+    const inclination = Math.max(...points.map(point => Math.asin(Math.abs(point[1]) / Math.hypot(...point)) * 180 / Math.PI))
+    expect(inclination).toBeGreaterThan(16)
+    expect(inclination).toBeLessThan(18)
+    expect(positionFor('pluto', 365, 'educational')).not.toEqual(positionFor('pluto', 0, 'educational'))
+    for (const scale of ['educational', 'relative', 'distances', 'custom'] as ScaleMode[]) {
+      for (const days of [MIN_DAYS, 0, MAX_DAYS, MAX_DAYS + 36500]) expect(positionFor('pluto', days, scale).every(Number.isFinite)).toBe(true)
+    }
+    expect(planets).toHaveLength(8)
+    expect(tourStops).toHaveLength(12)
   })
 })
 

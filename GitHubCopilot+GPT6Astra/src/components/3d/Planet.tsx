@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { AdditiveBlending, BackSide, Group, Mesh, ShaderMaterial, Sprite, SRGBColorSpace, Texture, TextureLoader, Vector3 } from 'three'
+import { AdditiveBlending, BackSide, Group, Mesh, RepeatWrapping, ShaderMaterial, Sprite, SRGBColorSpace, Texture, TextureLoader, Vector3 } from 'three'
 import type { CelestialBody } from '../../data/planets'
 import { useSimulation } from '../../store/simulationStore'
-import { positionFor, radiusFor } from '../../utils/astronomy'
+import { plutoOrientation, positionFor, radiusFor } from '../../utils/astronomy'
 import { makeClouds, makeGlow, makeSurface } from '../../utils/textures'
 import { CometActivity, NucleusGeometry } from './Comet'
 
@@ -59,12 +59,13 @@ export function Planet({ body }: { body: CelestialBody }) {
   useEffect(() => { label.current = document.getElementById(`scene-label-${body.id}`) }, [body.id])
 
   useEffect(() => {
-    if (body.id !== 'earth') return
+    if (body.id !== 'earth' && body.id !== 'pluto') return
     let active = true
-    const loaded = new TextureLoader().load('/textures/earth.jpg', texture => {
+    const loaded = new TextureLoader().load(`/textures/${body.id}.jpg`, texture => {
       if (!active) { texture.dispose(); return }
       texture.colorSpace = SRGBColorSpace
       texture.anisotropy = 4
+      if (body.id === 'pluto') { texture.wrapS = RepeatWrapping; texture.offset.x = .5 }
       setSurfaceMap(texture)
     }, undefined, () => undefined)
     return () => { active = false; loaded.dispose() }
@@ -75,6 +76,7 @@ export function Planet({ body }: { body: CelestialBody }) {
   useFrame((state, delta) => {
     const simulation = useSimulation.getState()
     if (group.current) group.current.position.set(...positionFor(body.id, simulation.days, simulation.scale, simulation.spacing, simulation.size))
+    if (surface.current && body.id === 'pluto') surface.current.quaternion.copy(plutoOrientation(simulation.days))
     if (label.current && group.current) {
       projected.current.copy(group.current.position).add(new Vector3(0, radius + .5, 0)).project(state.camera)
       const screen = projected.current
@@ -89,7 +91,7 @@ export function Planet({ body }: { body: CelestialBody }) {
       if (surface.current && body.id === 'halley') {
         const spin = simulation.days * 24 / body.day
         surface.current.rotation.set(.4 * Math.sin(spin * .37), spin * .16, .3 * Math.sin(spin * .19))
-      } else if (surface.current) surface.current.rotation.y += Math.min(delta, .1) * simulation.speed * 24 / Math.abs(body.day) * .16
+      } else if (surface.current && body.id !== 'pluto') surface.current.rotation.y += Math.min(delta, .1) * simulation.speed * 24 / Math.abs(body.day) * .16
       if (cloudsMesh.current) cloudsMesh.current.rotation.y += Math.min(delta, .1) * .025
       if (sun.current) sun.current.uniforms.time.value += Math.min(delta, .1)
     }
@@ -105,7 +107,7 @@ export function Planet({ body }: { body: CelestialBody }) {
   }
 
   return <group ref={group}>
-    <group rotation={[0, 0, body.tilt * Math.PI / 180]}>
+    <group rotation={[0, 0, body.id === 'pluto' ? 0 : body.tilt * Math.PI / 180]}>
       <mesh ref={surface} scale={radius * (hovered ? 1.035 : 1)} onPointerOver={event => { event.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer' }} onPointerOut={() => { setHovered(false); document.body.style.cursor = '' }} onClick={event => { event.stopPropagation(); if (!event.ctrlKey && !event.metaKey && !event.shiftKey) click() }} onDoubleClick={event => { event.stopPropagation(); if (!event.ctrlKey && !event.metaKey && !event.shiftKey) click() }}>
         {body.id === 'halley' ? <NucleusGeometry /> : <sphereGeometry args={[1, 64, 40]} />}
         {body.id === 'sun' && experiment !== 'no-sun'
