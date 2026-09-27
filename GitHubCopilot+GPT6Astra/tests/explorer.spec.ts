@@ -128,8 +128,9 @@ test('Earth atmosphere drifts subtly and respects motion controls', async ({ pag
     const first = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
     await expect.poll(() => atmosphereTime()).toBeGreaterThan(before + .2)
     await expect.poll(() => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(first)
-    const litPixels = await canvas.evaluate(element => {
-      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const litPixels = await canvas.evaluate(canvasElement => {
+      const element = canvasElement as HTMLCanvasElement
+      const renderer = element.getContext('webgl2')!
       const pixels = new Uint8Array(40 * 40 * 4)
       const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
       renderer.readPixels(Math.floor(element.width / 2) - 20, Math.floor(centerY) - 20, 40, 40, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
@@ -164,8 +165,9 @@ test('renders the solar system, animates pixels, and selects Earth', async ({ pa
   await expect(page.getByRole('heading', { name: /Our cosmic/ })).toBeVisible()
   const first = await page.locator('canvas').evaluate(canvas => (canvas as HTMLCanvasElement).toDataURL())
   await expect.poll(async () => page.locator('canvas').evaluate(canvas => (canvas as HTMLCanvasElement).toDataURL())).not.toBe(first)
-  const pixels = await page.locator('canvas').evaluate(canvas => {
-    const renderer = (canvas as HTMLCanvasElement).getContext('webgl2')!
+  const pixels = await page.locator('canvas').evaluate(canvasElement => {
+    const canvas = canvasElement as HTMLCanvasElement
+    const renderer = canvas.getContext('webgl2')!
     const data = new Uint8Array(80 * 80 * 4)
     renderer.readPixels(Math.floor(canvas.width / 2) - 40, Math.floor(canvas.height / 2) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, data)
     return Array.from(data).filter((value, index) => index % 4 !== 3 && value > 30).length
@@ -212,8 +214,9 @@ test('Pluto loads its observed surface and rotates with the date on desktop and 
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.setViewportSize({ width, height })
     await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
-    const litPixels = await canvas.evaluate(element => {
-      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const litPixels = await canvas.evaluate(canvasElement => {
+      const element = canvasElement as HTMLCanvasElement
+      const renderer = element.getContext('webgl2')!
       const pixels = new Uint8Array(40 * 40 * 4)
       const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
       renderer.readPixels(Math.floor(element.width / 2) - 20, Math.floor(centerY) - 20, 40, 40, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
@@ -254,8 +257,9 @@ test('Halley has an inspectable nucleus, full orbit, and dated active appearance
   await expect(panel).toContainText('15 x 8')
   await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
   const nucleus = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
-  const nucleusBrightness = await canvas.evaluate(element => {
-    const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+  const nucleusBrightness = await canvas.evaluate(canvasElement => {
+    const element = canvasElement as HTMLCanvasElement
+    const renderer = element.getContext('webgl2')!
     const pixels = new Uint8Array(32 * 32 * 4)
     renderer.readPixels(Math.floor(element.width / 2) - 16, Math.floor(element.height / 2) - 16, 32, 32, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
     let luminance = 0
@@ -280,8 +284,9 @@ test('Halley has an inspectable nucleus, full orbit, and dated active appearance
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.setViewportSize({ width, height })
     await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
-    const litPixels = await canvas.evaluate(element => {
-      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const litPixels = await canvas.evaluate(canvasElement => {
+      const element = canvasElement as HTMLCanvasElement
+      const renderer = element.getContext('webgl2')!
       const pixels = new Uint8Array(80 * 80 * 4)
       const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
       renderer.readPixels(Math.floor(element.width / 2) - 40, Math.floor(centerY) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
@@ -321,8 +326,9 @@ test('Halley crosses aphelion with a closed orbit', async ({ page }) => {
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.setViewportSize({ width, height })
     await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
-    const litPixels = await canvas.evaluate(element => {
-      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const litPixels = await canvas.evaluate(canvasElement => {
+      const element = canvasElement as HTMLCanvasElement
+      const renderer = element.getContext('webgl2')!
       const pixels = new Uint8Array(element.width * element.height * 4)
       renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
       return pixels.filter((value, index) => index % 4 !== 3 && value > 25).length
@@ -375,8 +381,9 @@ for (const width of [1440, 390]) {
     await expect(page.locator('time')).not.toHaveAttribute('dateTime', stoppedDate!)
     const canvas = page.locator('.scene canvas')
     await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
-    const pixels = await canvas.evaluate(element => {
-      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const pixels = await canvas.evaluate(canvasElement => {
+      const element = canvasElement as HTMLCanvasElement
+      const renderer = element.getContext('webgl2')!
       const pixels = new Uint8Array(80 * 80 * 4)
       const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
       renderer.readPixels(Math.floor(element.width / 2) - 40, Math.floor(centerY) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
@@ -445,8 +452,9 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('button', { name: 'Play simulation', exact: true })).toBeVisible()
     await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toBeVisible()
     await expect(page.locator('canvas')).toHaveAttribute('data-camera-moving', 'false')
-    const pixels = await page.locator('canvas').evaluate(element => {
-      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const pixels = await page.locator('canvas').evaluate(canvasElement => {
+      const element = canvasElement as HTMLCanvasElement
+      const renderer = element.getContext('webgl2')!
       const pixels = new Uint8Array(element.width * element.height * 4)
       renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
       return pixels.filter((value, index) => index % 4 !== 3 && value > 25).length
@@ -719,8 +727,9 @@ test('responsive screenshots and mobile interaction', async ({ page }) => {
     await page.setViewportSize({ width, height })
     await expect(page.locator('canvas')).toHaveAttribute('data-camera-moving', 'false')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    const litPixels = await page.locator('.scene canvas').evaluate(canvas => {
-      const renderer = (canvas as HTMLCanvasElement).getContext('webgl2')!
+    const litPixels = await page.locator('.scene canvas').evaluate(canvasElement => {
+      const canvas = canvasElement as HTMLCanvasElement
+      const renderer = canvas.getContext('webgl2')!
       const pixels = new Uint8Array(64 * 64 * 4)
       renderer.readPixels(Math.floor(canvas.width / 2) - 32, Math.floor(canvas.height / 2) - 32, 64, 64, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
       return pixels.filter((value, index) => index % 4 !== 3 && value > 35).length
@@ -734,8 +743,9 @@ test('responsive screenshots and mobile interaction', async ({ page }) => {
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
   expect(bounds!.y + bounds!.height).toBeLessThan(844)
   await expect(page.locator('.scene canvas')).toHaveAttribute('data-camera-moving', 'false')
-  const planetPixels = await page.locator('.scene canvas').evaluate(canvas => {
-    const renderer = (canvas as HTMLCanvasElement).getContext('webgl2')!
+  const planetPixels = await page.locator('.scene canvas').evaluate(canvasElement => {
+    const canvas = canvasElement as HTMLCanvasElement
+    const renderer = canvas.getContext('webgl2')!
     const pixels = new Uint8Array(40 * 40 * 4)
     renderer.readPixels(Math.floor(canvas.width / 2) - 20, Math.floor(canvas.height * .8) - 20, 40, 40, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
     return pixels.filter((value, index) => index % 4 !== 3 && value > 20).length
