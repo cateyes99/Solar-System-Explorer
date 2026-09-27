@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { tourStops } from '../src/data/planets'
 
 test('Earth cloud shapes evolve independently of rotation and respect motion controls', async ({ page }) => {
+  test.setTimeout(90000)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -9,7 +10,7 @@ test('Earth cloud shapes evolve independently of rotation and respect motion con
   await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
   await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
   const canvas = page.locator('.scene canvas')
-  const cloudState = (settings: Record<string, unknown> = {}, compareShapes = false) => page.evaluate(async ({ settings, compareShapes }) => {
+  const cloudState = (settings: Record<string, unknown> = {}, compareShapes = false, measureMotion = false) => page.evaluate(async ({ settings, compareShapes, measureMotion }) => {
     const resources = performance.getEntriesByType('resource').map(entry => entry.name)
     const storePath = resources.find(name => new URL(name).pathname === '/src/store/simulationStore.ts')!
     const fiberPath = resources.find(name => new URL(name).pathname.endsWith('/@react-three_fiber.js'))!
@@ -17,7 +18,8 @@ test('Earth cloud shapes evolve independently of rotation and respect motion con
     const { _roots } = await import(fiberPath)
     useSimulation.getState().set(settings)
     const element = document.querySelector<HTMLCanvasElement>('.scene canvas')!
-    const { scene, camera, gl } = _roots.get(element).store.getState()
+    const { store } = _roots.get(element)
+    const { scene, camera, gl } = store.getState()
     const clouds = scene.getObjectByName('earth-clouds')
     const clock = clouds.material.userData.cloudTime
     let changedPixels = 0
@@ -35,8 +37,26 @@ test('Earth cloud shapes evolve independently of rotation and respect motion con
         if (Math.abs(before[index] - after[index]) + Math.abs(before[index + 1] - after[index + 1]) + Math.abs(before[index + 2] - after[index + 2]) > 24) changedPixels++
       }
     }
-    return { time: clock.value as number, rotation: clouds.rotation.y as number, changedPixels }
-  }, { settings, compareShapes })
+    const rates = measureMotion ? await new Promise<{ shape: number; drift: number }>(resolve => {
+      let frames = 0
+      let elapsed = 0
+      let startTime = 0
+      let startRotation = 0
+      const unsubscribe = store.getState().internal.subscribe({ current: (_state: unknown, delta: number) => {
+        if (frames++ === 0) {
+          startTime = clock.value
+          startRotation = clouds.rotation.y
+          return
+        }
+        elapsed += Math.min(delta, .1)
+        if (frames === 4) {
+          unsubscribe()
+          resolve({ shape: (clock.value - startTime) / elapsed, drift: (clouds.rotation.y - startRotation) / elapsed })
+        }
+      } }, 0, store)
+    }) : { shape: 0, drift: 0 }
+    return { time: clock.value as number, rotation: clouds.rotation.y as number, changedPixels, rates }
+  }, { settings, compareShapes, measureMotion })
   await cloudState({ speed: 0, paused: true, reducedMotion: true })
   await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
   for (const [width, height] of [[1440, 900], [390, 844]]) {
@@ -49,10 +69,20 @@ test('Earth cloud shapes evolve independently of rotation and respect motion con
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/earth-cloud-shapes-${width}.png` })
   }
-  const moving = await cloudState({ paused: false, reducedMotion: false })
+  const moving = await cloudState({ speed: 8, paused: false, reducedMotion: false })
   await expect.poll(async () => (await cloudState()).time).toBeGreaterThan(moving.time + .2)
   expect((await cloudState()).rotation).toBeGreaterThan(moving.rotation)
-  for (const settings of [{ paused: true }, { paused: false, reducedMotion: true }, { reducedMotion: false, experiment: 'no-spin' }]) {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  for (const [label, speed] of [['Slow', 1], ['Normal', 8], ['Fast', 30], ['Very Fast', 365]] as const) {
+    const button = page.getByRole('button', { name: label, exact: true })
+    await button.click()
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    const { rates } = await cloudState({}, false, true)
+    const expectedRate = 1.5 * Math.sqrt(speed / 8)
+    expect(rates.shape).toBeCloseTo(expectedRate, 5)
+    expect(rates.drift).toBeCloseTo(expectedRate * .025, 5)
+  }
+  for (const settings of [{ speed: 0 }, { speed: 8, paused: true }, { paused: false, reducedMotion: true }, { reducedMotion: false, experiment: 'no-spin' }]) {
     const stopped = await cloudState(settings)
     await page.evaluate(() => new Promise<void>(resolve => {
       let frames = 0

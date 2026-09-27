@@ -54,7 +54,7 @@ function Clouds({ radius }: { radius: number }) {
   useFrame((_, delta) => {
     const simulation = useSimulation.getState()
     if (simulation.paused || simulation.reducedMotion || simulation.experiment === 'no-spin') return
-    const step = Math.min(delta, .1) * 1.5
+    const step = Math.min(delta, .1) * 1.5 * Math.sqrt(Math.max(0, simulation.speed) / 8)
     cloudTime.value += step
     if (mesh.current) mesh.current.rotation.y += step * .025
   })
