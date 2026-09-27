@@ -35,6 +35,7 @@ The production site is generated in `dist/`. Browser tests use an isolated headl
 - Smooth fly-ins, a fixed planet view, follow mode, and a full-system view. Orbit by dragging; zoom with the wheel or pinch; hold Ctrl and left-drag to pan horizontally or vertically in the screen plane. Right-drag and two-finger panning also work. Panning preserves your offset in follow mode; H or View Solar System recenters the overview.
 - Four scale modes: educational, relative body diameters, distance-emphasized, and custom planet sizes and orbital spacing.
 - Pause, resume, step by one day, reset the date, and choose 1, 8, 30, or 365 simulated days per real second. The clock starts at 26 September 2026, 12:00 UTC.
+- While paused (including Reduce Motion), use the calendar button beside the clock to choose a date. Apply sets that day at 12:00 UTC and keeps playback paused; Cancel or Escape changes nothing. Dates outside the bundled JPL range require confirmation unless already authorized. Declining keeps the current date, and accepting applies the selected date without resuming playback. The calendar accepts years 0001-9999; distant dates use approximate calculations, not reliable predictions.
 - A guided 12-stop tour with narration, pause/resume, skip, and exit.
 - Eight hands-on lessons: fusion, size comparison, light-travel distances, gravity, day/night, seasons, lunar phases, and orbits.
 - Four hypothetical experiments: a second Moon, Jupiter-sized Earth, an absent Sun, and a nonrotating Earth.

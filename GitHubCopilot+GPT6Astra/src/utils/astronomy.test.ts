@@ -207,7 +207,44 @@ describe('astronomy and educational scale', () => {
 })
 
 describe('simulation controls', () => {
-  beforeEach(() => useSimulation.setState({ days: 0, speed: 8, paused: false, reducedMotion: false, tour: null, approximationAllowed: false, dateLimitPrompt: false }))
+  beforeEach(() => useSimulation.setState({ days: 0, speed: 8, paused: false, reducedMotion: false, tour: null, approximationAllowed: false, dateLimitPrompt: false, pendingDate: null }))
+  it('sets a valid calendar date at noon UTC while remaining paused', () => {
+    useSimulation.setState({ paused: true })
+    const revision = useSimulation.getState().cameraRevision
+    expect(useSimulation.getState().setDate('2024-02-29')).toBe(true)
+    expect(new Date(EPOCH + useSimulation.getState().days * DAY_MS).toISOString()).toBe('2024-02-29T12:00:00.000Z')
+    expect(useSimulation.getState()).toMatchObject({ paused: true, cameraRevision: revision + 1 })
+  })
+  it('rejects invalid calendar dates and date edits during playback', () => {
+    expect(useSimulation.getState().setDate('2024-02-29')).toBe(false)
+    useSimulation.setState({ paused: true })
+    for (const date of ['', '2023-02-29', '2026-04-31', '2026-13-01', '0000-01-01', 'not a date']) {
+      expect(useSimulation.getState().setDate(date)).toBe(false)
+      expect(useSimulation.getState().days).toBe(0)
+    }
+  })
+  it('confirms an out-of-range selected date without changing it on No or resuming on Yes', () => {
+    useSimulation.setState({ paused: true })
+    for (const date of ['1900-01-01', '2100-01-01']) {
+      useSimulation.getState().setDate(date)
+      expect(useSimulation.getState()).toMatchObject({ days: 0, dateLimitPrompt: true, paused: true })
+      useSimulation.getState().resolveDateLimit(false)
+      expect(useSimulation.getState()).toMatchObject({ days: 0, pendingDate: null, paused: true, approximationAllowed: false })
+    }
+    useSimulation.getState().setDate('2100-01-01')
+    useSimulation.getState().resolveDateLimit(true)
+    expect(new Date(EPOCH + useSimulation.getState().days * DAY_MS).toISOString()).toBe('2100-01-01T12:00:00.000Z')
+    expect(useSimulation.getState()).toMatchObject({ paused: true, pendingDate: null, approximationAllowed: true })
+    useSimulation.getState().setDate('2026-09-26')
+    expect(usesApproximatePositions(useSimulation.getState().days)).toBe(false)
+    useSimulation.getState().resetDate()
+    expect(useSimulation.getState()).toMatchObject({ days: 0, approximationAllowed: false, pendingDate: null })
+  })
+  it('allows date selection when reduced motion has stopped playback', () => {
+    useSimulation.setState({ reducedMotion: true })
+    expect(useSimulation.getState().setDate('2000-01-01')).toBe(true)
+    expect(useSimulation.getState()).toMatchObject({ paused: true, reducedMotion: true })
+  })
   it('pauses explicitly when playback reaches the supported date boundary', () => {
     useSimulation.setState({ days: MAX_DAYS - 1, speed: 365 })
     useSimulation.getState().tick(.1)

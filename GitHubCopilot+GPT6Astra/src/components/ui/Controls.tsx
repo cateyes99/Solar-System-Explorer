@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, AudioLines, BookOpen, Check, ChevronRight, Compass, Focus, Globe2, GripHorizontal, Maximize, Minimize, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Settings2, Shuffle, SkipForward, Sparkles, Telescope, Volume2, VolumeX, X } from 'lucide-react'
+import { ArrowRight, AudioLines, BookOpen, CalendarDays, Check, ChevronRight, Compass, Focus, Globe2, GripHorizontal, Maximize, Minimize, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Settings2, Shuffle, SkipForward, Sparkles, Telescope, Volume2, VolumeX, X } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -82,6 +82,7 @@ export function PlanetPanel() {
 
 function DateLimitDialog() {
   const open = useSimulation(state => state.dateLimitPrompt)
+  const pendingDate = useSimulation(state => state.pendingDate)
   const dialog = useRef<HTMLDialogElement>(null)
   const decline = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -90,7 +91,7 @@ function DateLimitDialog() {
   }, [open])
   return <dialog ref={dialog} className="date-limit-dialog" aria-labelledby="date-limit-title" aria-describedby="date-limit-message date-limit-question" onCancel={event => { event.preventDefault(); useSimulation.getState().resolveDateLimit(false) }}>
     <h2 id="date-limit-title">JPL data limit</h2>
-    <p id="date-limit-message">Now it has reached the date limit of JPL data</p>
+    <p id="date-limit-message">{pendingDate === null ? 'Now it has reached the date limit of JPL data' : `The selected date, ${formatDate(pendingDate)}, is outside the available JPL data range.`}</p>
     <p id="date-limit-question">Would you like to switch to approximate orbital calculations outside the available data range?</p>
     <div className="date-limit-actions">
       <button onClick={() => useSimulation.getState().resetDate()}><RotateCcw size={16} />Reset simulation date</button>
@@ -100,23 +101,53 @@ function DateLimitDialog() {
   </dialog>
 }
 
+function DatePicker({ onClose }: { onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const [date, setDate] = useState(() => new Date(EPOCH + useSimulation.getState().days * DAY_MS).toISOString().slice(0, 10))
+  const [error, setError] = useState('')
+  useEffect(() => {
+    const element = dialog.current
+    element?.showModal()
+    input.current?.focus()
+    return () => element?.close()
+  }, [])
+  return <dialog ref={dialog} className="date-limit-dialog date-picker" aria-labelledby="date-picker-title" onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); onClose() }}>
+    <form onSubmit={event => {
+      event.preventDefault()
+      if (useSimulation.getState().setDate(date)) onClose()
+      else setError('Enter a valid date while the simulation is paused.')
+    }}>
+      <h2 id="date-picker-title">Set simulation date</h2>
+      <label htmlFor="simulation-date">Date (UTC)</label>
+      <input ref={input} id="simulation-date" type="date" required min="0001-01-01" max="9999-12-31" value={date} onChange={event => { setDate(event.target.value); setError('') }} aria-describedby={error ? 'date-picker-error' : undefined} aria-invalid={error ? true : undefined} />
+      {error && <p id="date-picker-error" role="alert">{error}</p>}
+      <div className="date-limit-actions">
+        <button type="button" onClick={onClose}>Cancel</button>
+        <button type="submit" className="confirm-approximation"><Check size={16} />Apply date</button>
+      </div>
+    </form>
+  </dialog>
+}
+
 export function TimeControls() {
   const paused = useSimulation(state => state.paused)
   const speed = useSimulation(state => state.speed)
   const reduced = useSimulation(state => state.reducedMotion)
   const [days, setDays] = useState(useSimulation.getState().days)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
   const approximate = usesApproximatePositions(days)
   useEffect(() => {
     const interval = setInterval(() => setDays(useSimulation.getState().days), 250)
     return () => clearInterval(interval)
   }, [])
   return <><footer className="time-bar">
-    <div className="time-label"><span className={`eyebrow ${approximate ? 'position-accuracy' : ''}`} role="status">{approximate ? 'Approximate positions' : 'THE COSMIC CLOCK'}</span><time dateTime={new Date(EPOCH + days * DAY_MS).toISOString()}>{formatDate(days)}</time></div>
+    <div className="time-label"><span className={`eyebrow ${approximate ? 'position-accuracy' : ''}`} role="status">{approximate ? 'Approximate positions' : 'THE COSMIC CLOCK'}</span><div className="clock-date"><time dateTime={new Date(EPOCH + days * DAY_MS).toISOString()}>{formatDate(days)}</time>{(paused || reduced) && <IconButton label="Set simulation date" onClick={() => setDatePickerOpen(true)}><CalendarDays size={17} /></IconButton>}</div></div>
     <div className="transport"><IconButton label="Reset simulation date" onClick={() => { useSimulation.getState().resetDate(); setDays(0) }}><RotateCcw size={17} /></IconButton><IconButton label={paused || reduced ? 'Play simulation' : 'Pause simulation'} className="play-control" onClick={() => useSimulation.getState().set(reduced ? { reducedMotion: false, paused: false } : { paused: !paused })}>{paused || reduced ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</IconButton><IconButton label="Advance one day" onClick={() => { useSimulation.getState().advance(1); setDays(useSimulation.getState().days) }}><SkipForward size={18} /></IconButton></div>
     <div className="speed-controls" aria-label="Simulation speed">{[{ label: 'Slow', value: 1 }, { label: 'Normal', value: 8 }, { label: 'Fast', value: 30 }, { label: 'Very Fast', value: 365 }].map(item => <button key={item.value} className={speed === item.value ? 'active' : ''} aria-pressed={speed === item.value} onClick={() => useSimulation.getState().set({ speed: item.value })}>{item.label}</button>)}</div>
     <div className="speed-readout"><AudioLines size={16} /><span><strong>{reduced || paused ? 'PAUSED' : `${speed} DAYS / SEC`}</strong><small>Simulation speed: {(speed * 86400).toLocaleString()}x</small></span></div>
     <span className="timeline-decoration" aria-hidden="true" />
-  </footer><DateLimitDialog /></>
+  </footer><DateLimitDialog />{datePickerOpen && <DatePicker onClose={() => { setDatePickerOpen(false); setDays(useSimulation.getState().days) }} />}</>
 }
 
 export function DiscoveryTools() {

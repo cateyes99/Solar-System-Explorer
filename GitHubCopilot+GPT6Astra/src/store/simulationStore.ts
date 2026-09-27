@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { tourStops, type BodyId } from '../data/planets'
+import { DAY_MS, EPOCH, tourStops, type BodyId } from '../data/planets'
 import { clampDays, MAX_DAYS, MIN_DAYS, type ScaleMode } from '../utils/astronomy'
 
 export type Panel = 'learn' | 'experiments' | 'mission' | 'settings' | null
@@ -15,6 +15,7 @@ interface SimulationState {
   days: number
   approximationAllowed: boolean
   dateLimitPrompt: boolean
+  pendingDate: number | null
   reducedMotion: boolean
   labels: boolean
   orbits: boolean
@@ -35,6 +36,7 @@ interface SimulationState {
   select: (id: BodyId, focus?: boolean) => void
   viewSystem: () => void
   advance: (days: number) => void
+  setDate: (date: string) => boolean
   resolveDateLimit: (accept: boolean) => void
   resetDate: () => void
   tick: (seconds: number) => void
@@ -48,7 +50,7 @@ interface SimulationState {
 export const useSimulation = create<SimulationState>((set, get) => ({
   selected: null, cameraMode: 'system', cameraRevision: 0,
   speed: 8, paused: false, days: 0,
-  approximationAllowed: false, dateLimitPrompt: false,
+  approximationAllowed: false, dateLimitPrompt: false, pendingDate: null,
   reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   labels: true, orbits: true, audio: false, panel: null,
   scale: 'educational', size: 1, spacing: 1,
@@ -64,11 +66,25 @@ export const useSimulation = create<SimulationState>((set, get) => ({
       set({ days: clampDays(days), paused: true, dateLimitPrompt: true })
     } else set({ days })
   },
-  resolveDateLimit: accept => {
-    if (!get().dateLimitPrompt) return
-    set({ dateLimitPrompt: false, approximationAllowed: accept, paused: !accept, ...(accept ? { reducedMotion: false } : {}) })
+  setDate: date => {
+    const state = get()
+    if ((!state.paused && !state.reducedMotion) || state.dateLimitPrompt || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date) || date.startsWith('0000')) return false
+    const timestamp = Date.parse(`${date}T12:00:00.000Z`)
+    if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) return false
+    const days = (timestamp - EPOCH) / DAY_MS
+    if (!state.approximationAllowed && (days < MIN_DAYS || days > MAX_DAYS)) {
+      set({ paused: true, dateLimitPrompt: true, pendingDate: days })
+    } else set({ days, paused: true, cameraRevision: state.cameraRevision + 1 })
+    return true
   },
-  resetDate: () => set(state => ({ days: 0, approximationAllowed: false, dateLimitPrompt: false, cameraRevision: state.cameraRevision + 1 })),
+  resolveDateLimit: accept => {
+    const state = get()
+    if (!state.dateLimitPrompt) return
+    if (state.pendingDate !== null) {
+      set({ dateLimitPrompt: false, pendingDate: null, approximationAllowed: accept, paused: true, ...(accept ? { days: state.pendingDate, cameraRevision: state.cameraRevision + 1 } : {}) })
+    } else set({ dateLimitPrompt: false, approximationAllowed: accept, paused: !accept, ...(accept ? { reducedMotion: false } : {}) })
+  },
+  resetDate: () => set(state => ({ days: 0, approximationAllowed: false, dateLimitPrompt: false, pendingDate: null, cameraRevision: state.cameraRevision + 1 })),
   tick: seconds => {
     const state = get()
     if (!state.paused && !state.reducedMotion && !state.dateLimitPrompt) get().advance(Math.min(seconds, .2) * state.speed)
