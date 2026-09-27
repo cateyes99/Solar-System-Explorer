@@ -29,7 +29,7 @@ The production site is generated in `dist/`. Browser tests use an isolated headl
 ## Explore
 
 - The Sun, all eight planets, Earth's Moon, orbital paths, a 1,100-instance asteroid belt, and 3,600 subtly twinkling stars.
-- Pluto as a separately classified dwarf planet, with its inclined, eccentric ephemeris orbit, dated IAU rotation, and a locally hosted New Horizons surface mosaic. It is selectable from the object index without changing the eight-planet tour.
+- Pluto as a separately classified dwarf planet, with its inclined, eccentric ephemeris orbit, dated IAU rotation, and a locally hosted New Horizons surface mosaic. It appears above Halley's Comet in the object index and follows Neptune in the Cinematic Tour.
 - Halley's Comet with a JPL Horizons trajectory, an elongated irregular nucleus, a near-Sun coma, and separate dust/ion tails. Select it in the object index for a full-orbit view or dated 1986/2061 perihelion visits.
 - Procedural rocky and banded surfaces, Jupiter's Great Red Spot, Saturn's rings, a shader-driven Sun, atmospheric rims, and locally hosted Earth imagery with clouds.
 - Click a planet or its accessible HTML label to learn about it. Double-clicking a 3D planet also focuses it. The planet index is an equivalent keyboard-accessible route.
@@ -37,7 +37,7 @@ The production site is generated in `dist/`. Browser tests use an isolated headl
 - Four scale modes: educational, relative body diameters, distance-emphasized, and custom planet sizes and orbital spacing.
 - Pause, resume, step by one day, reset the date, and choose 1, 8, 30, or 365 simulated days per real second. The clock starts at 26 September 2026, 12:00 UTC.
 - While paused (including Reduce Motion), use the calendar button beside the clock to choose a date. Apply sets that day at 12:00 UTC and keeps playback paused; Cancel or Escape changes nothing. Dates outside the bundled JPL range require confirmation unless already authorized. Declining keeps the current date, and accepting applies the selected date without resuming playback. The calendar accepts years 0001-9999; distant dates use approximate calculations, not reliable predictions.
-- A guided 12-stop tour with narration, pause/resume, skip, and exit.
+- A guided 13-stop tour including Pluto, with narration, pause/resume, skip, and exit.
 - Eight hands-on lessons: fusion, size comparison, light-travel distances, gravity, day/night, seasons, lunar phases, and orbits.
 - Four hypothetical experiments: a second Moon, Jupiter-sized Earth, an absent Sun, and a nonrotating Earth.
 - Spacecraft missions with manual flight, destination autopilot, orbital-path following, arrival status, and live telemetry.

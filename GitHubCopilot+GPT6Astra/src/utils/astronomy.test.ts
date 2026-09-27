@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DAY_MS, EPOCH, planets, tourStops, type BodyId } from '../data/planets'
+import { bodies, DAY_MS, EPOCH, planets, tourStops, type BodyId } from '../data/planets'
 import { gravityAcceleration, MAX_DAYS, MIN_DAYS, orbitFor, orbitPathFor, plutoOrientation, positionFor, radiusFor, usesApproximatePositions, type ScaleMode } from './astronomy'
 import { useSimulation } from '../store/simulationStore'
 import { cometActivity, halleyOrbitAt, halleySamples, halleyVectorAt } from './halley'
@@ -95,7 +95,7 @@ describe('Halley JPL Horizons ephemeris', () => {
       }
     }
     expect(planets).toHaveLength(8)
-    expect(tourStops).toHaveLength(12)
+    expect(tourStops).toHaveLength(13)
   })
   it('has a retrograde, highly eccentric orbit with observed 1986 perihelion', () => {
     const perihelion = halleyVectorAt(2446470.5)
@@ -207,6 +207,11 @@ describe('astronomy and educational scale', () => {
 })
 
 describe('Pluto ephemeris', () => {
+  it('lists Pluto before Halley and includes it after Neptune in the grand tour', () => {
+    expect(bodies.slice(-3).map(body => body.id)).toEqual(['neptune', 'pluto', 'halley'])
+    expect(tourStops.slice(-3).map(stop => stop.body)).toEqual(['neptune', 'pluto', null])
+    expect(tourStops.filter(stop => stop.body === 'pluto')).toHaveLength(1)
+  })
   it('uses dated IAU rotation with a 6.39-day period, including paused date jumps', () => {
     const initial = plutoOrientation(0)
     expect(initial.angleTo(plutoOrientation(1)) * 180 / Math.PI).toBeCloseTo(56.3625225, 3)
@@ -228,7 +233,7 @@ describe('Pluto ephemeris', () => {
       for (const days of [MIN_DAYS, 0, MAX_DAYS, MAX_DAYS + 36500]) expect(positionFor('pluto', days, scale).every(Number.isFinite)).toBe(true)
     }
     expect(planets).toHaveLength(8)
-    expect(tourStops).toHaveLength(12)
+    expect(tourStops).toHaveLength(13)
   })
 })
 
@@ -334,7 +339,7 @@ describe('simulation controls', () => {
   })
   it('jumps to every tour stop in either direction and resumes playback', () => {
     useSimulation.getState().startTour()
-    for (const index of [9, 3, 0, 11, 6, 5, 7, 8, 10, 2, 1, 4]) {
+    for (const index of [9, 3, 0, 12, 11, 6, 5, 7, 8, 10, 2, 1, 4]) {
       useSimulation.getState().set({ tourPaused: true })
       const revision = useSimulation.getState().cameraRevision
       useSimulation.getState().jumpToTourStop(index)
