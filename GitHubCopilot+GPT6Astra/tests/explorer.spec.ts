@@ -41,6 +41,15 @@ test('Halley has an inspectable nucleus, full orbit, and dated active appearance
   await expect(panel).toContainText('15 x 8')
   await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
   const nucleus = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  const nucleusBrightness = await canvas.evaluate(element => {
+    const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const pixels = new Uint8Array(32 * 32 * 4)
+    renderer.readPixels(Math.floor(element.width / 2) - 16, Math.floor(element.height / 2) - 16, 32, 32, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+    let luminance = 0
+    for (let index = 0; index < pixels.length; index += 4) luminance += .2126 * pixels[index] + .7152 * pixels[index + 1] + .0722 * pixels[index + 2]
+    return luminance / (32 * 32)
+  })
+  expect(nucleusBrightness).toBeGreaterThan(55)
   await page.screenshot({ path: 'test-results/halley-nucleus-desktop.png' })
   await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
   await expect.poll(async () => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(nucleus)

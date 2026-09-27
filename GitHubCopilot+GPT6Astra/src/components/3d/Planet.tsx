@@ -110,7 +110,7 @@ export function Planet({ body }: { body: CelestialBody }) {
         {body.id === 'halley' ? <NucleusGeometry /> : <sphereGeometry args={[1, 64, 40]} />}
         {body.id === 'sun' && experiment !== 'no-sun'
           ? <shaderMaterial ref={sun} vertexShader={sunVertex} fragmentShader={sunFragment} uniforms={{ time: { value: 0 } }} />
-          : <meshStandardMaterial map={body.id === 'halley' ? null : surfaceMap} color={body.id === 'sun' ? '#08090b' : body.id === 'halley' ? '#343433' : '#ffffff'} roughness={body.id === 'earth' ? .73 : .96} metalness={0} emissive={body.color} emissiveIntensity={hovered ? .15 : body.id === 'halley' ? .045 : .018} />}
+          : <meshStandardMaterial map={body.id === 'halley' ? null : surfaceMap} color={body.id === 'sun' ? '#08090b' : body.id === 'halley' ? '#686c6b' : '#ffffff'} roughness={body.id === 'earth' ? .73 : .96} metalness={0} emissive={body.color} emissiveIntensity={body.id === 'halley' ? hovered ? .28 : .18 : hovered ? .15 : .018} />}
       </mesh>
       {body.id === 'saturn' && <Rings radius={radius} />}
       {body.id === 'earth' && cloudMap && <mesh ref={cloudsMesh} scale={radius * 1.012}><sphereGeometry args={[1, 48, 32]} /><meshStandardMaterial map={cloudMap} transparent opacity={.55} depthWrite={false} /></mesh>}
