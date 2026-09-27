@@ -149,6 +149,26 @@ describe('astronomy and educational scale', () => {
     const moon = positionFor('moon', 0, 'custom', 1.4, 2)
     expect(Math.hypot(...moon.map((value, index) => value - earth[index]))).toBeLessThan(5)
   })
+  it('moves the Moon at its real daily angular rate relative to Earth in every scale', () => {
+    for (const scale of ['educational', 'relative', 'distances', 'custom'] as ScaleMode[]) {
+      const longitude = (days: number) => {
+        const earth = positionFor('earth', days, scale, 1.4, 2)
+        const moon = positionFor('moon', days, scale, 1.4, 2)
+        return Math.atan2(-(moon[2] - earth[2]), moon[0] - earth[0]) * 180 / Math.PI
+      }
+      for (let days = 0; days < 365; days++) {
+        const angle = (longitude(days + 1) - longitude(days) + 360) % 360
+        expect(angle).toBeGreaterThan(11)
+        expect(angle).toBeLessThan(16)
+      }
+      let revolution = 0
+      for (let step = 0; step < 100; step++) {
+        revolution += (longitude((step + 1) * 27.322 / 100) - longitude(step * 27.322 / 100) + 360) % 360
+      }
+      expect(revolution).toBeGreaterThan(355)
+      expect(revolution).toBeLessThan(365)
+    }
+  })
   it('preserves eccentricity in every display scale', () => {
     for (const scale of ['educational', 'relative', 'distances', 'custom'] as ScaleMode[]) {
       for (const [id, eccentricity] of [['mercury', .2056], ['venus', .0068], ['earth', .0167], ['mars', .0934], ['jupiter', .0484], ['saturn', .0539], ['uranus', .0473], ['neptune', .0086]] as const) {
