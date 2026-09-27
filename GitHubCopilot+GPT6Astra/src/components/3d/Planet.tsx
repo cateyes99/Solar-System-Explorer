@@ -15,15 +15,25 @@ float noise(vec3 point){vec3 cell=floor(point);vec3 rest=fract(point);rest=rest*
 return mix(mix(mix(hash(cell),hash(cell+vec3(1,0,0)),rest.x),mix(hash(cell+vec3(0,1,0)),hash(cell+vec3(1,1,0)),rest.x),rest.y),mix(mix(hash(cell+vec3(0,0,1)),hash(cell+vec3(1,0,1)),rest.x),mix(hash(cell+vec3(0,1,1)),hash(cell+vec3(1,1,1)),rest.x),rest.y),rest.z);}
 void main(){vec3 point=vPosition*3.0+vec3(time*.06);float granules=noise(point*7.0)*.5+noise(point*16.0)*.3+noise(point*35.0)*.2;
 vec3 color=mix(vec3(1.0,.19,.018),vec3(1.0,.86,.35),granules);gl_FragColor=vec4(color*1.45,1.0);}`
-const atmosphereVertex = `varying vec3 normalView;varying vec3 viewDirection;
-void main(){vec4 viewPosition=modelViewMatrix*vec4(position,1.0);normalView=normalize(normalMatrix*normal);viewDirection=normalize(-viewPosition.xyz);gl_Position=projectionMatrix*viewPosition;}`
-const atmosphereFragment = `uniform vec3 glowColor; varying vec3 normalView;varying vec3 viewDirection;
-void main(){float rim=pow(1.0-abs(dot(normalize(normalView),normalize(viewDirection))),3.5);gl_FragColor=vec4(glowColor,rim*.38);}`
+const atmosphereVertex = `varying vec3 normalView;varying vec3 viewDirection;varying vec3 localPosition;
+void main(){localPosition=position;vec4 viewPosition=modelViewMatrix*vec4(position,1.0);normalView=normalize(normalMatrix*normal);viewDirection=normalize(-viewPosition.xyz);gl_Position=projectionMatrix*viewPosition;}`
+const atmosphereFragment = `uniform vec3 glowColor;uniform float time;uniform float motion;varying vec3 normalView;varying vec3 viewDirection;varying vec3 localPosition;
+void main(){float rim=pow(1.0-abs(dot(normalize(normalView),normalize(viewDirection))),3.5);
+float drift=1.0+motion*(.08*sin(localPosition.y*9.0+localPosition.x*4.0-time*.35)+.04*sin(localPosition.z*7.0-localPosition.y*5.0+time*.22));
+gl_FragColor=vec4(glowColor,rim*.38*drift);}`
 
-function Atmosphere({ radius, color }: { radius: number; color: [number, number, number] }) {
+function Atmosphere({ radius, color, animated }: { radius: number; color: [number, number, number]; animated: boolean }) {
+  const material = useRef<ShaderMaterial>(null)
+  const [uniforms] = useState(() => ({ glowColor: { value: color }, time: { value: 0 }, motion: { value: animated ? 1 : 0 } }))
+  useFrame((_, delta) => {
+    const simulation = useSimulation.getState()
+    if (material.current && animated && !simulation.paused && !simulation.reducedMotion && simulation.experiment !== 'no-spin') {
+      material.current.uniforms.time.value += Math.min(delta, .1)
+    }
+  })
   return <mesh scale={radius * 1.055}>
     <sphereGeometry args={[1, 40, 24]} />
-    <shaderMaterial vertexShader={atmosphereVertex} fragmentShader={atmosphereFragment} uniforms={{ glowColor: { value: color } }} transparent side={BackSide} blending={AdditiveBlending} depthWrite={false} />
+    <shaderMaterial ref={material} vertexShader={atmosphereVertex} fragmentShader={atmosphereFragment} uniforms={uniforms} transparent side={BackSide} blending={AdditiveBlending} depthWrite={false} />
   </mesh>
 }
 
@@ -36,16 +46,53 @@ function Rings({ radius }: { radius: number }) {
   </group>
 }
 
+function Clouds({ radius }: { radius: number }) {
+  const mesh = useRef<Mesh>(null)
+  const [map] = useState(makeClouds)
+  const [cloudTime] = useState(() => ({ value: 0 }))
+  useEffect(() => () => map.dispose(), [map])
+  useFrame((_, delta) => {
+    const simulation = useSimulation.getState()
+    if (simulation.paused || simulation.reducedMotion || simulation.experiment === 'no-spin') return
+    const step = Math.min(delta, .1) * 1.5 * Math.sqrt(Math.max(0, simulation.speed) / 8)
+    cloudTime.value += step
+    if (mesh.current) mesh.current.rotation.y += step * .025
+  })
+  return <mesh ref={mesh} name="earth-clouds" scale={radius * 1.012}>
+    <sphereGeometry args={[1, 48, 32]} />
+    <meshStandardMaterial map={map} transparent opacity={.55} depthWrite={false} userData={{ cloudTime }} customProgramCacheKey={() => 'earth-cloud-flow-v1'} onBeforeCompile={shader => {
+      shader.uniforms.cloudTime = cloudTime
+      shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 cloudPosition;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\ncloudPosition = position;')
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float cloudTime;\nvarying vec3 cloudPosition;')
+        .replace('#include <map_fragment>', `
+          vec3 point = normalize(cloudPosition);
+          float polarFade = 1.0 - point.y * point.y;
+          vec2 flow = vec2(
+            sin(point.y * 11.0 + point.z * 5.0 + cloudTime * .24),
+            cos(point.x * 8.0 - point.y * 6.0 - cloudTime * .19)
+          ) * vec2(.035, .018) * polarFade;
+          vec2 eddies = vec2(
+            cos(point.z * 17.0 + point.x * 9.0 - cloudTime * .31),
+            sin(point.y * 15.0 - point.z * 8.0 + cloudTime * .27)
+          ) * .008 * polarFade;
+          float cloudBank = texture2D(map, vMapUv + flow + eddies).a;
+          float wisps = texture2D(map, vMapUv - flow * .6 + eddies).a;
+          float density = .85 + .15 * sin(point.x * 10.0 + point.z * 7.0 + cloudTime * .28);
+          diffuseColor.a *= smoothstep(.015, .65, mix(cloudBank, wisps, .25)) * density;
+        `)
+    }} />
+  </mesh>
+}
+
 export function Planet({ body }: { body: CelestialBody }) {
   const group = useRef<Group>(null)
   const surface = useRef<Mesh>(null)
   const sun = useRef<ShaderMaterial>(null)
-  const cloudsMesh = useRef<Mesh>(null)
   const secondMoon = useRef<Mesh>(null)
   const glow = useRef<Sprite>(null)
   const [hovered, setHovered] = useState(false)
   const [surfaceMap, setSurfaceMap] = useState<Texture>(() => makeSurface(body.id))
-  const [cloudMap] = useState(() => body.id === 'earth' ? makeClouds() : null)
   const [glowMap] = useState(() => body.id === 'sun' ? makeGlow() : null)
   const label = useRef<HTMLElement | null>(null)
   const projected = useRef(new Vector3())
@@ -71,7 +118,7 @@ export function Planet({ body }: { body: CelestialBody }) {
     return () => { active = false; loaded.dispose() }
   }, [body.id])
   useEffect(() => () => surfaceMap.dispose(), [surfaceMap])
-  useEffect(() => () => { cloudMap?.dispose(); glowMap?.dispose() }, [cloudMap, glowMap])
+  useEffect(() => () => glowMap?.dispose(), [glowMap])
 
   useFrame((state, delta) => {
     const simulation = useSimulation.getState()
@@ -92,7 +139,6 @@ export function Planet({ body }: { body: CelestialBody }) {
         const spin = simulation.days * 24 / body.day
         surface.current.rotation.set(.4 * Math.sin(spin * .37), spin * .16, .3 * Math.sin(spin * .19))
       } else if (surface.current && body.id !== 'pluto') surface.current.rotation.y += Math.min(delta, .1) * simulation.speed * 24 / Math.abs(body.day) * .16
-      if (cloudsMesh.current) cloudsMesh.current.rotation.y += Math.min(delta, .1) * .025
       if (sun.current) sun.current.uniforms.time.value += Math.min(delta, .1)
     }
     if (glow.current) {
@@ -115,8 +161,8 @@ export function Planet({ body }: { body: CelestialBody }) {
           : <meshStandardMaterial map={body.id === 'halley' ? null : surfaceMap} color={body.id === 'sun' ? '#08090b' : body.id === 'halley' ? '#686c6b' : '#ffffff'} roughness={body.id === 'earth' ? .73 : .96} metalness={0} emissive={body.color} emissiveIntensity={body.id === 'halley' ? hovered ? .28 : .18 : hovered ? .15 : .018} />}
       </mesh>
       {body.id === 'saturn' && <Rings radius={radius} />}
-      {body.id === 'earth' && cloudMap && <mesh ref={cloudsMesh} scale={radius * 1.012}><sphereGeometry args={[1, 48, 32]} /><meshStandardMaterial map={cloudMap} transparent opacity={.55} depthWrite={false} /></mesh>}
-      {['earth', 'venus', 'uranus', 'neptune'].includes(body.id) && <Atmosphere radius={radius} color={body.id === 'venus' ? [1, .7, .25] : [.2, .6, 1]} />}
+      {body.id === 'earth' && <Clouds radius={radius} />}
+      {['earth', 'venus', 'uranus', 'neptune'].includes(body.id) && <Atmosphere radius={radius} color={body.id === 'venus' ? [1, .7, .25] : [.2, .6, 1]} animated={body.id === 'earth'} />}
     </group>
     {body.id === 'halley' && <CometActivity radius={radius} />}
     {body.id === 'sun' && experiment !== 'no-sun' && <>
