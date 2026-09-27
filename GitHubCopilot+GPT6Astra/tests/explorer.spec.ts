@@ -28,6 +28,289 @@ test('renders the solar system, animates pixels, and selects Earth', async ({ pa
   expect(errors).toEqual([])
 })
 
+test('Pluto loads its observed surface and rotates with the date on desktop and mobile', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const texture = page.waitForResponse(response => response.url().endsWith('/textures/pluto.jpg'))
+  await page.goto('/')
+  expect((await texture).status()).toBe(200)
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  const canvas = page.locator('.scene canvas')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/pluto-overview-desktop.png' })
+  const indexBounds = (await page.getByRole('complementary', { name: 'Celestial objects' }).boundingBox())!
+  const clockBounds = (await page.locator('.time-bar').boundingBox())!
+  expect(indexBounds.y + indexBounds.height).toBeLessThan(clockBounds.y)
+  await expect(page.locator('.planet-index .index-item').nth(9)).toHaveAccessibleName('Pluto 09')
+  await expect(page.locator('.planet-index .index-item').nth(10)).toHaveAccessibleName("Halley's Comet 10")
+  await page.getByRole('button', { name: 'Pluto 09', exact: true }).click()
+  const panel = page.getByRole('complementary', { name: 'Pluto information' })
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText('Dwarf planet / Kuiper Belt')
+  await expect(panel).toContainText('2,377')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.getByRole('button', { name: 'View Planet', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  const first = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  await page.screenshot({ path: 'test-results/pluto-focus-desktop.png' })
+  await page.getByRole('button', { name: 'Advance one day', exact: true }).click()
+  await expect.poll(async () => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(first)
+  await page.getByRole('button', { name: 'Follow Planet', exact: true }).click()
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(40 * 40 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 20, Math.floor(centerY) - 20, 40, 40, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 20).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/pluto-focus-${width}.png` })
+  }
+  await page.getByRole('button', { name: 'Close planet information', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/pluto-overview-mobile.png' })
+  await page.getByRole('button', { name: 'Cinematic Tour', exact: true }).click()
+  const tour = page.getByRole('region', { name: 'Cinematic tour' })
+  await tour.getByRole('button', { name: 'Step 12: Meet Pluto.', exact: true }).click()
+  await expect(tour.getByRole('heading')).toHaveText('Meet Pluto.')
+  await expect(tour).toContainText('12 OF 13')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await tour.getByRole('button', { name: 'Pause tour', exact: true }).click()
+  await page.screenshot({ path: 'test-results/pluto-tour-mobile.png' })
+  await tour.getByRole('button', { name: 'Next stop', exact: true }).click()
+  await expect(tour.getByRole('heading')).toHaveText('Keep looking up.')
+  await tour.getByRole('button', { name: 'Next stop', exact: true }).click()
+  await expect(tour).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('Halley has an inspectable nucleus, full orbit, and dated active appearances', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  await page.locator('.index-item').filter({ hasText: "Halley's Comet" }).click()
+  const panel = page.getByRole('complementary', { name: "Halley's Comet information" })
+  const canvas = page.locator('.scene canvas')
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText('15 x 8')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  const nucleus = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  const nucleusBrightness = await canvas.evaluate(element => {
+    const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+    const pixels = new Uint8Array(32 * 32 * 4)
+    renderer.readPixels(Math.floor(element.width / 2) - 16, Math.floor(element.height / 2) - 16, 32, 32, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+    let luminance = 0
+    for (let index = 0; index < pixels.length; index += 4) luminance += .2126 * pixels[index] + .7152 * pixels[index + 1] + .0722 * pixels[index + 2]
+    return luminance / (32 * 32)
+  })
+  expect(nucleusBrightness).toBeGreaterThan(55)
+  await page.screenshot({ path: 'test-results/halley-nucleus-desktop.png' })
+  await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+  await expect.poll(async () => canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(nucleus)
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  await page.getByRole('button', { name: 'View full orbit', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/halley-orbit-desktop.png' })
+  await page.getByRole('button', { name: '1986 perihelion', exact: true }).click()
+  await expect(page.locator('time')).toHaveText('09 Feb 1986')
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  expect(await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(nucleus)
+  await page.screenshot({ path: 'test-results/halley-active-desktop.png' })
+  await page.getByRole('button', { name: '2061 perihelion', exact: true }).click()
+  await expect(page.locator('time')).toHaveText('28 Jul 2061')
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(80 * 80 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 40, Math.floor(centerY) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 12).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/halley-active-${width}.png` })
+  }
+  await page.getByRole('button', { name: 'View full orbit', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await page.screenshot({ path: 'test-results/halley-orbit-mobile.png' })
+  expect(errors).toEqual([])
+})
+
+test('Halley crosses aphelion with a closed orbit', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.locator('.index-item').filter({ hasText: "Halley's Comet" }).click()
+  await page.evaluate(async () => {
+    const modulePath = performance.getEntriesByType('resource').map(entry => entry.name).find(name => new URL(name).pathname === '/src/store/simulationStore.ts')
+    if (!modulePath) throw new Error('The simulation store was not loaded.')
+    const { useSimulation } = await import(modulePath)
+    useSimulation.getState().set({ days: (Date.UTC(2023, 11, 1) - Date.UTC(2026, 8, 26, 12)) / 86400000, paused: true, reducedMotion: false, speed: 365 })
+  })
+  const canvas = page.locator('.scene canvas')
+  await page.getByRole('button', { name: 'View full orbit', exact: true }).click()
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+  await expect(page.locator('time')).toHaveText('01 Dec 2023')
+  const before = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())
+  await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+  await expect.poll(async () => Date.parse((await page.locator('time').getAttribute('dateTime'))!)).toBeGreaterThanOrEqual(Date.UTC(2024, 0, 1))
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  expect(await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL())).not.toBe(before)
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const litPixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(element.width * element.height * 4)
+      renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 25).length
+    })
+    expect(litPixels).toBeGreaterThan(100)
+    await page.screenshot({ path: `test-results/halley-closed-orbit-${width}.png` })
+  }
+  expect(errors).toEqual([])
+})
+
+for (const width of [1440, 390]) {
+  test(`JPL limit consent and approximate reset work at ${width}px`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/')
+    await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+    await page.locator('.index-item').filter({ hasText: "Halley's Comet" }).click()
+    const reachBoundary = async (manual = false) => page.evaluate(async manualStep => {
+      const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+      const storePath = resources.find(name => new URL(name).pathname === '/src/store/simulationStore.ts')!
+      const astronomyPath = resources.find(name => new URL(name).pathname === '/src/utils/astronomy.ts')!
+      const { useSimulation } = await import(storePath)
+      const { MAX_DAYS } = await import(astronomyPath)
+      useSimulation.getState().set({ days: MAX_DAYS - .05, speed: 1, paused: manualStep, reducedMotion: false })
+    }, manual)
+    await reachBoundary()
+    const dialog = page.getByRole('dialog', { name: 'JPL data limit' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toContainText('Now it has reached the date limit of JPL data')
+    await expect(dialog).toContainText('Would you like to switch to approximate orbital calculations outside the available data range?')
+    await expect(dialog.getByRole('button', { name: 'No', exact: true })).toBeFocused()
+    await page.screenshot({ path: `test-results/jpl-consent-${width}.png` })
+    await dialog.getByRole('button', { name: 'No', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByRole('button', { name: 'Play simulation', exact: true })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toHaveCount(0)
+    const stoppedDate = await page.locator('time').getAttribute('dateTime')
+    await page.getByRole('button', { name: 'Advance one day', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).not.toBeVisible()
+    await expect(page.locator('time')).toHaveAttribute('dateTime', stoppedDate!)
+    await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Yes', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Pause simulation', exact: true })).toBeVisible()
+    await expect(page.locator('time')).not.toHaveAttribute('dateTime', stoppedDate!)
+    const canvas = page.locator('.scene canvas')
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    const pixels = await canvas.evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(80 * 80 * 4)
+      const centerY = innerWidth <= 800 ? element.height * .8 : element.height / 2
+      renderer.readPixels(Math.floor(element.width / 2) - 40, Math.floor(centerY) - 40, 80, 80, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 12).length
+    })
+    expect(pixels).toBeGreaterThan(100)
+    await page.screenshot({ path: `test-results/jpl-approximate-${width}.png` })
+    await page.getByRole('button', { name: 'Reset simulation date', exact: true }).click()
+    await expect(page.locator('time')).toHaveAttribute('dateTime', /^2026/)
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toHaveCount(0)
+    await reachBoundary(true)
+    await page.getByRole('button', { name: 'Advance one day', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Reset simulation date', exact: true }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.locator('time')).toHaveText('26 Sept 2026')
+    expect(errors).toEqual([])
+  })
+}
+
+for (const width of [1440, 390]) {
+  test(`paused date selection works at ${width}px`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/')
+    await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+    await expect(page.getByRole('button', { name: 'Set simulation date', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+    await page.getByRole('button', { name: 'Reset simulation date', exact: true }).click()
+    const picker = page.getByRole('dialog', { name: 'Set simulation date', exact: true })
+    const openPicker = () => page.getByRole('button', { name: 'Set simulation date', exact: true }).click()
+    await openPicker()
+    await expect(picker.getByLabel('Date (UTC)', { exact: true })).toHaveValue('2026-09-26')
+    await expect(picker.getByLabel('Date (UTC)', { exact: true })).toBeFocused()
+    await picker.getByLabel('Date (UTC)', { exact: true }).fill('2024-02-29')
+    await page.screenshot({ path: `test-results/date-picker-${width}.png` })
+    await picker.getByRole('button', { name: 'Apply date', exact: true }).click()
+    await expect(picker).not.toBeVisible()
+    await expect(page.locator('time')).toHaveAttribute('dateTime', '2024-02-29T12:00:00.000Z')
+    await expect(page.getByRole('button', { name: 'Play simulation', exact: true })).toBeVisible()
+    await openPicker()
+    await picker.getByLabel('Date (UTC)', { exact: true }).fill('2000-01-01')
+    await picker.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(page.locator('time')).toHaveText('29 Feb 2024')
+    await openPicker()
+    await page.keyboard.press('Escape')
+    await expect(picker).not.toBeVisible()
+    await expect(page.locator('time')).toHaveText('29 Feb 2024')
+    await openPicker()
+    await picker.getByLabel('Date (UTC)', { exact: true }).fill('')
+    await picker.getByRole('button', { name: 'Apply date', exact: true }).click()
+    await expect(picker).toBeVisible()
+    await picker.getByLabel('Date (UTC)', { exact: true }).fill('2100-01-01')
+    await picker.getByRole('button', { name: 'Apply date', exact: true }).click()
+    const consent = page.getByRole('dialog', { name: 'JPL data limit' })
+    await expect(consent).toBeVisible()
+    await expect(consent).toContainText('01 Jan 2100')
+    await consent.getByRole('button', { name: 'No', exact: true }).click()
+    await expect(page.locator('time')).toHaveText('29 Feb 2024')
+    await openPicker()
+    await picker.getByLabel('Date (UTC)', { exact: true }).fill('2100-01-01')
+    await picker.getByRole('button', { name: 'Apply date', exact: true }).click()
+    await consent.getByRole('button', { name: 'Yes', exact: true }).click()
+    await expect(page.locator('time')).toHaveAttribute('dateTime', '2100-01-01T12:00:00.000Z')
+    await expect(page.getByRole('button', { name: 'Play simulation', exact: true })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toBeVisible()
+    await expect(page.locator('canvas')).toHaveAttribute('data-camera-moving', 'false')
+    const pixels = await page.locator('canvas').evaluate(element => {
+      const renderer = (element as HTMLCanvasElement).getContext('webgl2')!
+      const pixels = new Uint8Array(element.width * element.height * 4)
+      renderer.readPixels(0, 0, element.width, element.height, renderer.RGBA, renderer.UNSIGNED_BYTE, pixels)
+      return pixels.filter((value, index) => index % 4 !== 3 && value > 25).length
+    })
+    expect(pixels).toBeGreaterThan(100)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/selected-date-${width}.png` })
+    await page.getByRole('button', { name: 'Reset simulation date', exact: true }).click()
+    await expect(page.locator('time')).toHaveText('26 Sept 2026')
+    await expect(page.getByRole('status').filter({ hasText: 'Approximate positions' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Play simulation', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Set simulation date', exact: true })).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
+}
+
 test('time, keyboard, camera, labels, and reduced motion work', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.loading-screen')).toHaveCount(0)
@@ -65,6 +348,49 @@ test('time, keyboard, camera, labels, and reduced motion work', async ({ page })
   await expect(page.getByRole('complementary', { name: 'Earth information' })).toHaveCount(0)
 })
 
+test('Ctrl-drag pans horizontally and vertically without snapping back in follow mode', async ({ page }) => {
+  test.setTimeout(150000)
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+  await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+  const canvas = page.locator('.scene canvas')
+  const label = page.locator('#scene-label-earth')
+  const labelPosition = () => label.evaluate(element => {
+    const anchor = element.style.transform.split(')')[0] + ')'
+    const transform = new DOMMatrix(anchor)
+    return { x: transform.m41, y: transform.m42 }
+  })
+  for (const view of ['overview', 'follow']) {
+    if (view === 'follow') await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
+    await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+    for (const [horizontal, vertical] of [[70, 0], [0, -60]]) {
+      const before = await labelPosition()
+      await page.keyboard.down('Control')
+      await page.mouse.move(850, 520)
+      await page.mouse.down()
+      await page.mouse.move(850 + horizontal, 520 + vertical, { steps: 8 })
+      await page.mouse.up()
+      await page.keyboard.up('Control')
+      await expect.poll(async () => {
+        const after = await labelPosition()
+        return horizontal ? after.x - before.x : before.y - after.y
+      }).toBeGreaterThan(25)
+      await expect.poll(async () => {
+        const first = await labelPosition()
+        await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+        const second = await labelPosition()
+        return Math.hypot(second.x - first.x, second.y - first.y)
+      }).toBeLessThan(.1)
+      const after = await labelPosition()
+      expect(horizontal ? after.x - before.x : before.y - after.y).toBeGreaterThan(25)
+    }
+    await page.screenshot({ path: `test-results/ctrl-pan-${view}.png` })
+  }
+  await page.keyboard.press('h')
+  await expect(page.getByRole('complementary', { name: 'Earth information' })).toHaveCount(0)
+  await expect(canvas).toHaveAttribute('data-camera-moving', 'false')
+})
+
 test('tour supports start, pause, resume, skip, and exit', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.loading-screen')).toHaveCount(0)
@@ -87,9 +413,9 @@ test('tour steps jump in either direction and restart automatic playback', async
   await page.getByRole('button', { name: 'Cinematic Tour' }).click()
   const popup = page.getByRole('region', { name: 'Cinematic tour' })
   const steps = popup.getByRole('navigation', { name: 'Tour steps' }).getByRole('button')
-  await expect(steps).toHaveCount(12)
+  await expect(steps).toHaveCount(13)
   await page.getByRole('button', { name: 'Pause tour' }).click()
-  for (const index of [9, 3, 0, 11, 6, 5, 7, 8, 10, 2, 1, 4]) {
+  for (const index of [9, 3, 0, 12, 11, 6, 5, 7, 8, 10, 2, 1, 4]) {
     await steps.nth(index).click()
     await expect(popup.getByRole('heading')).toHaveText(tourStops[index].title)
     await expect(steps.nth(index)).toHaveAttribute('aria-current', 'step')
@@ -103,7 +429,12 @@ test('tour steps jump in either direction and restart automatic playback', async
   await page.clock.runFor(9500)
   await expect(steps.nth(5)).toHaveAttribute('aria-current', 'step')
   await expect(popup.getByRole('heading')).toHaveText(tourStops[5].title)
-  await steps.last().click()
+  await steps.nth(10).click()
+  await page.clock.runFor(10500)
+  await expect(steps.nth(11)).toHaveAttribute('aria-current', 'step')
+  await expect(popup.getByRole('heading')).toHaveText('Meet Pluto.')
+  await page.clock.runFor(10500)
+  await expect(steps.last()).toHaveAttribute('aria-current', 'step')
   await page.clock.runFor(10500)
   await expect(popup).toHaveCount(0)
 })

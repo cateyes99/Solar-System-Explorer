@@ -25,6 +25,7 @@ export function useExperience() {
       const target = event.target as HTMLElement
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A', 'SUMMARY'].includes(target.tagName)) return
       const state = useSimulation.getState()
+      if (state.dateLimitPrompt) return
       if (event.code === 'Space') { event.preventDefault(); state.set({ paused: !state.paused }) }
       if (event.key.toLowerCase() === 'h') state.viewSystem()
       if (event.key.toLowerCase() === 'l') state.set({ labels: !state.labels })
@@ -32,6 +33,7 @@ export function useExperience() {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       const state = useSimulation.getState()
+      if (state.dateLimitPrompt) return
       if (state.tour !== null) state.exitTour()
       else if (state.panel) state.set({ panel: null })
       else state.viewSystem()

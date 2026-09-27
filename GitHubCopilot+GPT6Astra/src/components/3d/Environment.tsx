@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Line } from '@react-three/drei'
 import { BufferAttribute, Color, InstancedMesh, Object3D, Points, ShaderMaterial } from 'three'
 import { useSimulation } from '../../store/simulationStore'
-import { planets } from '../../data/planets'
-import { orbitFor } from '../../utils/astronomy'
+import { bodyById, planets, type BodyId } from '../../data/planets'
+import { orbitFor, orbitPathFor, type ScaleMode } from '../../utils/astronomy'
 
 export function StarField() {
   const points = useRef<Points>(null)
@@ -34,15 +35,22 @@ export function StarField() {
   </points>
 }
 
+function OrbitPath({ id, scale, spacing, size }: { id: Exclude<BodyId, 'sun' | 'moon'>; scale: ScaleMode; spacing: number; size: number }) {
+  const interval = id === 'halley' ? 16 : bodyById[id].year / 4
+  const epoch = useSimulation(state => Math.floor(state.days / interval))
+  const points = orbitPathFor(id, (epoch + .5) * interval, scale, spacing, size)
+  return <Line points={points} color={id === 'halley' ? '#9fbfba' : '#647982'} transparent opacity={id === 'halley' ? .5 : .3} lineWidth={1} depthWrite={false} />
+}
+
 export function OrbitPaths() {
   const scale = useSimulation(state => state.scale)
   const spacing = useSimulation(state => state.spacing)
+  const size = useSimulation(state => state.size)
   const visible = useSimulation(state => state.orbits)
   return <group visible={visible}>
-    {planets.map(body => <mesh key={body.id} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[orbitFor(body.id, scale, spacing) - .023, orbitFor(body.id, scale, spacing) + .023, 192]} />
-      <meshBasicMaterial color="#647982" transparent opacity={.3} side={2} depthWrite={false} />
-    </mesh>)}
+    {planets.map(body => <OrbitPath key={body.id} id={body.id as Exclude<BodyId, 'sun' | 'moon'>} scale={scale} spacing={spacing} size={size} />)}
+    <OrbitPath id="halley" scale={scale} spacing={spacing} size={size} />
+    <OrbitPath id="pluto" scale={scale} spacing={spacing} size={size} />
   </group>
 }
 

@@ -48,6 +48,7 @@ h1, h2, h3 { font-family: 'Manrope', sans-serif; }
 .system-coordinate>svg:first-child { color: var(--accent); }
 .system-coordinate small { display: block; font-size: 7px; color: #76828a; margin-top: 5px; }
 .planet-index { position: absolute; z-index: 10; left: 47px; top: 348px; width: 156px; }
+@media (min-width: 801px) { .planet-index { bottom: 160px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #465654 transparent; } }
 .index-heading { font-size: 8px; letter-spacing: 1.3px; margin-bottom: 14px; justify-content: space-between; color: #728089; }
 .index-heading>span { color: #9fabae; }
 .index-item { height: 34px; width: 100%; justify-content: flex-start; gap: 12px; color: #abb3b9; font-size: 11px; padding: 0 9px; margin-left: -9px; border: 1px solid transparent; border-radius: 4px; }
@@ -77,6 +78,20 @@ h1, h2, h3 { font-family: 'Manrope', sans-serif; }
 .time-label { min-width: 182px; }
 .time-label .eyebrow { font-size: 8px; color: #74848c; letter-spacing: 1.8px; }
 .time-label time { display: block; font-family: 'Manrope', sans-serif; font-size: 18px; margin-top: 7px; font-variant-numeric: tabular-nums; }
+.time-label .position-accuracy { font-size: 10px; letter-spacing: 0; color: #efcd8e; }
+.clock-date { display: flex; align-items: center; gap: 6px; min-height: 34px; }
+.clock-date time { white-space: nowrap; }
+.clock-date .icon-button { width: 28px; height: 28px; flex: 0 0 28px; margin-top: 7px; color: var(--accent); }
+.date-limit-dialog { width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 24px; color: #e2e9ec; background: #151e24; border: 1px solid #647982; border-radius: 6px; box-shadow: 0 24px 80px #0008; }
+.date-limit-dialog::backdrop { background: #03070bbb; }
+.date-limit-dialog h2 { margin: 0 0 16px; font-size: 22px; letter-spacing: 0; }
+.date-limit-dialog p { font-size: 14px; line-height: 1.6; margin: 12px 0; }
+.date-limit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.date-limit-actions button { gap: 8px; padding: 10px 14px; border: 1px solid #647982; border-radius: 4px; font-size: 13px; }
+.date-limit-actions button:first-child { margin-right: auto; }
+.date-limit-actions .confirm-approximation { color: #11271d; background: #b5eacb; border-color: #b5eacb; }
+.date-picker label { display: block; font-size: 13px; margin-bottom: 8px; }
+.date-picker input[type="date"] { display: block; width: 100%; min-width: 0; padding: 12px; font: inherit; color: #e2e9ec; background: #0d1419; border: 1px solid #647982; border-radius: 4px; color-scheme: dark; }
 .transport { display: flex; align-items: center; gap: 12px; }
 .play-control { height: 43px; width: 43px; border: 1px solid #95a7ab4f; border-radius: 50%; color: #c8d9d3; }
 .speed-controls { display: flex; padding: 5px; background: #ffffff03; border: 1px solid var(--line); border-radius: 5px; gap: 4px; }
@@ -124,6 +139,10 @@ details p { margin-top: 12px; }
 .camera-modes { display: flex; gap: 4px; border: 1px solid var(--line); border-radius: 4px; padding: 4px; margin-top: 21px; }
 .camera-modes button { font-size: 9px; padding: 8px 6px; flex: 1; color: #8b9ba4; }
 .camera-modes button.active { background: #b5eacb12; color: var(--accent); }
+.comet-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.comet-controls button { gap: 6px; padding: 8px; font-size: 10px; color: var(--accent); border: 1px solid var(--line); border-radius: 4px; }
+.index-item:has(.halley) { font-size: 10px; gap: 8px; }
+.mini-planet.halley { border-radius: 43% 58% 46% 39%; transform: scaleY(.55) rotate(-20deg); }
 .data-note { display: block; font-size: 8px; line-height: 1.6; color: #778790; margin-top: 15px; }
 .settings-section { margin: 25px 0; }
 .settings-section label { font-size: 12px; display: flex; justify-content: space-between; margin: 17px 0 10px; }

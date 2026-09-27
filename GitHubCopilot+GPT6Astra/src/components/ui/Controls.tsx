@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, AudioLines, BookOpen, Check, ChevronRight, Compass, Focus, Globe2, GripHorizontal, Maximize, Minimize, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Settings2, Shuffle, SkipForward, Sparkles, Telescope, Volume2, VolumeX, X } from 'lucide-react'
+import { ArrowRight, AudioLines, BookOpen, CalendarDays, Check, ChevronRight, Compass, Focus, Globe2, GripHorizontal, Maximize, Minimize, Orbit, Pause, Play, Plus, Rocket, RotateCcw, Settings2, Shuffle, SkipForward, Sparkles, Telescope, Volume2, VolumeX, X } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useShallow } from 'zustand/react/shallow'
-import { allFacts, bodies, bodyById, planets, tourStops } from '../../data/planets'
+import { allFacts, bodies, bodyById, DAY_MS, EPOCH, planets, tourStops } from '../../data/planets'
 import { useSimulation } from '../../store/simulationStore'
-import { formatDate } from '../../utils/astronomy'
+import { formatDate, usesApproximatePositions } from '../../utils/astronomy'
 
 export function IconButton({ label, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; children: ReactNode }) {
   return <button {...props} className={`icon-button ${props.className ?? ''}`} aria-label={label} title={label}>{children}</button>
@@ -42,9 +42,9 @@ export function Header() {
 export function PlanetIndex() {
   const selected = useSimulation(state => state.selected)
   return <aside className="planet-index" aria-label="Celestial objects">
-    <div className="eyebrow index-heading">OUR SOLAR SYSTEM <span>09</span></div>
+    <div className="eyebrow index-heading">OUR SOLAR SYSTEM <span>{bodies.length - 1}</span></div>
     {bodies.filter(body => body.id !== 'moon').map((body, index) => <button key={body.id} className={`index-item ${selected === body.id ? 'active' : ''}`} onClick={() => useSimulation.getState().select(body.id)} aria-pressed={selected === body.id}>
-      <span className={`mini-planet ${body.id}`} style={{ '--planet-color': body.color } as React.CSSProperties} /><span>{body.name}</span><small>{index === 0 ? <Sparkles size={11} /> : `0${index}`}</small>
+      <span className={`mini-planet ${body.id}`} style={{ '--planet-color': body.color } as React.CSSProperties} /><span>{body.name}</span><small>{index === 0 ? <Sparkles size={11} /> : String(index).padStart(2, '0')}</small>
     </button>)}
     <button className="index-moon" onClick={() => useSimulation.getState().select('moon')}><span className="moon-dot" /> Earth's Moon <ChevronRight size={12} /></button>
     <div className="index-footer"><span className="live-dot" /> LIVE SIMULATION</div>
@@ -62,7 +62,7 @@ export function PlanetPanel() {
     <div className="body-title"><span className="eyebrow" style={{ color: body.color }}>{body.kind}</span><h2>{body.name}<span>.</span></h2>{body.id === 'earth' && <span className="home-tag">HELLO, EARTH</span>}</div>
     <p className="body-description">{body.description}</p>
     <dl className="planet-stats">
-      <div><dt>Diameter</dt><dd>{body.diameter.toLocaleString()} <small>km</small></dd></div>
+      <div><dt>{id === 'halley' ? 'Nucleus dimensions' : 'Diameter'}</dt><dd>{id === 'halley' ? '15 x 8' : body.diameter.toLocaleString()} <small>km</small></dd></div>
       <div><dt>{body.id === 'moon' ? 'From Earth' : 'From the Sun'}</dt><dd>{body.id === 'moon' ? '384,400' : body.distanceAU === 0 ? 'Center' : (body.distanceAU * 149.598).toLocaleString('en', { maximumFractionDigits: 1 })} <small>{body.id === 'moon' ? 'km' : body.distanceAU ? 'million km' : ''}</small></dd></div>
       <div><dt>{body.id === 'moon' ? 'Orbit around Earth' : 'Length of year'}</dt><dd>{body.year ? body.year.toLocaleString('en', { maximumFractionDigits: 1 }) : '--'} <small>{body.year ? 'Earth days' : ''}</small></dd></div>
       <div><dt>One rotation</dt><dd>{Math.abs(body.day).toLocaleString('en', { maximumFractionDigits: 1 })} <small>hours</small></dd></div>
@@ -71,9 +71,63 @@ export function PlanetPanel() {
     </dl>
     <div className="did-you-know"><Sparkles size={17} /><div><h3>Did you know?</h3><p>{body.facts[0]}</p></div></div>
     <details><summary>More discoveries <Plus size={14} /></summary>{body.facts.slice(1).map(fact => <p key={fact}>{fact}</p>)}</details>
-    <div className="camera-modes" aria-label="Camera mode"><button className={cameraMode === 'planet' ? 'active' : ''} onClick={() => useSimulation.getState().set({ cameraMode: 'planet' })}><Focus size={15} />View Planet</button><button className={cameraMode === 'follow' ? 'active' : ''} onClick={() => useSimulation.getState().set({ cameraMode: 'follow' })}><Orbit size={15} />Follow Planet</button></div>
-    <small className="data-note">Rounded values. Moon counts change with discoveries. Rotation is relative to the stars.</small>
+    {id === 'halley' && <div className="comet-controls" aria-label="Halley observations">
+      <button onClick={() => useSimulation.getState().set({ cameraMode: 'orbit', cameraRevision: useSimulation.getState().cameraRevision + 1 })}><Orbit size={15} />View full orbit</button>
+      {[{ label: '1986 perihelion', date: Date.UTC(1986, 1, 9, 12) }, { label: '2061 perihelion', date: Date.UTC(2061, 6, 28, 12) }].map(visit => <button key={visit.label} onClick={() => useSimulation.getState().set({ days: (visit.date - EPOCH) / DAY_MS, paused: true, cameraMode: 'follow', cameraRevision: useSimulation.getState().cameraRevision + 1 })}><RotateCcw size={15} />{visit.label}</button>)}
+    </div>}
+    <div className="camera-modes" aria-label="Camera mode"><button className={cameraMode === 'planet' ? 'active' : ''} onClick={() => useSimulation.getState().set({ cameraMode: 'planet' })}><Focus size={15} />{id === 'halley' ? 'View nucleus' : 'View Planet'}</button><button className={cameraMode === 'follow' ? 'active' : ''} onClick={() => useSimulation.getState().set({ cameraMode: 'follow' })}><Orbit size={15} />{id === 'halley' ? 'Follow comet' : 'Follow Planet'}</button></div>
+    <small className="data-note">{id === 'halley' ? 'JPL Horizons trajectory. Orbit and nucleus enlarged separately. Irregular shape and tails are illustrative; rotation is complex tumbling. Distance and period are approximate mean values.' : 'Rounded values. Moon counts change with discoveries. Rotation is relative to the stars.'}</small>
   </motion.aside>}</AnimatePresence>
+}
+
+function DateLimitDialog() {
+  const open = useSimulation(state => state.dateLimitPrompt)
+  const pendingDate = useSimulation(state => state.pendingDate)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const decline = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (open) { dialog.current?.showModal(); decline.current?.focus() }
+    else dialog.current?.close()
+  }, [open])
+  return <dialog ref={dialog} className="date-limit-dialog" aria-labelledby="date-limit-title" aria-describedby="date-limit-message date-limit-question" onCancel={event => { event.preventDefault(); useSimulation.getState().resolveDateLimit(false) }}>
+    <h2 id="date-limit-title">JPL data limit</h2>
+    <p id="date-limit-message">{pendingDate === null ? 'Now it has reached the date limit of JPL data' : `The selected date, ${formatDate(pendingDate)}, is outside the available JPL data range.`}</p>
+    <p id="date-limit-question">Would you like to switch to approximate orbital calculations outside the available data range?</p>
+    <div className="date-limit-actions">
+      <button onClick={() => useSimulation.getState().resetDate()}><RotateCcw size={16} />Reset simulation date</button>
+      <button ref={decline} onClick={() => useSimulation.getState().resolveDateLimit(false)}>No</button>
+      <button className="confirm-approximation" onClick={() => useSimulation.getState().resolveDateLimit(true)}>Yes</button>
+    </div>
+  </dialog>
+}
+
+function DatePicker({ onClose }: { onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const [date, setDate] = useState(() => new Date(EPOCH + useSimulation.getState().days * DAY_MS).toISOString().slice(0, 10))
+  const [error, setError] = useState('')
+  useEffect(() => {
+    const element = dialog.current
+    element?.showModal()
+    input.current?.focus()
+    return () => element?.close()
+  }, [])
+  return <dialog ref={dialog} className="date-limit-dialog date-picker" aria-labelledby="date-picker-title" onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); onClose() }}>
+    <form onSubmit={event => {
+      event.preventDefault()
+      if (useSimulation.getState().setDate(date)) onClose()
+      else setError('Enter a valid date while the simulation is paused.')
+    }}>
+      <h2 id="date-picker-title">Set simulation date</h2>
+      <label htmlFor="simulation-date">Date (UTC)</label>
+      <input ref={input} id="simulation-date" type="date" required min="0001-01-01" max="9999-12-31" value={date} onChange={event => { setDate(event.target.value); setError('') }} aria-describedby={error ? 'date-picker-error' : undefined} aria-invalid={error ? true : undefined} />
+      {error && <p id="date-picker-error" role="alert">{error}</p>}
+      <div className="date-limit-actions">
+        <button type="button" onClick={onClose}>Cancel</button>
+        <button type="submit" className="confirm-approximation"><Check size={16} />Apply date</button>
+      </div>
+    </form>
+  </dialog>
 }
 
 export function TimeControls() {
@@ -81,17 +135,19 @@ export function TimeControls() {
   const speed = useSimulation(state => state.speed)
   const reduced = useSimulation(state => state.reducedMotion)
   const [days, setDays] = useState(useSimulation.getState().days)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const approximate = usesApproximatePositions(days)
   useEffect(() => {
     const interval = setInterval(() => setDays(useSimulation.getState().days), 250)
     return () => clearInterval(interval)
   }, [])
-  return <footer className="time-bar">
-    <div className="time-label"><span className="eyebrow">THE COSMIC CLOCK</span><time dateTime={new Date(Date.UTC(2026, 8, 26, 12) + days * 86400000).toISOString()}>{formatDate(days)}</time></div>
-    <div className="transport"><IconButton label="Reset simulation date" onClick={() => { useSimulation.getState().set({ days: 0 }); setDays(0) }}><RotateCcw size={17} /></IconButton><IconButton label={paused || reduced ? 'Play simulation' : 'Pause simulation'} className="play-control" onClick={() => useSimulation.getState().set(reduced ? { reducedMotion: false, paused: false } : { paused: !paused })}>{paused || reduced ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</IconButton><IconButton label="Advance one day" onClick={() => { useSimulation.getState().advance(1); setDays(useSimulation.getState().days) }}><SkipForward size={18} /></IconButton></div>
+  return <><footer className="time-bar">
+    <div className="time-label"><span className={`eyebrow ${approximate ? 'position-accuracy' : ''}`} role="status">{approximate ? 'Approximate positions' : 'THE COSMIC CLOCK'}</span><div className="clock-date"><time dateTime={new Date(EPOCH + days * DAY_MS).toISOString()}>{formatDate(days)}</time>{(paused || reduced) && <IconButton label="Set simulation date" onClick={() => setDatePickerOpen(true)}><CalendarDays size={17} /></IconButton>}</div></div>
+    <div className="transport"><IconButton label="Reset simulation date" onClick={() => { useSimulation.getState().resetDate(); setDays(0) }}><RotateCcw size={17} /></IconButton><IconButton label={paused || reduced ? 'Play simulation' : 'Pause simulation'} className="play-control" onClick={() => useSimulation.getState().set(reduced ? { reducedMotion: false, paused: false } : { paused: !paused })}>{paused || reduced ? <Play size={19} fill="currentColor" /> : <Pause size={19} fill="currentColor" />}</IconButton><IconButton label="Advance one day" onClick={() => { useSimulation.getState().advance(1); setDays(useSimulation.getState().days) }}><SkipForward size={18} /></IconButton></div>
     <div className="speed-controls" aria-label="Simulation speed">{[{ label: 'Slow', value: 1 }, { label: 'Normal', value: 8 }, { label: 'Fast', value: 30 }, { label: 'Very Fast', value: 365 }].map(item => <button key={item.value} className={speed === item.value ? 'active' : ''} aria-pressed={speed === item.value} onClick={() => useSimulation.getState().set({ speed: item.value })}>{item.label}</button>)}</div>
     <div className="speed-readout"><AudioLines size={16} /><span><strong>{reduced || paused ? 'PAUSED' : `${speed} DAYS / SEC`}</strong><small>Simulation speed: {(speed * 86400).toLocaleString()}x</small></span></div>
     <span className="timeline-decoration" aria-hidden="true" />
-  </footer>
+  </footer><DateLimitDialog />{datePickerOpen && <DatePicker onClose={() => { setDatePickerOpen(false); setDays(useSimulation.getState().days) }} />}</>
 }
 
 export function DiscoveryTools() {
@@ -119,6 +175,7 @@ function constrainTourPosition(left: number, top: number, element: HTMLElement) 
 
 export function TourControls() {
   const tour = useSimulation(state => state.tour)
+  const dateLimitPrompt = useSimulation(state => state.dateLimitPrompt)
   const paused = useSimulation(state => state.tourPaused)
   const reduced = useSimulation(state => state.reducedMotion)
   const cameraRevision = useSimulation(state => state.cameraRevision)
@@ -142,10 +199,10 @@ export function TourControls() {
     return () => { observer.disconnect(); window.removeEventListener('resize', constrain); drag.current = null }
   }, [active])
   useEffect(() => {
-    if (tour === null || paused || reduced) return
+    if (tour === null || paused || reduced || dateLimitPrompt) return
     const timer = setTimeout(() => useSimulation.getState().nextTour(), 10500)
     return () => clearTimeout(timer)
-  }, [tour, paused, reduced, cameraRevision])
+  }, [tour, paused, reduced, cameraRevision, dateLimitPrompt])
   if (tour === null) return null
   const stop = tourStops[tour]
   return <section ref={popup} className="tour-window" aria-label="Cinematic tour" style={position ? { left: position.left, top: position.top, right: 'auto' } : undefined}>
