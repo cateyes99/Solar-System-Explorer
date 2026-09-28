@@ -1,0 +1,7 @@
+feat(GitHub Copilot+GPT-6 Astra): add English and Simplified Chinese localization
+
+- Add i18next language detection, persistence, and runtime switching
+- Translate interface text, accessible labels, facts, lessons, tours, and experiments
+- Preserve simulation state when changing languages
+- Localize dates and support translated 2D fallback and error views
+- Add responsive browser coverage and translation completeness tests

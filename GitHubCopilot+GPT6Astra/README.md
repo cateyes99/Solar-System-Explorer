@@ -44,6 +44,14 @@ The production site is generated in `dist/`. Browser tests use an isolated headl
 - Random discoveries, a surprise destination, a greeting from Earth, and a solar pulse after every third Sun click.
 - Optional synthesized ambient audio, initially off. Reduce Motion respects the operating-system preference and can be toggled in Settings.
 
+## Languages
+
+Use the language menu in the header to switch between English and Simplified Chinese (简体中文). The first visit follows the browser language (Chinese variants use Simplified Chinese; other languages default to English). Your selection is saved locally when browser storage is available. Switching languages preserves the current simulation, camera, lesson, and mission state.
+
+Interface text, accessible labels, planet facts, tours, lessons, and experiments are translated. Dates use the selected locale and remain in UTC. Native date-picker widgets follow the browser's own locale.
+
+Translations use i18next and react-i18next. English messages are the translation keys and fallback text; Chinese translations live in `src/locales/zh-CN.json`. To add a locale, register its resource and supported language in `src/i18n.ts`, extend the language resolver and selector, and add coverage tests. Translate whole interpolated messages without changing their `{{placeholders}}`. The localization tests check Chinese content coverage and interpolation consistency.
+
 ## Keyboard and Accessibility
 
 - Tab and Shift+Tab navigate native HTML controls. Enter and Space activate buttons.
