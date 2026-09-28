@@ -16,10 +16,12 @@
     "@react-three/fiber": "^9.8.1",
     "astronomia": "^4.2.0",
     "astronomy-engine": "^2.1.19",
+    "i18next": "^26.4.2",
     "lucide-react": "^1.48.0",
     "motion": "^13.4.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-i18next": "^17.0.15",
     "three": "^0.186.1",
     "zustand": "^5.0.15"
   },

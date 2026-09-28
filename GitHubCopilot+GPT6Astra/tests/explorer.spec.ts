@@ -1,6 +1,127 @@
 import { test, expect } from '@playwright/test'
 import { tourStops } from '../src/data/planets'
 
+test.describe('multilingual support', () => {
+  test.use({ locale: 'en-GB' })
+
+  for (const width of [1440, 390]) {
+    test(`Chinese interface preserves state and renders at ${width}px`, async ({ page }) => {
+      test.setTimeout(120000)
+      const errors: string[] = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/')
+      await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 30000 })
+      await page.getByRole('button', { name: 'Pause simulation', exact: true }).click()
+      await page.locator('.planet-index').getByRole('button', { name: /^Earth(?: 03)?$/ }).click()
+      const simulationState = () => page.evaluate(async () => {
+        const storePath = performance.getEntriesByType('resource').map(entry => entry.name).find(name => new URL(name).pathname === '/src/store/simulationStore.ts')!
+        const { useSimulation } = await import(storePath)
+        const { selected, days, paused, speed, cameraMode, cameraRevision, lesson, missionActive, tour } = useSimulation.getState()
+        return { selected, days, paused, speed, cameraMode, cameraRevision, lesson, missionActive, tour }
+      })
+      const before = await simulationState()
+      await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('zh-CN')
+      await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+      await expect(page).toHaveTitle('轨道图集 | 交互式太阳系')
+      await expect(page.getByRole('complementary', { name: '地球资料' })).toBeVisible()
+      await expect(page.locator('.body-description')).toContainText('蓝色家园')
+      await expect(page.locator('.clock-date time')).toContainText('2026年')
+      await expect(page.locator('.scene canvas')).toHaveAttribute('aria-label', '交互式三维太阳系')
+      expect(await simulationState()).toEqual(before)
+      await expect(page.locator('.scene canvas')).toHaveAttribute('data-camera-moving', 'false')
+      const visiblePixels = await page.locator('.scene canvas').evaluate(element => {
+        const canvas = element as HTMLCanvasElement
+        const context = canvas.getContext('webgl2')!
+        const pixels = new Uint8Array(canvas.width * canvas.height * 4)
+        context.readPixels(0, 0, canvas.width, canvas.height, context.RGBA, context.UNSIGNED_BYTE, pixels)
+        let visible = 0
+        for (let offset = 0; offset < pixels.length; offset += 4) if (Math.max(pixels[offset], pixels[offset + 1], pixels[offset + 2]) > 50) visible++
+        return visible
+      })
+      expect(visiblePixels).toBeGreaterThan(100)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      await page.screenshot({ path: `test-results/chinese-earth-${width}.png` })
+      await page.getByRole('combobox', { name: '语言', exact: true }).selectOption('en')
+      await expect(page.getByRole('complementary', { name: 'Earth information' })).toBeVisible()
+      await expect(page.getByRole('combobox', { name: 'Language', exact: true })).toHaveValue('en')
+      expect(await simulationState()).toEqual(before)
+      await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('zh-CN')
+      await page.getByRole('button', { name: '探索与学习', exact: true }).click()
+      const titles = ['太阳', '行星大小', '行星距离', '引力', '昼与夜', '四季', '月相', '轨道']
+      for (const [index, title] of titles.entries()) {
+        await page.locator('.lesson-nav button').nth(index).click()
+        await expect(page.locator('.lesson-heading h2')).toHaveText(title)
+        await expect(page.locator('.lesson-explanation')).toContainText(/[\u4e00-\u9fff]/)
+      }
+      await page.screenshot({ path: `test-results/chinese-lesson-${width}.png` })
+      await page.getByRole('button', { name: '假如？', exact: true }).click()
+      for (let index = 0; index < 4; index++) {
+        await page.locator('.experiment-options button').nth(index).click()
+        await expect(page.locator('.experiment-explanation')).toContainText(/[\u4e00-\u9fff]/)
+      }
+      await page.getByRole('button', { name: '恢复原来的太阳系', exact: true }).click()
+      await page.getByRole('button', { name: '任务', exact: true }).click()
+      await page.getByRole('button', { name: '启动任务', exact: true }).click()
+      await expect(page.locator('.mission-status')).toContainText('自动飞往')
+      await page.getByRole('button', { name: '太空之旅', exact: true }).click()
+      await expect(page.locator('.tour-window h2')).toHaveText('一颗恒星，八大行星，一个家园。')
+      await page.getByRole('button', { name: '下一站', exact: true }).click()
+      await expect(page.locator('.tour-window h2')).toHaveText('认识太阳。')
+      await page.reload()
+      await expect(page.getByRole('combobox', { name: '语言', exact: true })).toHaveValue('zh-CN')
+      await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+      expect(errors).toEqual([])
+    })
+  }
+
+  test('browser language and saved preference work in the 2D fallback', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'zh-SG', viewport: { width: 390, height: 844 } })
+    const page = await context.newPage()
+    try {
+      await page.goto('/?fallback')
+      await expect(page.getByRole('region', { name: '二维太阳系备用视图' })).toBeVisible()
+      await page.getByRole('combobox', { name: '语言', exact: true }).selectOption('en')
+      await page.reload()
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+      await expect(page.getByRole('region', { name: '2D solar system fallback' })).toBeVisible()
+    } finally { await context.close() }
+  })
+
+  test('language selector stays inside the header without overlaps', async ({ page }) => {
+    await page.goto('/?fallback')
+    for (const language of ['en', 'zh-CN']) {
+      await page.locator('.language-selector select').selectOption(language)
+      for (const width of [320, 390, 820, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 900 })
+        const fits = await page.evaluate(() => {
+          const selectors = ['.brand', '.main-nav', '.header-actions']
+          const bounds = selectors.map(selector => document.querySelector(selector)!.getBoundingClientRect())
+          const inside = bounds.every(rect => rect.left >= 0 && rect.right <= innerWidth)
+          const separate = bounds.every((rect, index) => bounds.slice(index + 1).every(other => rect.right <= other.left || other.right <= rect.left || rect.bottom <= other.top || other.bottom <= rect.top))
+          const header = document.querySelector('.header')!
+          return inside && separate && header.scrollWidth <= header.clientWidth
+        })
+        expect(fits, `${language} header at ${width}px`).toBe(true)
+      }
+    }
+  })
+
+  test('unsupported languages and unavailable storage remain usable', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'fr-FR' })
+    await context.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Storage blocked', 'SecurityError') } })
+    })
+    const page = await context.newPage()
+    try {
+      await page.goto('/?fallback')
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+      await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('zh-CN')
+      await expect(page.getByRole('region', { name: '二维太阳系备用视图' })).toBeVisible()
+    } finally { await context.close() }
+  })
+})
+
 test('Earth cloud shapes evolve independently of rotation and respect motion controls', async ({ page }) => {
   test.setTimeout(90000)
   const errors: string[] = []
