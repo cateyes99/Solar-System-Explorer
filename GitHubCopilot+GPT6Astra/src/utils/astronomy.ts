@@ -63,8 +63,8 @@ function halleyScenePoint(point: Point3, scale: ScaleMode, spacing: number, size
   return [point[0] * factor, point[2] * factor, -point[1] * factor]
 }
 
-export function formatDate(days: number): string {
-  return new Date(EPOCH + days * DAY_MS).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+export function formatDate(days: number, locale = 'en-GB'): string {
+  return new Date(EPOCH + days * DAY_MS).toLocaleDateString(locale === 'en' ? 'en-GB' : locale, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
 
 export function plutoOrientation(days: number): Quaternion {
