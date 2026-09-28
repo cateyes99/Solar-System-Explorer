@@ -1,0 +1,66 @@
+{
+  "interfaceReady": true,
+  "usingFallback2D": false,
+  "hasCanvas": true,
+  "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "planetPanelOpen": true,
+  "planetPanelSections": [
+    "Rocky planet with liquid water",
+    "Diameter",
+    "Distance from Sun",
+    "Length of year",
+    "Length of day",
+    "Moons",
+    "Surface gravity",
+    "Average temperature",
+    "Compared with Earth",
+    "Tilt of its axis",
+    "Cool facts",
+    "Did you know?"
+  ],
+  "tourStarted": true,
+  "tourLayout": {
+    "tourCardBottom": 310,
+    "leftPanelTop": 320,
+    "leftPanelClearsTourCard": true
+  },
+  "lessonsOpened": true,
+  "whatIfOpen": true,
+  "whatIfScenarios": [
+    "🌕🌕What if Earth had two moons?try it",
+    "🪐What if Earth were the size of Jupiter?try it",
+    "🌑What if the Sun disappeared?try it",
+    "🌀What if Earth stopped rotating?try it"
+  ],
+  "missionControlOpen": true,
+  "missionControlReadouts": [
+    "Cruising",
+    "tap to set course",
+    "Autopilot",
+    "Fly to the destination automatically",
+    "Head home to Earth",
+    "End mission"
+  ],
+  "layout": {
+    "leftPanelBottom": 724,
+    "quickTravelTop": 732,
+    "quickTravelBottom": 780,
+    "timeControlsTop": 788,
+    "leftPanelClearsQuickTravel": true
+  },
+  "mobile": {
+    "footerHeight": 220,
+    "quickTravelTop": 656,
+    "canvasWidth": 390,
+    "horizontalOverflow": 0,
+    "headerHeight": 122
+  },
+  "mobileSheet": {
+    "sheetTop": 213,
+    "sheetBottom": 652,
+    "quickTravelTop": 656,
+    "sheetClearsQuickTravel": true,
+    "sheetVisibleHeight": 439
+  },
+  "messages": []
+}
