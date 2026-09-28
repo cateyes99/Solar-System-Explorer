@@ -52,14 +52,6 @@ export interface RingVisuals {
   innerRadiusScale: number
   outerRadiusScale: number
   opacity: number
-  /**
-   * Multiplier on the strip's own brightness. A ring strip is an optical-depth
-   * map, not a calibrated reflectance map: its grey values are coverage, not
-   * albedo. Saturn's is lifted to the icy brightness the Cassini images show,
-   * while Uranus's particles really are dark soot, so its measured strip is used
-   * exactly as drawn.
-   */
-  brightness: number
 }
 
 export interface BodyVisuals {
@@ -207,7 +199,6 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       innerRadiusScale: 1.256,
       outerRadiusScale: 2.33,
       opacity: 1,
-      brightness: 1.4,
     },
     accent: '#f0dfae',
     focusRingScale: 2.1,
@@ -226,15 +217,12 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       hazeIntensity: 0.2,
     },
     // Uranus's rings are nine narrow, dark bands between 37,000 and 51,200 km
-    // from the centre — 1.45 to 2.00 Uranus radii (equatorial radius 25,559 km),
-    // drawn from their published radii and optical depths because no calibrated
-    // Voyager ring strip is available.
+    // from the centre — 1.45 to 2.00 Uranus radii (equatorial radius 25,559 km).
     rings: {
       textureId: 'uranusRings',
       innerRadiusScale: 1.448,
       outerRadiusScale: 2.005,
       opacity: 0.75,
-      brightness: 1,
     },
     accent: '#a9ecf0',
     focusRingScale: 2.2,

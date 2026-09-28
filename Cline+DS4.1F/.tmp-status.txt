@@ -1,0 +1,17 @@
+ M Cline+DS4.1F/src/data/visuals.ts
+ M Cline+DS4.1F/src/utils/textures.ts
+?? Cline+DS4.1F/.tmp-inspect-textures.mjs
+?? Cline+DS4.1F/.tmp-planet.txt
+?? Cline+DS4.1F/.tmp-status.txt
+?? Cline+DS4.1F/.tmp-sun.txt
+?? Cline+DS4.1F/.tmp-textures.txt
+?? Cline+DS4.1F/.tmp-visuals.txt
+?? Cline+DS4.1F/public/
+?? Cline+DS4.1F/src/utils/textureSources.ts
+?? Cline+DS4.1F/tools/
+889c668 Attempt 9: Fix unstable following camera when clicking any planets etc.
+4745428 Attempt 8: Fix 3D scene lighting.
+03859e3 Attemp 7: Fix Comet Cline-1's odd back and forth movement.
+ Cline+DS4.1F/src/data/visuals.ts   | 154 +++++++++++++----------
+ Cline+DS4.1F/src/utils/textures.ts | 246 +++++++++++++++++++++++++++++++------
+ 2 files changed, 301 insertions(+), 99 deletions(-)
