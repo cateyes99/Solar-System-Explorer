@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-space-black: #05060f;
+  --color-space-navy: #0a0e1f;
+  --color-electric-blue: #4fd6ff;
+  --color-solar-orange: #ff9d4d;
+  --color-cosmic-purple: #a06bff;
+  --color-cyan-glow: #6cf5e8;
+  --font-display: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-space-black);
+    color: #eef2ff;
+    font-family: var(--font-display);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  /* Visible focus states for keyboard navigation (accessibility requirement) */
+  :focus-visible {
+    outline: 2px solid var(--color-electric-blue);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background: rgba(10, 14, 31, 0.62);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 12px rgba(79, 214, 255, 0.5);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
