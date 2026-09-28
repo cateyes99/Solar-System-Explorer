@@ -1,18 +1,19 @@
 import type { BodyId } from '../types'
 
-/** Every procedurally generated texture the scene can request. */
+/** Every surface map the scene can request. */
 export type TextureId =
   | 'sun'
   | 'mercury'
   | 'venus'
-  | 'venusClouds'
   | 'earth'
   | 'earthClouds'
   | 'earthNight'
+  | 'earthRoughness'
   | 'mars'
   | 'jupiter'
   | 'saturn'
   | 'saturnRings'
+  | 'uranusRings'
   | 'uranus'
   | 'neptune'
   | 'moon'
@@ -51,9 +52,14 @@ export interface RingVisuals {
   innerRadiusScale: number
   outerRadiusScale: number
   opacity: number
-  /** Extra tilt applied on top of the planet's axial tilt, in degrees. */
-  extraTiltDeg: number
-  shadows: boolean
+  /**
+   * Multiplier on the strip's own brightness. A ring strip is an optical-depth
+   * map, not a calibrated reflectance map: its grey values are coverage, not
+   * albedo. Saturn's is lifted to the icy brightness the Cassini images show,
+   * while Uranus's particles really are dark soot, so its measured strip is used
+   * exactly as drawn.
+   */
+  brightness: number
 }
 
 export interface BodyVisuals {
@@ -63,9 +69,19 @@ export interface BodyVisuals {
   metalness: number
   /** Surface relief strength, when a bump map is generated. */
   bumpScale?: number
+  /**
+   * A second map that varies roughness across the surface. Earth uses its ocean
+   * roughness map here, which is what produces the sun glint on water.
+   */
+  roughnessMapId?: TextureId
+  /**
+   * Polar flattening, (equatorial − polar) ÷ equatorial, from IAU measured
+   * figures. Applying it is what makes Jupiter and Saturn read as the squashed,
+   * fast-spinning giants they are, instead of as spheres.
+   */
+  flattening?: number
   /** Rotation offset so features (like the Great Red Spot) face nicely at start. */
   textureOffsetU: number
-  emissive?: { color: string; intensity: number }
   atmosphere?: AtmosphereVisuals
   clouds?: CloudVisuals
   nightLights?: NightLightsVisuals
@@ -76,152 +92,175 @@ export interface BodyVisuals {
   focusRingScale: number
 }
 
+/**
+ * Per-body look, derived from measured data.
+ *
+ * `roughness`/`metalness` come from what the surface actually is — bare rock and
+ * regolith scatter almost everything diffusely, so they are matte; the ocean is
+ * glassy; cloud tops sit in between. `flattening` is the IAU polar flattening,
+ * which is real and large for the two fastest-spinning giants.
+ */
 export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
   sun: {
     textureId: 'sun',
     roughness: 0.85,
     metalness: 0,
     textureOffsetU: 0,
-    emissive: { color: '#ff9a2e', intensity: 1.6 },
     accent: '#ffb347',
     focusRingScale: 1,
   },
   mercury: {
     textureId: 'mercury',
-    roughness: 0.92,
+    roughness: 0.96,
     metalness: 0.02,
-    bumpScale: 0.06,
+    bumpScale: 0.012,
     textureOffsetU: 0.18,
     accent: '#cbc4ba',
     focusRingScale: 2.4,
   },
   venus: {
     textureId: 'venus',
-    roughness: 0.74,
+    roughness: 0.88,
     metalness: 0,
-    textureOffsetU: 0.4,
+    // The map already *is* the cloud deck, so the haze here only needs to add the
+    // soft, bright limb that the real planet shows.
     atmosphere: {
-      color: '#f6e2a8',
-      intensity: 0.85,
-      power: 2.1,
-      hazeColor: '#ffe9b0',
-      hazeIntensity: 0.4,
+      color: '#f7e6b4',
+      intensity: 0.42,
+      power: 2.7,
+      hazeColor: '#ffefc6',
+      hazeIntensity: 0.22,
     },
-    clouds: { textureId: 'venusClouds', opacity: 0.9, speed: -6, color: '#f1dda6' },
+    textureOffsetU: 0.4,
     accent: '#f0d9a0',
     focusRingScale: 2.2,
   },
   earth: {
     textureId: 'earth',
-    roughness: 0.68,
-    metalness: 0.05,
-    bumpScale: 0.045,
+    // Multiplied by the ocean/land roughness map, so the sea is smooth and the
+    // continents are matte: this is what makes the sun glint on the water.
+    roughness: 1,
+    metalness: 0,
+    roughnessMapId: 'earthRoughness',
+    bumpScale: 0.008,
+    flattening: 0.00335,
     textureOffsetU: 0.55,
     atmosphere: {
-      color: '#66b6ff',
-      intensity: 1.35,
-      power: 2.6,
-      hazeColor: '#8fd0ff',
-      hazeIntensity: 0.55,
+      color: '#6fb4ff',
+      intensity: 0.85,
+      power: 3.2,
+      hazeColor: '#9fd4ff',
+      hazeIntensity: 0.3,
     },
-    clouds: { textureId: 'earthClouds', opacity: 0.72, speed: 1.35, color: '#ffffff' },
-    nightLights: { textureId: 'earthNight', intensity: 1.15, color: '#ffd79a' },
+    // Real cloud cover drifts a little faster than the ground below it.
+    clouds: { textureId: 'earthClouds', opacity: 0.86, speed: 1.08, color: '#ffffff' },
+    nightLights: { textureId: 'earthNight', intensity: 1.2, color: '#fff1dc' },
     accent: '#5cc8ff',
     focusRingScale: 2.4,
   },
   mars: {
     textureId: 'mars',
-    roughness: 0.88,
+    roughness: 0.94,
     metalness: 0.02,
-    bumpScale: 0.05,
+    bumpScale: 0.014,
+    flattening: 0.00589,
     textureOffsetU: 0.3,
-    atmosphere: { color: '#ff9d6d', intensity: 0.32, power: 3.4 },
+    // Mars has a thin, dusty atmosphere: a faint warm limb, nothing more.
+    atmosphere: { color: '#ffb08a', intensity: 0.2, power: 3.6 },
     accent: '#ff9a6b',
     focusRingScale: 2.4,
   },
   jupiter: {
     textureId: 'jupiter',
-    roughness: 0.82,
+    roughness: 0.92,
     metalness: 0,
-    bumpScale: 0.02,
+    flattening: 0.06487,
     textureOffsetU: 0.42,
     atmosphere: {
-      color: '#f0d3a4',
-      intensity: 0.5,
-      power: 2.8,
-      hazeColor: '#c9a273',
-      hazeIntensity: 0.35,
+      color: '#f0d9b4',
+      intensity: 0.3,
+      power: 3.2,
+      hazeColor: '#d8bb92',
+      hazeIntensity: 0.2,
     },
     accent: '#e8c48d',
     focusRingScale: 2.1,
   },
   saturn: {
     textureId: 'saturn',
-    roughness: 0.84,
+    roughness: 0.93,
     metalness: 0,
-    bumpScale: 0.02,
+    flattening: 0.09796,
     textureOffsetU: 0.2,
     atmosphere: {
       color: '#f3e2b8',
-      intensity: 0.45,
-      power: 2.9,
+      intensity: 0.28,
+      power: 3.2,
       hazeColor: '#e2cd9c',
-      hazeIntensity: 0.3,
+      hazeIntensity: 0.18,
     },
+    // Measured from the real radii: the ring strip spans the C ring's inner edge
+    // (74,700 km) to the F ring (140,400 km) — 1.24 to 2.33 Saturn radii, with
+    // Saturn's equatorial radius at 60,268 km.
     rings: {
       textureId: 'saturnRings',
-      innerRadiusScale: 1.28,
-      outerRadiusScale: 2.35,
-      opacity: 0.95,
-      extraTiltDeg: 0,
-      shadows: true,
+      innerRadiusScale: 1.256,
+      outerRadiusScale: 2.33,
+      opacity: 1,
+      brightness: 1.4,
     },
     accent: '#f0dfae',
     focusRingScale: 2.1,
   },
   uranus: {
     textureId: 'uranus',
-    roughness: 0.78,
+    roughness: 0.82,
     metalness: 0,
+    flattening: 0.02293,
     textureOffsetU: 0.1,
     atmosphere: {
       color: '#a9f0f2',
-      intensity: 0.6,
-      power: 2.7,
+      intensity: 0.38,
+      power: 3,
       hazeColor: '#8fe6ea',
-      hazeIntensity: 0.35,
+      hazeIntensity: 0.2,
     },
+    // Uranus's rings are nine narrow, dark bands between 37,000 and 51,200 km
+    // from the centre — 1.45 to 2.00 Uranus radii (equatorial radius 25,559 km),
+    // drawn from their published radii and optical depths because no calibrated
+    // Voyager ring strip is available.
     rings: {
-      textureId: 'saturnRings',
-      innerRadiusScale: 1.55,
-      outerRadiusScale: 1.95,
-      opacity: 0.35,
-      extraTiltDeg: 0,
-      shadows: false,
+      textureId: 'uranusRings',
+      innerRadiusScale: 1.448,
+      outerRadiusScale: 2.005,
+      opacity: 0.75,
+      brightness: 1,
     },
     accent: '#a9ecf0',
     focusRingScale: 2.2,
   },
   neptune: {
     textureId: 'neptune',
-    roughness: 0.76,
+    roughness: 0.84,
     metalness: 0,
+    flattening: 0.01708,
     textureOffsetU: 0.6,
     atmosphere: {
       color: '#6f8dff',
-      intensity: 0.75,
-      power: 2.6,
+      intensity: 0.5,
+      power: 3,
       hazeColor: '#5a76ff',
-      hazeIntensity: 0.45,
+      hazeIntensity: 0.26,
     },
     accent: '#7d95ff',
     focusRingScale: 2.2,
   },
   moon: {
     textureId: 'moon',
-    roughness: 0.95,
+    roughness: 0.97,
     metalness: 0,
-    bumpScale: 0.07,
+    bumpScale: 0.02,
+    flattening: 0.0012,
     textureOffsetU: 0.05,
     accent: '#d8d4cd',
     focusRingScale: 2.4,
@@ -231,7 +270,6 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     roughness: 0.9,
     metalness: 0,
     textureOffsetU: 0,
-    emissive: { color: '#8fe8ff', intensity: 0.5 },
     atmosphere: { color: '#bdf3ff', intensity: 0.9, power: 2.4 },
     accent: '#bff4ff',
     focusRingScale: 3,

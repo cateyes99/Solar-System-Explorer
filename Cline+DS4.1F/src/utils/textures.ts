@@ -1,19 +1,29 @@
-import { CanvasTexture, ClampToEdgeWrapping, RepeatWrapping, SRGBColorSpace } from 'three'
+import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBColorSpace } from 'three'
 import type { Texture } from 'three'
 import type { QualityLevel } from '../types'
 import type { TextureId } from '../data/visuals'
+import { TEXTURE_IDS, TEXTURE_SOURCES } from './textureSources'
 import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
 
 /**
- * Every surface in the Solar System is painted here, in code.
+ * Every surface in the Solar System is mapped here.
  *
- * No image files are downloaded, which keeps the app fast and self-contained:
- * continents, craters, cloud bands, the Great Red Spot and Saturn's ring gaps
- * are all generated with seamless "cylindrical" fractal noise, so a rotating
- * planet never shows a seam.
+ * Two sources, in order of preference:
  *
- * Generation happens once, before the 3D scene mounts, and reports progress to
- * the loading screen.
+ *  1. **Real map data** (`public/textures`, see `textureSources.ts` and
+ *     `public/textures/CREDITS.md`). These are equirectangular photographic and
+ *     mosaic products built from NASA / JPL / USGS imagery — Blue Marble for
+ *     Earth, MESSENGER for Mercury, Cassini for Saturn and its rings, and so on.
+ *     They are committed to the repository, so the built app is still completely
+ *     self-contained and runs offline.
+ *  2. **The procedural painters below**, used only for maps that have no real
+ *     counterpart (the Sun's corona glow, the star and comet sprites) and as an
+ *     automatic fallback if a file is ever missing or fails to decode. A planet
+ *     therefore never appears blank.
+ *
+ * Both paths produce seamless cylindrical maps, so a rotating planet never shows
+ * a seam. Everything happens once, before the 3D scene mounts, and reports
+ * progress to the loading screen.
  */
 
 export interface TextureProgress {
@@ -39,9 +49,9 @@ function makeCanvas(width: number, height: number): HTMLCanvasElement {
   return canvas
 }
 
-function toTexture(canvas: HTMLCanvasElement): Texture {
+function toTexture(canvas: HTMLCanvasElement, colorSpace: Texture['colorSpace'] = SRGBColorSpace): Texture {
   const texture = new CanvasTexture(canvas)
-  texture.colorSpace = SRGBColorSpace
+  texture.colorSpace = colorSpace
   texture.wrapS = RepeatWrapping
   texture.wrapT = ClampToEdgeWrapping
   texture.anisotropy = 4
@@ -306,24 +316,6 @@ function paintVenus(size: MapSize): HTMLCanvasElement {
       ],
       value,
     ),
-  )
-  return canvas
-}
-
-function paintVenusClouds(size: MapSize): HTMLCanvasElement {
-  const canvas = makeCanvas(size.width, size.height)
-  const field = sampleField(size.width, size.height, {
-    radius: 5,
-    height: 1.3,
-    octaves: 5,
-    seed: 6113,
-    warp: 0.18,
-  })
-  colorize(
-    canvas,
-    field,
-    () => [248, 230, 186],
-    (value) => smoothstep(0.42, 0.72, value) * 0.95,
   )
   return canvas
 }
@@ -785,6 +777,126 @@ function paintRings(size: MapSize): HTMLCanvasElement {
   return canvas
 }
 
+/**
+ * Uranus's rings, drawn from measured geometry rather than photographed.
+ *
+ * There is no calibrated Voyager 2 ring strip in the free map sets, and reusing
+ * Saturn's would be a lie: Uranus's rings are nine *narrow* lines (the widest
+ * solid one, epsilon, is 58 km across) inside a broad, very faint dust sheet.
+ * Every band below sits at its published distance from Uranus's centre with its
+ * published width and normal optical depth, from the PDS Ring-Moon Systems Node
+ * tables (Showalter & Lissauer 2006; Nicholson et al. 2018). Only the shading
+ * between those numbers is drawn here.
+ *
+ * Two compromises are unavoidable at this size:
+ *
+ *  - the strip covers 14,237 km in 1,024 pixels, so one pixel is about 14 km and
+ *    a 1.6 km ring cannot be resolved. Each ring gets a floor of roughly half a
+ *    pixel either side of its true centre, which keeps it visible as a thin line
+ *    instead of disappearing between samples;
+ *  - the two outer dust rings (nu at 67,300 km and mu at 97,700 km) fall outside
+ *    the disc, which ends at the epsilon ring's outer edge.
+ */
+const URANUS_EQUATORIAL_RADIUS_KM = 25_559
+/** The disc geometry spans 1.448 to 2.005 Uranus radii, i.e. epsilon's edges. */
+const URANUS_RING_INNER_KM = 1.448 * URANUS_EQUATORIAL_RADIUS_KM
+const URANUS_RING_OUTER_KM = 2.005 * URANUS_EQUATORIAL_RADIUS_KM
+
+interface MeasuredRing {
+  name: string
+  /** Distance from the planet's centre, km. */
+  radiusKm: number
+  /** Radial width, km. */
+  widthKm: number
+  /** Normal optical depth: how much light the ring blocks. */
+  depth: number
+}
+
+const URANUS_RINGS: MeasuredRing[] = [
+  { name: 'dust sheet', radiusKm: 38_440, widthKm: 23_200, depth: 0.005 },
+  { name: 'zeta (1986U2R)', radiusKm: 39_600, widthKm: 3_500, depth: 0.0045 },
+  { name: 'six', radiusKm: 41_838, widthKm: 1.53, depth: 0.3 },
+  { name: 'five', radiusKm: 42_234, widthKm: 2.28, depth: 0.5 },
+  { name: 'four', radiusKm: 42_571, widthKm: 2.33, depth: 0.3 },
+  { name: 'alpha-4 dust', radiusKm: 43_027, widthKm: 3_353, depth: 0.002 },
+  { name: 'alpha', radiusKm: 44_718, widthKm: 8.46, depth: 0.4 },
+  { name: 'beta-alpha dust', radiusKm: 44_879, widthKm: 312, depth: 0.002 },
+  { name: 'beta', radiusKm: 45_661, widthKm: 9.49, depth: 0.3 },
+  { name: 'eta', radiusKm: 47_176, widthKm: 1.6, depth: 0.4 },
+  { name: 'eta extension', radiusKm: 47_201, widthKm: 40, depth: 0.02 },
+  { name: 'gamma', radiusKm: 47_627, widthKm: 2.15, depth: 0.3 },
+  { name: 'delta extension', radiusKm: 48_289, widthKm: 15, depth: 0.03 },
+  { name: 'delta', radiusKm: 48_300, widthKm: 4.6, depth: 0.5 },
+  { name: 'lambda extension', radiusKm: 49_936, widthKm: 3.1, depth: 0.15 },
+  { name: 'lambda', radiusKm: 50_024, widthKm: 2.3, depth: 0.1 },
+  { name: 'epsilon', radiusKm: 51_149, widthKm: 58.1, depth: 0.5 },
+]
+
+function paintUranusRings(size: MapSize): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const ctx = context2d(canvas)
+  const span = URANUS_RING_OUTER_KM - URANUS_RING_INNER_KM
+  const kmPerPixel = span / size.width
+
+  // Optical depth at every sample: the sum of the rings that cover that radius.
+  const depth = new Float32Array(size.width)
+  for (let x = 0; x < size.width; x += 1) {
+    const radius = URANUS_RING_INNER_KM + ((x + 0.5) / size.width) * span
+    let total = 0
+    for (const ring of URANUS_RINGS) {
+      const sigma = Math.max(ring.widthKm / 2, kmPerPixel * 0.55)
+      const offset = (radius - ring.radiusKm) / sigma
+      total += ring.depth * Math.exp(-0.5 * offset * offset)
+    }
+    depth[x] = total
+  }
+
+  const image = ctx.createImageData(size.width, size.height)
+  const data = image.data
+  // Uranus's ring particles are dark — this is a layer of soot, not bright ice.
+  const particle: [number, number, number] = [118, 118, 128]
+  for (let y = 0; y < size.height; y += 1) {
+    for (let x = 0; x < size.width; x += 1) {
+      const grazing = 0.86 + cylindricalFbm(x / size.width, y / size.height, 5, 1.2, 3, 6021) * 0.28
+      // Alpha from optical depth: a ring of depth 0.5 hides about 40% of what
+      // lies behind it, which is what the Voyager images show.
+      const alpha = 1 - Math.exp(-depth[x] * grazing)
+      const offset = (y * size.width + x) * 4
+      data[offset] = particle[0]
+      data[offset + 1] = particle[1]
+      data[offset + 2] = particle[2]
+      data[offset + 3] = Math.round(clamp(alpha, 0, 1) * 235)
+    }
+  }
+  ctx.putImageData(image, 0, 0)
+  return canvas
+}
+
+/**
+ * Lifts a photographic exposure's tone curve.
+ *
+ * The Milky Way panorama is a real long-exposure photograph: its dust lane sits
+ * around 1–4 out of 255, because the camera was exposing for the stars. An eye
+ * looking up sees a band, not black, so the map is brought up with a gamma curve
+ * that leaves the bright star cores (255) untouched and raises the faint dust
+ * into view. Without this the sky sphere renders as an empty black shell.
+ */
+function liftExposure(canvas: HTMLCanvasElement, gamma: number): void {
+  const ctx = context2d(canvas)
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const data = image.data
+  const lut = new Uint8ClampedArray(256)
+  for (let value = 0; value < 256; value += 1) {
+    lut[value] = Math.round(Math.pow(value / 255, gamma) * 255)
+  }
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = lut[data[i]]
+    data[i + 1] = lut[data[i + 1]]
+    data[i + 2] = lut[data[i + 2]]
+  }
+  ctx.putImageData(image, 0, 0)
+}
+
 /** Radial sprite used for the Sun's corona, comet halos and glow sprites. */
 function paintGlow(size: MapSize): HTMLCanvasElement {
   const canvas = makeCanvas(size.width, size.height)
@@ -874,35 +986,179 @@ function paintComet(size: MapSize): HTMLCanvasElement {
 }
 
 /* ------------------------------------------------------------------ *
+ * Real map data
+ * ------------------------------------------------------------------ */
+
+/**
+ * How much of a source map's resolution is uploaded, per quality tier.
+ *
+ * A 2048×1024 map costs 8 MB of video memory per body before mipmaps, and the
+ * Solar System has eleven of them. A slower machine is served the same picture at
+ * a lower texel density rather than a different map, and the browser's own
+ * high-quality downscaler does the work once, at load time.
+ */
+const QUALITY_SCALE: Record<QualityLevel, number> = { high: 1, medium: 0.5, low: 0.25 }
+
+function imageUrl(file: string): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base.endsWith('/') ? base : `${base}/`}textures/${file}`
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.decoding = 'async'
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error(`Could not load ${url}`))
+    image.src = url
+  })
+}
+
+/** Draws a decoded map into a canvas at the size the quality tier asked for. */
+function drawScaled(image: HTMLImageElement, scale: number): HTMLCanvasElement {
+  const width = Math.max(2, Math.round(image.naturalWidth * scale))
+  const height = Math.max(1, Math.round(image.naturalHeight * scale))
+  const canvas = makeCanvas(width, height)
+  const ctx = context2d(canvas)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(image, 0, 0, width, height)
+  return canvas
+}
+
+/**
+ * Which pixels of Earth are water?
+ *
+ * Deep ocean is the only strongly blue-dominant surface on the planet: ice is
+ * white (no colour lead at all), deserts lean red and vegetation leans green. So
+ * the blue lead of a pixel is a robust water indicator, and a blur afterwards
+ * turns coastlines into a gradient instead of a step.
+ */
+function waterMaskFromImage(canvas: HTMLCanvasElement): Float32Array {
+  const { width, height } = canvas
+  const data = context2d(canvas).getImageData(0, 0, width, height).data
+  const mask = new Float32Array(width * height)
+  for (let i = 0; i < mask.length; i += 1) {
+    const r = data[i * 4]
+    const g = data[i * 4 + 1]
+    const b = data[i * 4 + 2]
+    mask[i] = clamp((b - Math.max(r, g)) / 30, 0, 1)
+  }
+  return mask
+}
+
+/** Separable 3-tap box blur, run twice: softens a mask without eating detail. */
+function soften(mask: Float32Array, width: number, height: number): Float32Array {
+  const at = (values: Float32Array, x: number, y: number): number =>
+    values[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)]
+  let source = mask
+  for (let pass = 0; pass < 2; pass += 1) {
+    const horizontal = new Float32Array(width * height)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        horizontal[y * width + x] = (at(source, x - 1, y) + 2 * at(source, x, y) + at(source, x + 1, y)) / 4
+      }
+    }
+    const vertical = new Float32Array(width * height)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        vertical[y * width + x] = (at(horizontal, x, y - 1) + 2 * at(horizontal, x, y) + at(horizontal, x, y + 1)) / 4
+      }
+    }
+    source = vertical
+  }
+  return source
+}
+
+/**
+ * Turns a "how much water is here" mask into a roughness map.
+ *
+ * `MeshStandardMaterial` reads roughness from a texture's green channel, so this
+ * writes one: open water is glassy (≈0.10), dry land is rough (≈0.92). That is
+ * what puts a sun glint on the oceans — the most recognisable thing about a
+ * photograph of Earth from space, and the reason the real planet is not
+ * uniformly matte.
+ */
+function roughnessFromWater(mask: Float32Array, width: number, height: number): HTMLCanvasElement {
+  const canvas = makeCanvas(width, height)
+  const ctx = context2d(canvas)
+  const image = ctx.createImageData(width, height)
+  const data = image.data
+  for (let i = 0; i < mask.length; i += 1) {
+    const roughness = Math.round(lerp(235, 26, mask[i]))
+    data[i * 4] = roughness
+    data[i * 4 + 1] = roughness
+    data[i * 4 + 2] = roughness
+    data[i * 4 + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+  return canvas
+}
+
+/** A flat, mid-rough surface: used when nothing better can be worked out. */
+function plainRoughness(width: number, height: number): HTMLCanvasElement {
+  const canvas = makeCanvas(width, height)
+  const ctx = context2d(canvas)
+  ctx.fillStyle = '#b4b4b4'
+  ctx.fillRect(0, 0, width, height)
+  return canvas
+}
+
+/**
+ * State that has to outlive a single map build. Earth is the one body whose maps
+ * feed each other — the day map gives the land mask the procedural night-lights
+ * painter needs and the ocean roughness the material needs — so both travel
+ * through here.
+ */
+let earthWater: { mask: Float32Array; width: number; height: number } | null = null
+let sharedLandMask: SharedBuild | null = null
+
+function analyseEarth(canvas: HTMLCanvasElement): void {
+  const { width, height } = canvas
+  const mask = soften(waterMaskFromImage(canvas), width, height)
+  earthWater = { mask, width, height }
+  const landMask = new Uint8Array(width * height)
+  for (let i = 0; i < landMask.length; i += 1) landMask[i] = mask[i] < 0.5 ? 1 : 0
+  sharedLandMask = { landMask, width, height }
+}
+
+/* ------------------------------------------------------------------ *
  * Generation pipeline
  * ------------------------------------------------------------------ */
 
-interface Generator {
+interface Painter {
   id: TextureId
   label: string
   build: (size: MapSize, shared: SharedBuild) => HTMLCanvasElement
 }
 
-const GENERATORS: Generator[] = [
+/**
+ * The procedural painters, keyed by the map they produce. They are only reached
+ * when the matching file in `public/textures` is absent or fails to decode.
+ */
+const PAINTERS: Painter[] = [
   { id: 'nebula', label: 'Painting the Milky Way', build: (size) => paintNebula(size) },
   { id: 'star', label: 'Lighting the stars', build: (size) => paintStar(size) },
   { id: 'glow', label: 'Kindling the Sun’s glow', build: (size) => paintGlow(size) },
   { id: 'sun', label: 'Stirring the Sun’s plasma', build: (size) => paintSun(size) },
   { id: 'earth', label: 'Building Earth’s continents', build: (size, shared) => paintEarth(size, shared) },
   { id: 'earthClouds', label: 'Rolling out Earth’s clouds', build: (size) => paintEarthClouds(size) },
-  { id: 'earthNight', label: 'Switching on the city lights', build: (size, shared) => paintEarthNight(size, shared) },
+  { id: 'earthNight', label: 'Switching on the city lights', build: (size) => paintEarthNight(size, sharedLandMask ?? { landMask: null, width: 0, height: 0 }) },
   { id: 'moon', label: 'Pocking the Moon with craters', build: (size) => paintMoon(size) },
   { id: 'mercury', label: 'Cratering Mercury', build: (size) => paintMercury(size) },
   { id: 'venus', label: 'Wrapping Venus in clouds', build: (size) => paintVenus(size) },
-  { id: 'venusClouds', label: 'Thickening Venus’s haze', build: (size) => paintVenusClouds(size) },
   { id: 'mars', label: 'Rusting the dust on Mars', build: (size) => paintMars(size) },
   { id: 'jupiter', label: 'Spinning Jupiter’s storms', build: (size) => paintJupiter(size) },
   { id: 'saturn', label: 'Banding Saturn’s skies', build: (size) => paintSaturn(size) },
   { id: 'saturnRings', label: 'Assembling Saturn’s rings', build: (size) => paintRings(size) },
+  { id: 'uranusRings', label: 'Threading Uranus’s nine rings', build: (size) => paintUranusRings(size) },
   { id: 'uranus', label: 'Chilling Uranus', build: (size) => paintUranus(size) },
   { id: 'neptune', label: 'Winding up Neptune’s winds', build: (size) => paintNeptune(size) },
   { id: 'comet', label: 'Waking a distant comet', build: (size) => paintComet(size) },
 ]
+
+const PAINTER_BY_ID = new Map<TextureId, Painter>(PAINTERS.map((painter) => [painter.id, painter]))
 
 const LARGE_MAPS: TextureId[] = ['earth', 'earthClouds', 'earthNight', 'jupiter', 'saturn', 'sun', 'nebula']
 
@@ -911,6 +1167,7 @@ function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'glow') return { width: 256, height: 256 }
   if (id === 'comet') return { width: 128, height: 128 }
   if (id === 'saturnRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
+  if (id === 'uranusRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
 
   const large = LARGE_MAPS.includes(id)
   if (quality === 'high') return large ? { width: 1024, height: 512 } : { width: 512, height: 256 }
@@ -936,7 +1193,7 @@ export function getTexture(id: TextureId): Texture {
 }
 
 export function hasTextures(): boolean {
-  return cache.size === GENERATORS.length
+  return cache.size === TEXTURE_IDS.length
 }
 
 function nextFrame(): Promise<void> {
@@ -950,7 +1207,62 @@ function nextFrame(): Promise<void> {
 }
 
 /**
- * Generates every texture, yielding to the browser between each one so the
+ * Maps that carry numbers rather than colour — a cloud-coverage mask, an ocean
+ * roughness value — must not be gamma-decoded by the GPU on the way in, so they
+ * are uploaded as raw data. Everything else is a photograph and is treated as sRGB.
+ */
+const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness']
+
+/**
+ * How far the Milky Way panorama's exposure is lifted before it is uploaded (see
+ * `liftExposure`). Left at 1, its dust lane sits at 1/255 and the sky sphere
+ * renders as an empty black shell.
+ */
+const MILKY_WAY_GAMMA = 0.7
+
+function mapTexture(canvas: HTMLCanvasElement, id: TextureId): Texture {
+  return toTexture(canvas, DATA_MAPS.includes(id) ? NoColorSpace : SRGBColorSpace)
+}
+
+/**
+ * Builds one map: the shipped real map when there is one, otherwise the painter.
+ * Returns null only for ids that have neither (the derived ocean roughness).
+ */
+async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuild): Promise<Texture | null> {
+  const source = TEXTURE_SOURCES[id]
+  if (source) {
+    try {
+      const image = await loadImage(imageUrl(source.file))
+      const canvas = drawScaled(image, QUALITY_SCALE[quality])
+      if (id === 'earth') analyseEarth(canvas)
+      if (id === 'nebula') liftExposure(canvas, MILKY_WAY_GAMMA)
+      return mapTexture(canvas, id)
+    } catch (error) {
+      // A missing or corrupt file is not worth failing a launch over: the painter
+      // below produces the same body from noise instead.
+      if (import.meta.env.DEV) window.console.warn(`Falling back to a painted ${id} map`, error)
+    }
+  }
+
+  if (id === 'earthRoughness') {
+    if (earthWater) {
+      return mapTexture(roughnessFromWater(earthWater.mask, earthWater.width, earthWater.height), id)
+    }
+    const land = sharedLandMask?.landMask
+    if (land && shared.width > 0) {
+      const mask = Float32Array.from(land, (value) => (value ? 0 : 1))
+      const soft = soften(mask, shared.width, shared.height)
+      return mapTexture(roughnessFromWater(soft, shared.width, shared.height), id)
+    }
+    return mapTexture(plainRoughness(256, 128), id)
+  }
+
+  const painter = PAINTER_BY_ID.get(id)
+  return painter ? mapTexture(painter.build(resolutionFor(id, quality), shared), id) : null
+}
+
+/**
+ * Loads and paints every map, yielding to the browser between each one so the
  * loading screen can animate and report progress.
  */
 export async function generateTextures(
@@ -958,13 +1270,16 @@ export async function generateTextures(
   onProgress: (progress: TextureProgress) => void,
 ): Promise<void> {
   const shared: SharedBuild = { landMask: null, width: 0, height: 0 }
-  for (let index = 0; index < GENERATORS.length; index += 1) {
-    const generator = GENERATORS[index]
-    onProgress({ label: generator.label, ratio: index / GENERATORS.length })
+  for (let index = 0; index < TEXTURE_IDS.length; index += 1) {
+    const id = TEXTURE_IDS[index]
+    onProgress({
+      label: TEXTURE_SOURCES[id]?.label ?? PAINTER_BY_ID.get(id)?.label ?? 'Preparing textures',
+      ratio: index / TEXTURE_IDS.length,
+    })
     // Yield first: the browser paints the updated progress bar before we block.
     await nextFrame()
-    const canvas = generator.build(resolutionFor(generator.id, quality), shared)
-    cache.set(generator.id, toTexture(canvas))
+    const texture = await buildMap(id, quality, shared)
+    if (texture) cache.set(id, texture)
   }
   onProgress({ label: 'Ready for launch', ratio: 1 })
 }
@@ -975,4 +1290,6 @@ export function disposeTextures(): void {
   cache.clear()
   fallback?.dispose()
   fallback = null
+  earthWater = null
+  sharedLandMask = null
 }
