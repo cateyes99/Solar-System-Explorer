@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute } from 'three'
-import type { Mesh, MeshBasicMaterial, PointLight, Points, PointsMaterial, Sprite, SpriteMaterial } from 'three'
+import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, MeshBasicMaterial } from 'three'
+import type { Mesh, PointLight, Points, PointsMaterial, Sprite, SpriteMaterial } from 'three'
 import { clock } from '../../utils/simulationClock'
 import { getTexture } from '../../utils/textures'
 import { createRandom } from '../../utils/random'
@@ -15,6 +15,20 @@ import { HIGH_DETAIL_SPHERE } from './geometry'
  *
  * Every third click on the Sun throws a flare — that is Easter egg number one.
  */
+
+/**
+ * Limb darkening for the Sun's disc.
+ *
+ * The Sun is a ball of gas, not a flat disc: light leaving it at a shallow angle
+ * (near the rim, where we see higher, cooler layers) is dimmer than light leaving
+ * straight toward us. The classical Eddington grey-atmosphere result is
+ * I(µ) / I(1) = (2 + 3µ) / 5, with µ the cosine of the angle between the surface
+ * normal and the line of sight — a linear law with u = 0.6, which is why the real
+ * limb of the Sun measures roughly 40% of the centre's brightness. Without it the
+ * disc renders as a flat, uniformly bright circle, which no photograph of the Sun
+ * (from a spacecraft or through a solar filter) ever shows.
+ */
+const LIMB_DARKENING = 0.6
 
 interface FlareState {
   /** Seconds remaining in the current burst; 0 when idle. */
@@ -54,7 +68,6 @@ interface SunProps {
 
 export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
   const coreRef = useRef<Mesh>(null)
-  const coreMaterialRef = useRef<MeshBasicMaterial>(null)
   const innerCoronaRef = useRef<Sprite>(null)
   const outerCoronaRef = useRef<Sprite>(null)
   const innerCoronaMaterialRef = useRef<SpriteMaterial>(null)
@@ -84,6 +97,43 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
   const flareGeometry = useMemo(() => createFlareGeometry(), [])
   const sunTexture = getTexture('sun')
 
+  /**
+   * The photosphere: the real granulation map, dimmed toward the limb by the
+   * Eddington law above. It is a basic (unlit) material because the Sun lights the
+   * scene — it is not lit by it — and `toneMapped: false` keeps the disc bright
+   * enough to bloom. The darkening is injected into three's own shader rather than
+   * written from scratch, so the colour management, the map decode and the output
+   * transform stay exactly as every other material in the scene uses them.
+   */
+  const photosphereMaterial = useMemo(() => {
+    const material = new MeshBasicMaterial({ map: sunTexture, color: '#ffd9a0', toneMapped: false })
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uLimbDarkening = { value: LIMB_DARKENING }
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying float vLimbMu;')
+        .replace(
+          '#include <project_vertex>',
+          // µ = how square-on we are looking at this point of the sphere.
+          '#include <project_vertex>\n\tvLimbMu = dot( normalize( normalMatrix * normal ), normalize( -mvPosition.xyz ) );',
+        )
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform float uLimbDarkening;\nvarying float vLimbMu;',
+        )
+        .replace(
+          '#include <map_fragment>',
+          '#include <map_fragment>\n\tdiffuseColor.rgb *= 1.0 - uLimbDarkening * ( 1.0 - clamp( vLimbMu, 0.0, 1.0 ) );',
+        )
+    }
+    // The shader source is modified, so it must not share a compiled program with
+    // any other basic material in the scene.
+    material.customProgramCacheKey = () => 'sun-photosphere-limb-darkening'
+    return material
+  }, [sunTexture])
+
+  useEffect(() => () => photosphereMaterial.dispose(), [photosphereMaterial])
+
   // Every recorded flare (the Easter egg counter lives in the store) bursts here.
   useEffect(() => {
     if (flareId === 0) return
@@ -110,9 +160,7 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
     const targetDarkness = extinguished ? 1 : 0
     darkness.current += (targetDarkness - darkness.current) * Math.min(1, step * 0.55)
     const glow = 1 - darkness.current * 0.985
-    if (coreMaterialRef.current) {
-      coreMaterialRef.current.color.setRGB(2.1 * glow + 0.02, 1.85 * glow + 0.025, 1.45 * glow + 0.04)
-    }
+    photosphereMaterial.color.setRGB(2.1 * glow + 0.02, 1.85 * glow + 0.025, 1.45 * glow + 0.04)
     if (lightRef.current) {
       lightRef.current.intensity = baseIntensity * (1 - darkness.current * 0.995)
     }
@@ -165,6 +213,7 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
       <mesh
         ref={coreRef}
         geometry={HIGH_DETAIL_SPHERE}
+        material={photosphereMaterial}
         scale={radius}
         onPointerOver={(event) => {
           event.stopPropagation()
@@ -182,9 +231,7 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
           registerSunClick()
           audio.play('click')
         }}
-      >
-        <meshBasicMaterial ref={coreMaterialRef} map={sunTexture} toneMapped={false} color="#ffd9a0" />
-      </mesh>
+      />
 
       <sprite ref={innerCoronaRef} scale={[radius * 3.1, radius * 3.1, 1]} frustumCulled={false}>
         <spriteMaterial

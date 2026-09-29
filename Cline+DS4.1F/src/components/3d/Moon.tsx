@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { MeshStandardMaterial } from 'three'
 import type { ColorRepresentation, Group, Mesh } from 'three'
 import type { BodyId, FocusTargetId, QualityLevel, SatelliteDefinition } from '../../types'
+import { BODY_VISUALS } from '../../data/visuals'
 import { clock } from '../../utils/simulationClock'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { satelliteOrbitRadius, satelliteRadius } from '../../utils/scale'
@@ -61,15 +62,34 @@ export function Moon({
     [parentId, satellite.id],
   )
 
+  /**
+   * Our Moon is the one satellite with a real map and measured figures of its own.
+   * Its polar flattening is 0.12% — about four kilometres — which is invisible at
+   * this size, but it is a measured number, so it is applied rather than rounded
+   * away, exactly as the planets' IAU figures are.
+   */
+  const moonMarking = bodyId === 'moon' ? BODY_VISUALS.moon : null
+  const flattening = moonMarking?.flattening ?? 0
+  const meshScale = useMemo<[number, number, number]>(
+    () => [visualRadius, visualRadius * (1 - flattening), visualRadius],
+    [visualRadius, flattening],
+  )
+
   const material = useMemo(() => {
-    const isOurMoon = bodyId === 'moon'
+    // Our own Moon is a real body with a real map, so it gets the same measured
+    // recipe the planets use — its own albedo and its own relief. Every other moon
+    // stays a cheap low-detail sphere in its own flat colour.
+    const map = moonMarking ? getTexture(moonMarking.textureId) : null
     return new MeshStandardMaterial({
-      map: isOurMoon ? getTexture('moon') : null,
-      color: isOurMoon ? '#ffffff' : (colorOverride ?? satellite.color),
-      roughness: 0.96,
+      map,
+      // A real map doubles as relief: a darker texel sits lower than a bright one.
+      bumpMap: moonMarking?.bumpScale ? map : null,
+      bumpScale: moonMarking?.bumpScale ?? 0,
+      color: moonMarking ? '#ffffff' : (colorOverride ?? satellite.color),
+      roughness: moonMarking?.roughness ?? 0.96,
       metalness: 0,
     })
-  }, [bodyId, colorOverride, satellite.color])
+  }, [moonMarking, colorOverride, satellite.color])
 
   useEffect(() => () => material.dispose(), [material])
 
@@ -100,7 +120,7 @@ export function Moon({
           ref={meshRef}
           geometry={geometry}
           material={material}
-          scale={visualRadius}
+          scale={meshScale}
           onPointerOver={(event) => {
             event.stopPropagation()
             setHovered(bodyId ?? null)
