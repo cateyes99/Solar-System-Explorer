@@ -212,10 +212,13 @@ export function StarField({ quality, reducedMotion, showNebula }: StarFieldProps
         <mesh ref={nebulaMaterialRef} scale={2400} frustumCulled={false} renderOrder={-10}>
           <sphereGeometry args={[1, 32, 24]} />
           <meshBasicMaterial
+            // The real Milky Way panorama, with its exposure lifted at load time
+            // (`liftExposure`): a photograph of the night sky is mostly black until
+            // the faint dust is brought up to where a dark-adapted eye sees it.
             map={getTexture('nebula')}
             side={BackSide}
             transparent
-            opacity={0.6}
+            opacity={0.85}
             depthWrite={false}
             toneMapped={false}
           />

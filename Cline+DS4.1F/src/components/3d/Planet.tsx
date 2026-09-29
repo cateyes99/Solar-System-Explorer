@@ -84,6 +84,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const sizeMultiplier = whatIfId === 'earth-jupiter-size' && body.id === 'earth' ? 11 : 1
   const radius = bodyRadius(body, scaleMode, customScale) * sizeMultiplier
   const spinFrozen = whatIfId === 'no-rotation' && body.id === 'earth'
+  /**
+   * Polar flattening, straight from the IAU figure for the body. It is applied to
+   * the planet's own spin group, so the squash happens along the rotation axis:
+   * Jupiter (6.5%) and Saturn (9.8%) stop being spheres and read as the fast
+   * spinning giants they really are, while the Moon (0.12%) stays round.
+   */
+  const flattening = visuals.flattening ?? 0
+  const flattenScale = useMemo<[number, number, number]>(() => [1, 1 - flattening, 1], [flattening])
   const highlight = useRef(0)
   const ringOpacity = useRef(0)
 
@@ -92,10 +100,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     texture.offset.x = visuals.textureOffsetU
     return new MeshStandardMaterial({
       map: texture,
+      // Real maps double as relief: a darker texel sits lower than a bright one.
       bumpMap: visuals.bumpScale ? texture : null,
       bumpScale: visuals.bumpScale ?? 0,
       roughness: visuals.roughness,
       metalness: visuals.metalness,
+      // Earth varies its roughness across the surface — glassy ocean, dusty land —
+      // which is what produces the sun glint on water.
+      roughnessMap: visuals.roughnessMapId ? getTexture(visuals.roughnessMapId) : null,
       emissive: new Color(visuals.accent),
       emissiveIntensity: 0,
     })
@@ -103,8 +115,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
   const cloudsMaterial = useMemo(() => {
     if (!visuals.clouds) return null
+    // The shipped cloud map is a photographic black-and-white layer with no alpha
+    // channel: white where the sky is cloudy, black where it is clear. Feeding it
+    // in as the alpha map (three reads its green channel) turns that coverage into
+    // clouds, instead of painting a grey veil over the whole planet.
     return new MeshStandardMaterial({
-      map: getTexture(visuals.clouds.textureId),
+      alphaMap: getTexture(visuals.clouds.textureId),
       transparent: true,
       opacity: visuals.clouds.opacity,
       depthWrite: false,
@@ -205,7 +221,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   return (
     <group ref={orbitRef}>
       <group ref={tiltRef} rotation={[0, 0, body.axialTiltDeg * (Math.PI / 180)]}>
-        <group ref={spinRef}>
+        <group ref={spinRef} scale={flattenScale}>
           <mesh
             geometry={sphereGeometry}
             material={surfaceMaterial}
@@ -230,19 +246,19 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
           ) : null}
         </group>
 
-        {visuals.rings ? (
-          <Rings radius={radius} visuals={visuals.rings} tiltDeg={0} opacity={1} />
-        ) : null}
-      </group>
+        {visuals.rings ? <Rings radius={radius} visuals={visuals.rings} opacity={1} /> : null}
 
-      {/* Detail layers: hidden automatically when the planet is a distant dot. */}
-      <group ref={detailRef}>
-        {visuals.atmosphere ? (
-          <Atmosphere radius={radius} visuals={visuals.atmosphere} sunPosition={SUN_POSITION} />
-        ) : null}
-        {visuals.nightLights ? (
-          <NightLights radius={radius} visuals={visuals.nightLights} sunPosition={SUN_POSITION} />
-        ) : null}
+        {/* Atmosphere and city lights hug the same flattened figure as the planet
+            itself, so a squashed giant does not wear a round haze. They are hidden
+            automatically when the body shrinks to a distant dot. */}
+        <group ref={detailRef} scale={flattenScale}>
+          {visuals.atmosphere ? (
+            <Atmosphere radius={radius} visuals={visuals.atmosphere} sunPosition={SUN_POSITION} />
+          ) : null}
+          {visuals.nightLights ? (
+            <NightLights radius={radius} visuals={visuals.nightLights} sunPosition={SUN_POSITION} />
+          ) : null}
+        </group>
       </group>
 
       {/* Selection ring, drawn flat on the ecliptic so it reads as an orbit marker. */}
