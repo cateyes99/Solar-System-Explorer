@@ -25,5 +25,18 @@ These images are **not** hand-drawn: they are real planetary map data.
 | `2k_neptune.jpg` | Neptune | Voyager 2 disc with the Great Dark Spot |
 | `2k_stars_milky_way.jpg` | Milky Way | ESO panoramic background, unwrapped as a sky sphere |
 
+## Maps the app works out for itself
+
+These have no downloaded file: they are built in the browser from the map above
+or from published measurements.
+
+- `earthRoughness` — ocean-versus-land roughness, derived from the day map. Glassy water
+  and dusty land are what put the sun glint on the oceans.
+- `uranusRings` — Uranus’s nine narrow rings and its dust sheet, drawn from their published
+  radii and normal optical depths (PDS Ring-Moon Systems Node: Showalter & Lissauer 2006;
+  Nicholson et al. 2018). No calibrated Voyager ring strip is available in this map set, so
+  the measured geometry is painted rather than faked with Saturn’s bands.
+- The Sun’s corona, star and comet sprites — soft glows with no photographic counterpart.
+
 Re-fetch with `node tools/fetch-textures.mjs`. If a file is missing the app
 paints that body procedurally instead, so it never shows an empty planet.

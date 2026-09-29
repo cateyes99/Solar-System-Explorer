@@ -1,8 +1,10 @@
 # Solar System Explorer
 
 An immersive, interactive **3D Solar System** for curious children and the grown-ups who get
-dragged into it. Built with React, TypeScript, Three.js and react-three-fiber — every surface in
-it is painted procedurally in the browser, so nothing is downloaded except the code itself.
+dragged into it. Built with React, TypeScript, Three.js and react-three-fiber — every world is
+textured with **real, NASA-derived map data** (Blue Marble for Earth, MESSENGER for Mercury,
+Cassini for Saturn and its rings, and so on), shipped inside the app so nothing is fetched while
+it runs.
 
 > **Not to scale — on purpose.** The app uses a clearly explained *Educational Scale* so that
 > children can see the planets, watch them orbit and still learn the real numbers. Every figure in
@@ -146,7 +148,8 @@ src/
               tour.ts · whatIf.ts · missions.ts · visuals.ts
   store/      simulationStore.ts — one Zustand store for all shared UI state
   utils/      astronomy.ts (Keplerian positions) · scale.ts (the four scale modes)
-              textures.ts (procedural texture engine) · simulationClock.ts
+              textures.ts (map loader + procedural painters) · textureSources.ts
+              (where each real map comes from) · simulationClock.ts
               spacecraftSim.ts · bodyRegistry.ts · audio.ts · format.ts
               input.ts · random.ts · webgl.ts
   hooks/      useSimulationTime · useMissionReadout · useAssetPreloader
@@ -161,6 +164,10 @@ src/
               SettingsPanel · FactCard · Toast · LoadingScreen · Fallback2D
               Overlays · primitives · icons
   scenes/     SolarSystemScene.tsx — the Canvas, lighting and quality tiers
+public/
+  textures/   Real map data (equirectangular 2:1) + CREDITS.md
+tools/
+  fetch-textures.mjs — re-downloads the maps and rewrites CREDITS.md
 ```
 
 A few decisions worth knowing about:
@@ -177,9 +184,17 @@ A few decisions worth knowing about:
 - **Bodies are found through a registry.** Each 3D body registers its `Object3D` under its id, so the
   camera, tour director and mission autopilot can resolve a target's live world position without prop
   drilling or duplicated orbital maths.
-- **Nothing is downloaded.** `utils/textures.ts` paints every surface into an offscreen canvas
-  (seamless cylindrical FBM noise, crater fields, banding, the Great Red Spot, ring gaps, night
-  lights) before the scene mounts, reporting progress on the loading screen.
+- **Real maps, baked in.** `public/textures` holds real equirectangular map data — NASA / JPL /
+  USGS imagery via Solar System Scope, CC BY 4.0, listed in `public/textures/CREDITS.md` — and
+  `utils/textures.ts` decodes it into GPU textures before the scene mounts, reporting progress on
+  the loading screen. Whatever has no real counterpart (the Sun's corona, the star and comet
+  sprites, Earth's ocean-roughness map, Uranus's ring strip) is still painted procedurally, and if
+  a file is ever missing the same painter covers for it, so no world can render blank.
+- **Measured, not guessed.** Every material setting comes from a measurement rather than a taste:
+  the IAU polar flattening squashes Jupiter (6.5%) and Saturn (9.8%), the ring discs begin and end
+  at the published ring radii, the Sun's disc is dimmed toward the limb by the Eddington
+  grey-atmosphere law, and Earth's oceans are glassy while its deserts are matte — which is what
+  puts a sun glint on the real planet.
 - **Quality is adaptive — and recoverable.** A performance monitor inside the scene reduces star, rock
   and segment counts (and drops post-processing) when the frame rate stays low, but it ignores the
   start-up warm-up, never climbs above the default look on its own, and steps back up as soon as the

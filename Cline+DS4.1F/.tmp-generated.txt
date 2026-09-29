@@ -1,0 +1,88 @@
+{
+  "everyTextureBuilt": true,
+  "uranusRings": {
+    "size": "1024x16",
+    "maxAlpha": 0.357,
+    "opaqueFraction": 0.0205,
+    "rings": [
+      {
+        "radiusInUranusRadii": 1.637,
+        "alpha": 0.235
+      },
+      {
+        "radiusInUranusRadii": 1.652,
+        "alpha": 0.333
+      },
+      {
+        "radiusInUranusRadii": 1.666,
+        "alpha": 0.18
+      },
+      {
+        "radiusInUranusRadii": 1.75,
+        "alpha": 0.314
+      },
+      {
+        "radiusInUranusRadii": 1.787,
+        "alpha": 0.224
+      },
+      {
+        "radiusInUranusRadii": 1.846,
+        "alpha": 0.286
+      },
+      {
+        "radiusInUranusRadii": 1.863,
+        "alpha": 0.227
+      },
+      {
+        "radiusInUranusRadii": 1.89,
+        "alpha": 0.298
+      },
+      {
+        "radiusInUranusRadii": 1.954,
+        "alpha": 0.11
+      },
+      {
+        "radiusInUranusRadii": 1.957,
+        "alpha": 0.071
+      },
+      {
+        "radiusInUranusRadii": 2.001,
+        "alpha": 0.357
+      }
+    ]
+  },
+  "earthClouds": {
+    "size": "1024x512",
+    "meanLuma": 0.278,
+    "clearFraction": 0.319,
+    "coveredFraction": 0.005
+  },
+  "earthRoughness": {
+    "size": "1024x512",
+    "mean": 0.405,
+    "glossyFraction": 0.578,
+    "matteFraction": 0.323
+  },
+  "nebula": {
+    "size": "2048x1024",
+    "mean": 0.0187,
+    "max": 1,
+    "brightFraction": 0.0022
+  },
+  "sizes": {
+    "sun": "2048x1024",
+    "mercury": "2048x1024",
+    "venus": "1024x512",
+    "earth": "1024x512",
+    "earthNight": "1024x512",
+    "mars": "2048x1024",
+    "jupiter": "1024x512",
+    "saturn": "2048x1024",
+    "uranus": "1024x512",
+    "neptune": "1024x512",
+    "moon": "1024x512",
+    "saturnRings": "1024x63",
+    "uranusRings": "1024x16",
+    "comet": "128x128"
+  }
+}

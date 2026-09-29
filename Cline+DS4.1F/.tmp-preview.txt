@@ -1,0 +1,15 @@
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.144:[1m4173[22m/[39m  [2mEthernet[22m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m
+[33mServer responded with status code 431. See https://vite.dev/guide/troubleshooting.html#_431-request-header-fields-too-large.[39m

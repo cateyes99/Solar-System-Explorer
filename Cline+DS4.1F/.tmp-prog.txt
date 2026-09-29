@@ -1,0 +1,46 @@
+117:		return 'vec3 ' + functionName + '( vec3 color ) { return LinearToneMapping( color ); }';
+121:	return 'vec3 ' + functionName + '( vec3 color ) { return ' + toneMappingName + 'ToneMapping( color ); }';
+137:		'float luminance( const in vec3 rgb ) {',
+139:		`	const vec3 weights = vec3( ${ r }, ${ g }, ${ b } );`,
+180:	const attributes = {};
+196:		attributes[ name ] = {
+204:	return attributes;
+500:			parameters.normalMap ? '#define USE_NORMALMAP' : '',
+501:			parameters.normalMapObjectSpace ? '#define USE_NORMALMAP_OBJECTSPACE' : '',
+502:			parameters.normalMapTangentSpace ? '#define USE_NORMALMAP_TANGENTSPACE' : '',
+540:			parameters.normalMapUv ? '#define NORMALMAP_UV ' + parameters.normalMapUv : '',
+603:			'uniform mat3 normalMatrix;',
+604:			'uniform vec3 cameraPosition;',
+609:			'	attribute mat4 instanceMatrix;',
+615:			'	attribute vec3 instanceColor;',
+625:			'attribute vec3 position;',
+626:			'attribute vec3 normal;',
+627:			'attribute vec2 uv;',
+631:			'	attribute vec2 uv1;',
+637:			'	attribute vec2 uv2;',
+643:			'	attribute vec2 uv3;',
+649:			'	attribute vec4 tangent;',
+655:			'	attribute vec4 color;',
+659:			'	attribute vec3 color;',
+665:			'	attribute vec4 skinIndex;',
+666:			'	attribute vec4 skinWeight;',
+699:			parameters.normalMap ? '#define USE_NORMALMAP' : '',
+700:			parameters.normalMapObjectSpace ? '#define USE_NORMALMAP_OBJECTSPACE' : '',
+701:			parameters.normalMapTangentSpace ? '#define USE_NORMALMAP_TANGENTSPACE' : '',
+771:			'uniform vec3 cameraPosition;',
+812:			'#define attribute in',
+847:	// Force a particular attribute to index 0.
+975:	// set up caching for attribute locations
+40:	const encodingMatrix = `mat3( ${ _m0.elements.map( ( v ) => v.toFixed( 4 ) ) } )`;
+599:			'uniform mat4 modelMatrix;',
+600:			'uniform mat4 modelViewMatrix;',
+601:			'uniform mat4 projectionMatrix;',
+602:			'uniform mat4 viewMatrix;',
+603:			'uniform mat3 normalMatrix;',
+604:			'uniform vec3 cameraPosition;',
+605:			'uniform bool isOrthographic;',
+621:			'	uniform sampler2D morphTexture;',
+770:			'uniform mat4 viewMatrix;',
+771:			'uniform vec3 cameraPosition;',
+772:			'uniform bool isOrthographic;',
+958:	// set up caching for uniform locations
