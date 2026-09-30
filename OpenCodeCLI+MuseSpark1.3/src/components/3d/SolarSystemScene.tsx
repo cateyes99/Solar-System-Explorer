@@ -190,7 +190,7 @@ function Sun({ map }: { map: THREE.Texture }) {
         <spriteMaterial map={glowTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.85} />
       </sprite>
       <FlareSprite tex={flareTex} />
-      <pointLight intensity={s ? 4 : 260} distance={0} decay={0} color="#fff2d9" />
+      <pointLight intensity={s ? 0.05 : 2.4} distance={0} decay={0} color="#fff2d9" />
       {selected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[r + 1.6, r + 1.9, 64]} />
