@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  },
+  "overrides": [
+    {
+      // In the 3D layer, Three.js materials, uniforms and object transforms are
+      // deliberately mutated inside useFrame — that imperative render loop is
+      // what keeps the orrery at 60fps without React re-renders, so the
+      // immutability heuristic does not apply here.
+      "files": ["src/components/three/**"],
+      "rules": {
+        "react/immutability": "off"
+      }
+    }
+  ]
+}
