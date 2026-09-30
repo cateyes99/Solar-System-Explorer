@@ -1,0 +1,55 @@
+{
+  "toggle": {
+    "found": true,
+    "tag": "BUTTON",
+    "stateBefore": "true",
+    "stateAfter": "true"
+  },
+  "before": {
+    "frame": "1280x820",
+    "disc": {
+      "left": 0,
+      "right": 1079,
+      "top": 55,
+      "bottom": 819,
+      "widthPx": 1080,
+      "heightPx": 765
+    },
+    "insideDisc": {
+      "label": "rows across the disc",
+      "rows": 765,
+      "lineColumnCount": 0,
+      "worst": []
+    },
+    "wholeFrame": {
+      "label": "rows across the whole frame",
+      "rows": 816,
+      "lineColumnCount": 0,
+      "worst": []
+    }
+  },
+  "after": {
+    "frame": "1280x820",
+    "disc": {
+      "left": 9,
+      "right": 932,
+      "top": 44,
+      "bottom": 677,
+      "widthPx": 924,
+      "heightPx": 634
+    },
+    "insideDisc": {
+      "label": "rows across the disc",
+      "rows": 634,
+      "lineColumnCount": 0,
+      "worst": []
+    },
+    "wholeFrame": {
+      "label": "rows across the whole frame",
+      "rows": 816,
+      "lineColumnCount": 0,
+      "worst": []
+    }
+  },
+  "messages": []
+}

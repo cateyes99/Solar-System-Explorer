@@ -1,0 +1,353 @@
+{
+  "storedFrames": {
+    "verify-saturn.png": {
+      "frame": "1280x820",
+      "disc": {
+        "left": 420,
+        "right": 1279,
+        "top": 247,
+        "bottom": 801,
+        "widthPx": 860,
+        "heightPx": 555
+      },
+      "lineColumns": 5,
+      "worstColumns": [
+        {
+          "x": 1009,
+          "rows": 2,
+          "crestFraction": 0.5,
+          "troughFraction": 0,
+          "rgb": [
+            121,
+            116,
+            110
+          ]
+        },
+        {
+          "x": 964,
+          "rows": 61,
+          "crestFraction": 0.377,
+          "troughFraction": 0,
+          "rgb": [
+            114,
+            103,
+            94
+          ]
+        },
+        {
+          "x": 953,
+          "rows": 134,
+          "crestFraction": 0.201,
+          "troughFraction": 0.037,
+          "rgb": [
+            109,
+            97,
+            84
+          ]
+        },
+        {
+          "x": 952,
+          "rows": 140,
+          "crestFraction": 0.071,
+          "troughFraction": 0.2,
+          "rgb": [
+            105,
+            93,
+            80
+          ]
+        },
+        {
+          "x": 944,
+          "rows": 172,
+          "crestFraction": 0.163,
+          "troughFraction": 0.035,
+          "rgb": [
+            112,
+            99,
+            86
+          ]
+        }
+      ]
+    },
+    "verify-line-before.png": {
+      "frame": "1280x820",
+      "disc": {
+        "left": 93,
+        "right": 1077,
+        "top": 55,
+        "bottom": 674,
+        "widthPx": 985,
+        "heightPx": 620
+      },
+      "lineColumns": 4,
+      "worstColumns": [
+        {
+          "x": 957,
+          "rows": 1,
+          "crestFraction": 1,
+          "troughFraction": 0,
+          "rgb": [
+            90,
+            91,
+            94
+          ]
+        },
+        {
+          "x": 983,
+          "rows": 1,
+          "crestFraction": 1,
+          "troughFraction": 0,
+          "rgb": [
+            90,
+            83,
+            81
+          ]
+        },
+        {
+          "x": 186,
+          "rows": 4,
+          "crestFraction": 0.5,
+          "troughFraction": 0,
+          "rgb": [
+            182,
+            174,
+            160
+          ]
+        },
+        {
+          "x": 946,
+          "rows": 45,
+          "crestFraction": 0.222,
+          "troughFraction": 0,
+          "rgb": [
+            109,
+            97,
+            89
+          ]
+        },
+        {
+          "x": 945,
+          "rows": 52,
+          "crestFraction": 0.115,
+          "troughFraction": 0,
+          "rgb": [
+            109,
+            97,
+            88
+          ]
+        }
+      ]
+    }
+  },
+  "livePoses": {
+    "arrival": {
+      "frame": "1280x820",
+      "disc": {
+        "left": 207,
+        "right": 800,
+        "top": 100,
+        "bottom": 500,
+        "widthPx": 594,
+        "heightPx": 401
+      },
+      "lineColumns": 6,
+      "worstColumns": [
+        {
+          "x": 500,
+          "rows": 13,
+          "crestFraction": 0.462,
+          "troughFraction": 0,
+          "rgb": [
+            114,
+            102,
+            93
+          ]
+        },
+        {
+          "x": 510,
+          "rows": 40,
+          "crestFraction": 0.375,
+          "troughFraction": 0,
+          "rgb": [
+            118,
+            104,
+            90
+          ]
+        },
+        {
+          "x": 511,
+          "rows": 42,
+          "crestFraction": 0.095,
+          "troughFraction": 0.238,
+          "rgb": [
+            114,
+            101,
+            85
+          ]
+        },
+        {
+          "x": 513,
+          "rows": 46,
+          "crestFraction": 0.217,
+          "troughFraction": 0.065,
+          "rgb": [
+            119,
+            105,
+            88
+          ]
+        },
+        {
+          "x": 501,
+          "rows": 17,
+          "crestFraction": 0.176,
+          "troughFraction": 0,
+          "rgb": [
+            113,
+            101,
+            89
+          ]
+        }
+      ]
+    },
+    "close": {
+      "frame": "1280x820",
+      "disc": {
+        "left": 84,
+        "right": 802,
+        "top": 79,
+        "bottom": 564,
+        "widthPx": 719,
+        "heightPx": 486
+      },
+      "lineColumns": 4,
+      "worstColumns": [
+        {
+          "x": 151,
+          "rows": 3,
+          "crestFraction": 0.667,
+          "troughFraction": 0,
+          "rgb": [
+            178,
+            170,
+            157
+          ]
+        },
+        {
+          "x": 152,
+          "rows": 4,
+          "crestFraction": 0.25,
+          "troughFraction": 0,
+          "rgb": [
+            170,
+            162,
+            148
+          ]
+        },
+        {
+          "x": 416,
+          "rows": 27,
+          "crestFraction": 0.185,
+          "troughFraction": 0.037,
+          "rgb": [
+            112,
+            98,
+            84
+          ]
+        },
+        {
+          "x": 457,
+          "rows": 19,
+          "crestFraction": 0.158,
+          "troughFraction": 0.053,
+          "rgb": [
+            112,
+            97,
+            83
+          ]
+        },
+        {
+          "x": 448,
+          "rows": 20,
+          "crestFraction": 0.15,
+          "troughFraction": 0.05,
+          "rgb": [
+            111,
+            97,
+            83
+          ]
+        }
+      ]
+    },
+    "wide": {
+      "frame": "1280x820",
+      "disc": {
+        "left": 167,
+        "right": 1099,
+        "top": 131,
+        "bottom": 589,
+        "widthPx": 933,
+        "heightPx": 459
+      },
+      "lineColumns": 10,
+      "worstColumns": [
+        {
+          "x": 909,
+          "rows": 1,
+          "crestFraction": 1,
+          "troughFraction": 0,
+          "rgb": [
+            99,
+            99,
+            100
+          ]
+        },
+        {
+          "x": 482,
+          "rows": 20,
+          "crestFraction": 0.55,
+          "troughFraction": 0,
+          "rgb": [
+            115,
+            103,
+            93
+          ]
+        },
+        {
+          "x": 785,
+          "rows": 18,
+          "crestFraction": 0.444,
+          "troughFraction": 0,
+          "rgb": [
+            108,
+            97,
+            88
+          ]
+        },
+        {
+          "x": 776,
+          "rows": 58,
+          "crestFraction": 0.259,
+          "troughFraction": 0,
+          "rgb": [
+            108,
+            94,
+            81
+          ]
+        },
+        {
+          "x": 784,
+          "rows": 27,
+          "crestFraction": 0.222,
+          "troughFraction": 0,
+          "rgb": [
+            105,
+            93,
+            83
+          ]
+        }
+      ]
+    }
+  },
+  "messages": [],
+  "clicked": true
+}
