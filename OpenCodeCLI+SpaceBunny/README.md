@@ -105,6 +105,16 @@ be followed without jitter, and the tour can keep sweeping the azimuth. Arriving
 a planet also steers onto its sunlit face, so you never click a world and get a
 black disc.
 
+**Rotation is rate-clipped per body, not scaled globally.** True spin rates span three
+orders of magnitude — Mercury turns once in 59 days, Jupiter in 10 hours — and at every
+speed preset the fast rotators would smear into an unreadable blur. `store/clock.ts`
+integrates each body's angle separately and soft-clips its rate towards a ceiling
+(≈18°/s): a body already turning slower than the ceiling keeps its true rate, and a
+faster one is bent towards the ceiling asymptotically. Jupiter still visibly whirls,
+Mercury still crawls, Venus still turns backwards, and Earth takes about 20 seconds
+per turn at the Slow preset — slow enough to read continents, fast enough to feel
+alive.
+
 **Everything visual is procedural.** `utils/textures.ts` paints every surface on a
 2D canvas from seeded noise — including Earth's continents, which are rasterised
 from hand-authored coastline polygons and then warped by noise. The space
@@ -141,6 +151,9 @@ the tour auto-advancing.
 - **Moons.** Only the largest are drawn, on compressed orbits, at exaggerated
   sizes. Lunar months are compressed on screen; the Moon Phases lesson shows the
   real geometry.
+- **Spin rates are compressed** above roughly 18°/s (see above). The differences
+  between planets survive, but a gas giant at the Slow preset is not turning at
+  its true ten-hour rate.
 - **Lighting.** A single decay-free point light at the Sun, because squashed orbits
   make physical falloff meaningless. Real shadow casting is not simulated.
 - **Moons and planets are untextured on their night sides** apart from Earth's city

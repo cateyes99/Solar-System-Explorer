@@ -140,6 +140,7 @@ export function Planet({
 
   const hoveredId = useAppStore((s) => s.hoveredId)
   const focusedId = useAppStore((s) => s.focusedId)
+  const reducedMotion = useAppStore((s) => s.reducedMotion)
   const setHovered = useAppStore((s) => s.setHovered)
   const select = useAppStore((s) => s.select)
   const focus = useAppStore((s) => s.focus)
@@ -265,8 +266,12 @@ export function Planet({
     pos.position.copy(worldPosition)
 
     // --- axial spin -----------------------------------------------------
-    if (spinRef.current) spinRef.current.rotation.y = simClock.spin(planet.rotationPeriodHours)
-    if (cloudRef.current) cloudRef.current.rotation.y = simClock.simDays * 0.9
+    // The clock integrates rotation at each body's own clipped rate, so slow
+    // rotators stay slow and fast ones stay watchable.
+    const spinAngle = simClock.spin(planet.id, planet.rotationPeriodHours, reducedMotion ? 0.25 : 1)
+    if (spinRef.current) spinRef.current.rotation.y = spinAngle
+    // Clouds ride the same compressed clock, drifting slowly ahead of the ground.
+    if (cloudRef.current) cloudRef.current.rotation.y = spinAngle + simClock.spinTurns(planet.id) * 0.06
 
     // --- hover emphasis -------------------------------------------------
     const hovered = hoveredId === planet.id
