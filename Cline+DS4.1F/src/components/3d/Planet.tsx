@@ -11,13 +11,14 @@ import { bodyRadius, scaleDistanceKm } from '../../utils/scale'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
+import { smoothstep } from '../../utils/random'
 import { HIGH_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE, LOW_DETAIL_SPHERE, createRingGeometry } from './geometry'
 import { Atmosphere } from './Atmosphere'
 import { NightLights } from './NightLights'
 import { Rings } from './Rings'
 import { Moon } from './Moon'
 import { PlanetLabel } from './PlanetLabel'
-import { SUN_POSITION } from './constants'
+import { SUN_POSITION, WIDE_VIEW_FADE_IN_RADII, WIDE_VIEW_FADE_OUT_RADII } from './constants'
 
 /** Our Moon is a real body with its own panel, so it needs a satellite record. */
 const EARTHS_MOON: SatelliteDefinition = {
@@ -194,7 +195,13 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     highlight.current += (highlightTarget - highlight.current) * Math.min(1, step * 8)
     surfaceMaterial.emissiveIntensity = highlight.current
 
-    const ringTarget = isSelected ? 0.55 : isHovered ? 0.3 : 0
+    // The marker is a distance cue: it answers "this world is selected" while the
+    // world is a distant disc. It lies flat in the ecliptic, so on the way in its
+    // near arc ends up between the camera and the planet and would slice a bright
+    // line across the face of a close-up, so it fades out on approach.
+    const radiiAway = cameraDistance / Math.max(radius, 0.001)
+    const markerFade = smoothstep(WIDE_VIEW_FADE_OUT_RADII, WIDE_VIEW_FADE_IN_RADII, radiiAway)
+    const ringTarget = (isSelected ? 0.55 : isHovered ? 0.3 : 0) * markerFade
     ringOpacity.current += (ringTarget - ringOpacity.current) * Math.min(1, step * 7)
     if (focusRingMaterialRef.current) {
       focusRingMaterialRef.current.opacity = ringOpacity.current

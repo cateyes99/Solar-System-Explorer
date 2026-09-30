@@ -10,12 +10,16 @@ import {
   LineBasicMaterial,
   MeshBasicMaterial,
   Object3D,
+  Vector3,
 } from 'three'
 import type { CelestialBody } from '../../types'
 import { orbitSamples } from '../../utils/astronomy'
-import { scaleDistanceKm } from '../../utils/scale'
+import { bodyRadius, scaleDistanceKm } from '../../utils/scale'
 import { useSimulationStore } from '../../store/simulationStore'
+import { getBodyWorldPosition } from '../../utils/bodyRegistry'
+import { smoothstep } from '../../utils/random'
 import { BODY_VISUALS } from '../../data/visuals'
+import { WIDE_VIEW_FADE_IN_RADII, WIDE_VIEW_FADE_OUT_RADII } from './constants'
 
 /**
  * The orbit path of a planet, drawn from its real semi-major axis and
@@ -61,7 +65,11 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
   const customScale = useSimulationStore((state) => state.customScale)
   const arrowsRef = useRef<InstancedMesh>(null)
   const opacity = useRef(0.24)
+  /** Scratch for this body's position, so the fade allocates nothing per frame. */
+  const ownPosition = useRef(new Vector3())
   const accent = useMemo(() => new Color(BODY_VISUALS[body.id]?.accent ?? '#8ab4ff'), [body.id])
+  /** Visual radius in scene units: the approach fade is measured in planet radii. */
+  const radius = useMemo(() => bodyRadius(body, scaleMode, customScale), [body, scaleMode, customScale])
 
   // Cheap machines get fewer ellipse segments and fewer direction arrows.
   const sampleCount = quality === 'low' ? 128 : ORBIT_SAMPLES
@@ -103,19 +111,30 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
 
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry])
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     // Orbits belonging to the selected planet glow a little brighter.
     const store = useSimulationStore.getState()
     const emphasised = store.selectedId === body.id || store.hoveredId === body.id
-    const target = emphasised ? 0.72 : 0.22
+    // A path is a distance cue as well: this body's own ellipse passes exactly
+    // through the body, so near it the line runs between the camera and the
+    // planet and would draw itself straight across the disc. It fades out on
+    // approach, along with the arrows that ride on it.
+    const planet = getBodyWorldPosition(body.id, ownPosition.current)
+    const radiiAway = planet
+      ? state.camera.position.distanceTo(planet) / Math.max(radius, 0.001)
+      : Number.POSITIVE_INFINITY
+    const approach = smoothstep(WIDE_VIEW_FADE_OUT_RADII, WIDE_VIEW_FADE_IN_RADII, radiiAway)
+    const target = (emphasised ? 0.72 : 0.22) * approach
     opacity.current += (target - opacity.current) * Math.min(1, delta * 5)
     const lineMaterial = line.material as LineBasicMaterial
     lineMaterial.opacity = opacity.current
 
+    arrowMaterial.opacity = 0.75 * approach
+
     const arrows = arrowsRef.current
     if (!arrows) return
-    arrows.visible = showFlow
-    if (!showFlow) return
+    arrows.visible = showFlow && approach > 0.02
+    if (!arrows.visible) return
 
     const positions = geometry.getAttribute('position') as Float32BufferAttribute
     const count = positions.count
