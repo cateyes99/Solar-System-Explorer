@@ -42,6 +42,15 @@ export function CameraRig({ distanceExponent }: { distanceExponent: number }) {
   const offset = useMemo(() => new Vector3(), [])
   const toSun = useMemo(() => new Vector3(), [])
   const litDir = useMemo(() => new Vector3(), [])
+  /**
+   * The point the camera is actually riding. It eases onto a body while the
+   * camera is flying in, then becomes rigidly equal to it, so the camera is
+   * *carried* by the planet rather than chasing it.
+   */
+  const followAnchor = useMemo(() => new Vector3(), [])
+  const prevAnchor = useMemo(() => new Vector3(), [])
+  const prevBody = useMemo(() => new Vector3(), [])
+  const followShift = useMemo(() => new Vector3(), [])
 
   const desiredDistance = useRef(systemRadius * 1.9)
   const transitioning = useRef(true)
@@ -49,11 +58,17 @@ export function CameraRig({ distanceExponent }: { distanceExponent: number }) {
   const sweepAngle = useRef(0)
   const idleClock = useRef(0)
   const initialized = useRef(false)
+  /** True once the anchor has been seeded with a real body position. */
+  const anchorSeeded = useRef(false)
 
   /* Any explicit change of intent starts a new camera transition. */
   useEffect(() => {
     transitioning.current = true
     transitionClock.current = 0
+    // A new subject invalidates the carried anchor: re-seed it from wherever the
+    // camera currently is, so we ease in from the user's viewpoint rather than
+    // teleporting to a stale position.
+    anchorSeeded.current = false
   }, [focusedId, cameraMode, tourActive, tourStage, distanceExponent, cameraOverride])
 
   useEffect(() => {
@@ -110,11 +125,57 @@ export function CameraRig({ distanceExponent }: { distanceExponent: number }) {
       desiredDistanceNow = systemRadius * 1.75
     }
 
-    /* ---------------- damp the orbit target ---------------- */
-    const followLambda = reducedMotion ? 16 : cameraMode === 'follow' ? 9 : tourActive ? 3.4 : 4
-    controls.target.x = damp(controls.target.x, desiredTarget.x, followLambda, delta)
-    controls.target.y = damp(controls.target.y, desiredTarget.y, followLambda, delta)
-    controls.target.z = damp(controls.target.z, desiredTarget.z, followLambda, delta)
+    /* ---------------- how the camera is carried ----------------
+     *
+     * Damping the target towards a *moving* body is what broke follow mode: an
+     * exponential damper lags by speed/lambda, so the faster the orbit the more
+     * the planet outruns the camera. Measured at Normal speed the steady-state
+     * lag is ~1.1 units for Mercury but only ~0.13 for Neptune, which is exactly
+     * the "outer planets follow, inner planets run away" split.
+     *
+     * So the anchor absorbs the body's *displacement* rigidly, which is lag-free
+     * at any orbital speed, and only the residual error is eased. On arrival the
+     * anchor starts at the camera's current target, so that residual is the whole
+     * flight and it closes in smoothly; once settled the residual is zero and the
+     * camera tracks perfectly.
+     */
+    const carryLambda = reducedMotion ? 16 : tourActive ? 3.4 : 4
+    const trackingBody = focusedId !== null || stage !== null || cameraOverride !== null
+
+    if (trackingBody) {
+      if (!anchorSeeded.current) {
+        // Arriving: start from the camera's current target so we ease across the
+        // distance instead of teleporting, and remember where the body is so the
+        // first frame's displacement is not mistaken for motion.
+        followAnchor.copy(controls.target)
+        prevBody.copy(desiredTarget)
+        prevAnchor.copy(controls.target)
+        anchorSeeded.current = true
+      }
+
+      // 1. Carry the body's own movement this frame, exactly.
+      followShift.copy(desiredTarget).sub(prevBody)
+      prevBody.copy(desiredTarget)
+      followAnchor.add(followShift)
+
+      // 2. Ease out whatever error is left (the flight in, or nothing at all once
+      //    we are settled on the body).
+      followAnchor.x = damp(followAnchor.x, desiredTarget.x, carryLambda, delta)
+      followAnchor.y = damp(followAnchor.y, desiredTarget.y, carryLambda, delta)
+      followAnchor.z = damp(followAnchor.z, desiredTarget.z, carryLambda, delta)
+
+      // 3. Move the camera by the same delta as its target, so the user's own
+      //    distance and viewing angle survive untouched.
+      followShift.copy(followAnchor).sub(prevAnchor)
+      prevAnchor.copy(followAnchor)
+      controls.target.add(followShift)
+      camera.position.add(followShift)
+    } else {
+      anchorSeeded.current = false
+      controls.target.x = damp(controls.target.x, desiredTarget.x, carryLambda, delta)
+      controls.target.y = damp(controls.target.y, desiredTarget.y, carryLambda, delta)
+      controls.target.z = damp(controls.target.z, desiredTarget.z, carryLambda, delta)
+    }
 
     /* ---------------- drive the radius only while transitioning ---------------- */
     const desired = clamp(desiredDistanceNow, MIN_DISTANCE * 1.5, MAX_DISTANCE)
