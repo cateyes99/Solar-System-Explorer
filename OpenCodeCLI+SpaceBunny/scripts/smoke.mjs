@@ -76,9 +76,13 @@ async function main() {
   /* ---------------- boot ---------------- */
   await step('app boots and finishes loading', async () => {
     await page.goto(BASE, { waitUntil: 'domcontentloaded' })
-    await page.waitForSelector('canvas', { timeout: 30_000 })
+    // The canvas is mounted only after textures are ready, and those now include
+    // the committed NASA imagery, so this is a real network wait.
+    await page.waitForSelector('canvas', { timeout: 180_000 })
+    // Boot now waits on real NASA imagery as well as generated textures, so the
+    // budget is generous — especially on the software rasteriser used here.
     await page.waitForFunction(() => !document.body.innerText.includes('Preparing the Solar System'), undefined, {
-      timeout: 90_000,
+      timeout: 180_000,
     })
     await page.waitForTimeout(1500)
   })
@@ -294,7 +298,7 @@ async function main() {
     fresh.setDefaultTimeout(15_000)
     await fresh.goto(BASE, { waitUntil: 'domcontentloaded' })
     await fresh.waitForFunction(() => !document.body.innerText.includes('Preparing the Solar System'), undefined, {
-      timeout: 90_000,
+      timeout: 180_000,
     })
     await fresh.keyboard.press('Escape')
     await fresh.waitForTimeout(800)

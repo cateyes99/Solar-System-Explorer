@@ -3,6 +3,7 @@ import { MOONS, PLANET_BY_ID, SUN } from '../data/planets'
 import type { PlanetId } from '../types'
 import { createNoise, sphereNoise, type Noise } from './noise'
 import { mulberry32 } from './math'
+import { realTextureNow } from './imageTextures'
 
 /**
  * Every graphic in this app is generated on the fly with the 2D canvas API.
@@ -978,10 +979,22 @@ export function getRingTexture(id: PlanetId): THREE.Texture | null {
   return remember(key, texture)
 }
 
+/**
+ * The albedo map for a body.
+ *
+ * Real NASA imagery wins whenever it exists: `imageTextures` loads it during the
+ * preload and it is already in the cache by the time the scene mounts. The
+ * procedural painter is the fallback for the Sun, Mercury, Uranus and any moon
+ * without a public equirectangular map, and it is also what runs if an image
+ * request fails, so the app never renders a blank planet.
+ */
 export function getBodyTexture(id: PlanetId | 'sun' | 'moon'): THREE.Texture {
   const key = `body:${id}`
   const hit = cache.get(key)
   if (hit) return hit
+
+  const real = realTextureNow(id)
+  if (real) return remember(key, real)
 
   let el: HTMLCanvasElement
   switch (id) {
@@ -1023,10 +1036,15 @@ export function getMoonTexture(): THREE.Texture {
   return getBodyTexture('moon')
 }
 
+/** A moon's surface map: real imagery where available, otherwise procedural. */
 export function getMoonGreyTexture(moonId: string): THREE.Texture {
   const key = `moon:${moonId}`
   const hit = cache.get(key)
   if (hit) return hit
+
+  const real = realTextureNow(moonId)
+  if (real) return remember(key, real)
+
   const moon = MOONS.find((m) => m.id === moonId)
   const base = new THREE.Color(moon?.color ?? '#b9b3a8')
   return remember(key, toTexture(paintCratered(512, 256, base, moonId.length * 97, 220)))

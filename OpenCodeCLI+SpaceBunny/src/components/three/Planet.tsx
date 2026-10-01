@@ -165,6 +165,9 @@ export function Planet({
 
   const texture = useMemo(() => getBodyTexture(planet.id), [planet.id])
   const ringTexture = useMemo(() => getRingTexture(planet.id), [planet.id])
+  // The night-lights and cloud layers are still painted procedurally, because
+  // NASA publishes them as separate products and neither is needed to make the
+  // planet itself read correctly.
   const nightTexture = useMemo(() => (planet.id === 'earth' ? getEarthNightTexture() : null), [planet.id])
   const cloudTexture = useMemo(() => (planet.id === 'earth' ? getEarthClouds() : null), [planet.id])
 

@@ -17,11 +17,27 @@ npm run smoke    # headless Chromium walkthrough of every major flow
 
 **The scene** — a continuously orbiting orrery with the Sun, all eight planets, the
 Moon, Phobos, Deimos, the Galilean moons, Titan, Enceladus, a 1,100-rock asteroid
-belt and a long-period comet. Every planet has its own procedurally painted
-surface: cratered Mercury, banded Jupiter with a Great Red Spot, Saturn with real
-radial ring structure (Cassini Division, Encke gap), Uranus with shepherd rings,
-cloud-swirled Venus, and an Earth with recognisable continents, an animated cloud
-layer, a Fresnel atmosphere and city lights that glow on the night side.
+belt and a long-period comet.
+
+**Real spacecraft imagery.** Every planet and major moon is textured with a real
+NASA / ESA / USGS equirectangular map rather than an invented one. Earth's is
+NASA's Blue Marble, so you can pick out the Sahara and the outline of Africa.
+Jupiter and Saturn are Cassini maps with genuine band structure, and Saturn's
+polar hexagon is visible. Mercury is the MESSENGER colour mosaic, including the
+Caloris basin. Mars is the Viking global mosaic; the Moon is LRO's colour map;
+the Galilean moons, Titan, Triton and the Uranian moons are Voyager, Cassini and
+Hubble products. Twenty-six maps in total, committed to `public/textures` so the
+app never touches the network at runtime. `scripts/fetch-textures.ps1` re-downloads
+them and rejects anything that is not 2:1, because a sphere's UV layout needs a
+real equirectangular projection rather than a rendered globe.
+
+Two bodies stay procedural for a stated reason. Uranus has no published global
+map — NASA has only ever released rendered globes of it, which cannot be wrapped
+on a sphere — and it really is a featureless pale cyan disc, so banding it would
+be an invention. The Sun is procedural because a photograph of the photosphere
+does not tile around the limb. Saturn's rings, Earth's clouds and its city lights
+are also still painted procedurally, since each is a separate NASA product and
+none is needed to make the planet read correctly.
 
 **Explore** — click any world for an information panel written for children, with a
 "Did you know?" section. Hover for a tooltip, double-click to follow.
@@ -72,6 +88,9 @@ src/
     shipKeys.ts    flight keys shared by two listeners
   utils/
     scale.ts       the Educational Scale curves
+    ephemeris.ts   real Keplerian propagation from the JPL elements
+    imageTextures.ts  loads the committed NASA imagery
+    textures.ts    the remaining procedural textures (rings, clouds, Sun)
     astronomy.ts   formatting, light-travel times, body name resolution
     noise.ts       seeded simplex/perlin noise used by every texture
     textures.ts    all procedural canvas textures
@@ -143,11 +162,12 @@ perihelion/aphelion range, Earth's distance and the Sun's apparent longitude in
 early January, every planet's obliquity recovered from its pole against its own
 orbit normal, prograde orbital direction, and orbit rings that close exactly once.
 
-**Everything visual is procedural.** `utils/textures.ts` paints every surface on a
-2D canvas from seeded noise — including Earth's continents, which are rasterised
-from hand-authored coastline polygons and then warped by noise. The space
-backdrop is a 2048×1024 equirectangular canvas with a Milky Way band and nebulae.
-The loading screen reports real progress while this happens.
+**Everything still procedural is procedural on purpose.** `utils/textures.ts`
+paints the Sun's photosphere, Saturn's radial ring structure, Uranus's shepherd
+rings, Earth's cloud shell and its city lights on a 2D canvas from seeded noise.
+The space backdrop is a 2048×1024 equirectangular canvas with a Milky Way band and
+nebulae. The loading screen reports real progress across both the downloaded
+imagery and the generated textures.
 
 **The scale is a design decision, and the app says so.** True scale would make Earth
 a fraction of a pixel wide next to Jupiter. `utils/scale.ts` applies a power curve
@@ -166,6 +186,10 @@ the tour auto-advancing.
   star field.
 - Geometry and materials are created once per body and disposed on unmount; every
   texture lives in a single memoised cache.
+- The NASA imagery totals about 12 MB and is committed, so it is served from the
+  origin and cached by the browser after the first visit. Every map is capped at
+  2048×1024 and stored as JPEG, which is all a sphere in this scene can resolve
+  and is several times smaller than PNG for photographic subjects.
 - Adaptive device pixel ratio, a quality setting that drops post-processing
   entirely, and reduced-motion automatically lowers star, belt and asteroid counts.
 - The WebGL failure path renders a working animated 2D Solar System rather than an
@@ -179,6 +203,9 @@ the tour auto-advancing.
 - **Moons.** Only the largest are drawn, on compressed orbits, at exaggerated
   sizes. Lunar months are compressed on screen; the Moon Phases lesson shows the
   real geometry.
+- **Uranus and the Sun are procedurally painted.** Uranus has no published
+  equirectangular map and the Sun's photosphere does not tile. Both are the honest
+  fallback rather than a wrapped-on photograph that would look wrong.
 - **Spin rates are compressed** above roughly 18°/s (see above). The differences
   between planets survive, but a gas giant at the Slow preset is not turning at
   its true ten-hour rate.
@@ -192,6 +219,25 @@ the tour auto-advancing.
   perihelion/aphelion aspect. Directions, orbital planes and speeds are real.
 - **Moon orbits** are still compressed and their inclinations are stylistic.
 - The tour auto-advance stops entirely under reduced motion.
+
+## Textures and credits
+
+All planetary imagery is public domain, from NASA, ESA, USGS and their mission
+partners. No map is generated by a third party and nothing is hot-linked.
+
+| Body | Source |
+| --- | --- |
+| Mercury | MESSENGER colour mosaic (NASA SVS) |
+| Venus | Magellan-derived global map (NASA 3D Resources) |
+| Earth | Blue Marble, NASA Earth Observatory |
+| Mars | Viking MDIM colour mosaic (NASA 3D Resources) |
+| Jupiter, Saturn, Neptune | Cassini global maps (NASA 3D Resources) |
+| Moon | LRO colour map (NASA SVS) |
+| Galilean moons, Saturn's and Uranus's moons, Triton, Phobos, Deimos | Voyager / Cassini / Hubble maps (NASA 3D Resources) |
+
+Run `npm run fetch:textures` (PowerShell: `scripts/fetch-textures.ps1`) to refresh
+them. The script downscales anything larger than 2048×1024 and **fails** on any
+file that is not 2:1, because a rendered globe cannot be wrapped on a sphere.
 
 ## Verification
 

@@ -29,3 +29,10 @@ shots/
 smoke-log.txt
 smoke-stdout.txt
 smoke-stderr.txt
+*.tmp.mjs
+probe/
+mercury-resized.jpg
+uranus-src.jpg
+
+# Note: public/textures/ is deliberately NOT ignored. It holds the committed
+# NASA/JPL imagery the planets are textured with, so the app needs no network.
