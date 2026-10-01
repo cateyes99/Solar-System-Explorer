@@ -38,6 +38,7 @@ const FILES = [
   { file: '2k_saturn_ring_alpha.png', body: 'Saturn rings', note: 'Ring optical depth with alpha (C, B, Cassini, A, F)' },
   { file: '2k_uranus.jpg', body: 'Uranus', note: 'Voyager 2 featureless methane-blue disc' },
   { file: '2k_neptune.jpg', body: 'Neptune', note: 'Voyager 2 disc with the Great Dark Spot' },
+  { file: '2k_pluto.jpg', body: 'Pluto', note: 'New Horizons encounter mosaic (heart-shaped Tombaugh Regio)' },
   { file: '2k_stars_milky_way.jpg', body: 'Milky Way', note: 'ESO panoramic background, unwrapped as a sky sphere' },
 ]
 

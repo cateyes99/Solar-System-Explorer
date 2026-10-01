@@ -76,6 +76,20 @@ export const TRAVEL_DESTINATIONS: TravelDestination[] = [
     lightMinutesFromEarth: 250,
     funFact: 'Sunlight takes over 4 hours to reach Neptune.',
   },
+  {
+    id: 'pluto',
+    name: 'Pluto',
+    description: 'The dwarf planet at the edge of the family, with its icy heart.',
+    lightMinutesFromEarth: 275,
+    funFact: 'Pluto is smaller than our Moon, and New Horizons flew past it in 2015.',
+  },
+  {
+    id: 'halley',
+    name: 'Halley’s Comet',
+    description: 'Chase the famous comet on its huge, stretched orbit.',
+    lightMinutesFromEarth: 200,
+    funFact: 'Halley comes back about every 76 years — next time in 2061.',
+  },
 ]
 
 /** Simulation speeds, from a slow drift to a whole year per second. */

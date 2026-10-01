@@ -1,5 +1,5 @@
 import type { QualityLevel } from '../../types'
-import { PLANETS } from '../../data/planets'
+import { COMETS, ORBITING_WORLDS } from '../../data/planets'
 import { sunRadiusFor } from '../../utils/scale'
 import { useSimulationStore } from '../../store/simulationStore'
 import { Sun } from './Sun'
@@ -56,25 +56,34 @@ export function SolarSystem({ quality }: SolarSystemProps) {
         extinguished={whatIfId === 'no-sun'}
       />
 
-      {PLANETS.map((planet) => (
+      {ORBITING_WORLDS.map((body) => (
         <Planet
-          key={planet.id}
-          body={planet}
+          key={body.id}
+          body={body}
           quality={quality}
           reducedMotion={reducedMotion}
           showLabels={showLabels}
         />
       ))}
 
+      {COMETS.map((comet) => (
+        <Comet key={comet.id} body={comet} reducedMotion={reducedMotion} showLabels={showLabels} />
+      ))}
+
       {showOrbits
-        ? PLANETS.map((planet) => (
-            <Orbit key={planet.id} body={planet} showFlow={showOrbitFlow} quality={quality} />
+        ? ORBITING_WORLDS.map((body) => (
+            <Orbit key={body.id} body={body} showFlow={showOrbitFlow} quality={quality} />
+          ))
+        : null}
+
+      {showOrbits
+        ? COMETS.map((comet) => (
+            <Orbit key={comet.id} body={comet} showFlow={showOrbitFlow} quality={quality} />
           ))
         : null}
 
       {showAsteroidBelt ? <AsteroidBelt quality={quality} reducedMotion={reducedMotion} /> : null}
 
-      <Comet reducedMotion={reducedMotion} showLabels={showLabels} />
       <Spacecraft />
       <CameraController />
       <TourDirector />

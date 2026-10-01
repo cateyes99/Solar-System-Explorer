@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { PLANETS } from '../../data/planets'
+import { COMETS, ORBITING_WORLDS } from '../../data/planets'
 import { formatDays, formatKm, formatTemperature } from '../../utils/format'
+
+/** Every world the simplified view offers, in the order they sit out from the Sun. */
+const FALLBACK_WORLDS = [...ORBITING_WORLDS, ...COMETS]
 
 /**
  * The 2D fallback.
@@ -12,7 +15,7 @@ import { formatDays, formatKm, formatTemperature } from '../../utils/format'
  */
 export function Fallback2D({ reason }: { reason?: string }) {
   const [selectedId, setSelectedId] = useState('earth')
-  const selected = PLANETS.find((planet) => planet.id === selectedId) ?? PLANETS[2]
+  const selected = FALLBACK_WORLDS.find((world) => world.id === selectedId) ?? FALLBACK_WORLDS[2]
 
   return (
     <div className="fixed inset-0 z-20 overflow-y-auto bg-[radial-gradient(circle_at_50%_28%,#0b1330_0%,#04060f_70%)] px-4 py-8">
@@ -38,12 +41,12 @@ export function Fallback2D({ reason }: { reason?: string }) {
                 boxShadow: '0 0 50px 12px rgba(255,138,43,0.35)',
               }}
             />
-            {PLANETS.map((planet, index) => {
+            {ORBITING_WORLDS.map((world, index) => {
               const size = 34 + index * 9
               const duration = 8 + index * 3.4
               return (
                 <span
-                  key={planet.id}
+                  key={world.id}
                   aria-hidden="true"
                   className="absolute left-1/2 top-1/2 rounded-full border"
                   style={{
@@ -51,7 +54,7 @@ export function Fallback2D({ reason }: { reason?: string }) {
                     height: `${size}%`,
                     marginLeft: `-${size / 2}%`,
                     marginTop: `-${size / 2}%`,
-                    borderColor: selectedId === planet.id ? planet.color : 'rgba(120,190,255,0.18)',
+                    borderColor: selectedId === world.id ? world.color : 'rgba(120,190,255,0.18)',
                     animation: `orbit-spin ${duration}s linear infinite`,
                   }}
                 >
@@ -64,8 +67,8 @@ export function Fallback2D({ reason }: { reason?: string }) {
                       marginTop: -5,
                       left: '50%',
                       top: 0,
-                      background: planet.color,
-                      boxShadow: `0 0 10px 2px ${planet.color}`,
+                      background: world.color,
+                      boxShadow: `0 0 10px 2px ${world.color}`,
                     }}
                   />
                 </span>
@@ -74,19 +77,19 @@ export function Fallback2D({ reason }: { reason?: string }) {
           </div>
 
           <ul className="mt-4 flex flex-wrap justify-center gap-1.5">
-            {PLANETS.map((planet) => (
-              <li key={planet.id}>
+            {FALLBACK_WORLDS.map((world) => (
+              <li key={world.id}>
                 <button
                   type="button"
-                  aria-pressed={selectedId === planet.id}
-                  onClick={() => setSelectedId(planet.id)}
+                  aria-pressed={selectedId === world.id}
+                  onClick={() => setSelectedId(world.id)}
                   className={`min-h-[2.75rem] rounded-lg border px-3 text-xs transition-colors ${
-                    selectedId === planet.id
+                    selectedId === world.id
                       ? 'border-ice/60 bg-ice/20 text-parchment'
                       : 'border-white/12 bg-white/4 text-mist hover:text-parchment'
                   }`}
                 >
-                  {planet.name}
+                  {world.name}
                 </button>
               </li>
             ))}

@@ -16,6 +16,7 @@ export type TextureId =
   | 'uranusRings'
   | 'uranus'
   | 'neptune'
+  | 'pluto'
   | 'moon'
   | 'glow'
   | 'nebula'
@@ -62,6 +63,25 @@ export interface RingVisuals {
   brightness: number
 }
 
+/**
+ * How a comet nucleus looks: a lump of dark ice rather than a body with a
+ * surface, so it needs a tint and a glow of its own instead of the
+ * roughness/emissive recipe a planet uses. Two comets should not look like the
+ * same snowball, and the numbers are what actually differ between them — the
+ * 4% albedo of Halley's charcoal-dark crust against the bright ice of a smaller
+ * comet.
+ */
+export interface CometVisuals {
+  /** Base tint of the icy nucleus. */
+  nucleusColor: string
+  /** Colour the nucleus glows with as the Sun heats it. */
+  emissiveColor: string
+  /** Strength of that glow, before the distance-from-the-Sun boost. */
+  emissiveIntensity: number
+  /** Colour of the dust and gas streaming away in the tail. */
+  tailColor: string
+}
+
 export interface BodyVisuals {
   textureId: TextureId
   /** How rough the surface looks: 0 = mirror, 1 = matte. */
@@ -86,6 +106,8 @@ export interface BodyVisuals {
   clouds?: CloudVisuals
   nightLights?: NightLightsVisuals
   rings?: RingVisuals
+  /** Comet-only look (see `CometVisuals`). */
+  comet?: CometVisuals
   /** Accent colour used for hover rims, labels and UI highlights. */
   accent: string
   /** Radius of the selection ring drawn on the ecliptic, in planet radii. */
@@ -255,6 +277,18 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     accent: '#7d95ff',
     focusRingScale: 2.2,
   },
+  pluto: {
+    textureId: 'pluto',
+    roughness: 0.95,
+    metalness: 0.01,
+    bumpScale: 0.012,
+    textureOffsetU: 0.1,
+    // Pluto's nitrogen atmosphere is a hundred-thousandth of Earth's pressure:
+    // New Horizons saw it only as a faint pale haze along the limb.
+    atmosphere: { color: '#d8e8ff', intensity: 0.18, power: 3.6 },
+    accent: '#d9bd9a',
+    focusRingScale: 2.4,
+  },
   moon: {
     textureId: 'moon',
     roughness: 0.97,
@@ -271,7 +305,31 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     metalness: 0,
     textureOffsetU: 0,
     atmosphere: { color: '#bdf3ff', intensity: 0.9, power: 2.4 },
+    // Cline-1 is a young, bright comet: pale ice that glows as it nears the Sun.
+    comet: {
+      nucleusColor: '#dff6ff',
+      emissiveColor: '#4fd8ff',
+      emissiveIntensity: 0.35,
+      tailColor: '#a9ecff',
+    },
     accent: '#bff4ff',
+    focusRingScale: 3,
+  },
+  halley: {
+    textureId: 'comet',
+    roughness: 0.95,
+    metalness: 0,
+    textureOffsetU: 0,
+    // Giotto found a crust that reflects 4% of the light that lands on it — one
+    // of the darkest surfaces measured in the Solar System — so the nucleus is
+    // drawn nearly black and the glow comes from the gas boiling off it.
+    comet: {
+      nucleusColor: '#4a4a46',
+      emissiveColor: '#9fe8ff',
+      emissiveIntensity: 0.22,
+      tailColor: '#dbeaff',
+    },
+    accent: '#cfe9ff',
     focusRingScale: 3,
   },
   belt: {
