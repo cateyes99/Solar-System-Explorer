@@ -1,0 +1,53 @@
+{
+  "frames": [
+    {
+      "name": "verify-hover-before-away-again.png",
+      "pixels": 31418,
+      "meanLuma": 114,
+      "darkQuartile": 84.07,
+      "brightDecile": 168.31,
+      "meanB": 157.83,
+      "meanR": 58.06,
+      "litFraction": 0.997
+    },
+    {
+      "name": "verify-hover-before-hover.png",
+      "pixels": 31418,
+      "meanLuma": 114,
+      "darkQuartile": 84.07,
+      "brightDecile": 168.31,
+      "meanB": 157.83,
+      "meanR": 58.06,
+      "litFraction": 0.997
+    },
+    {
+      "name": "verify-hover-after-away-again.png",
+      "pixels": 31418,
+      "meanLuma": 36.76,
+      "darkQuartile": 4.69,
+      "brightDecile": 108.19,
+      "meanB": 47.67,
+      "meanR": 28.66,
+      "litFraction": 0.203
+    },
+    {
+      "name": "verify-hover-after-hover.png",
+      "pixels": 31418,
+      "meanLuma": 93.71,
+      "darkQuartile": 64.66,
+      "brightDecile": 144.3,
+      "meanB": 136.73,
+      "meanR": 40.46,
+      "litFraction": 0.935
+    }
+  ],
+  "summary": {
+    "beforeHoverMinusAway": 0,
+    "afterHoverMinusAway": 56.95,
+    "awayBeforeMinusAfter": 77.24,
+    "beforeAwayDarkQuartileMinusAfterAway": 79.38,
+    "litFractionBeforeAway": 0.997,
+    "litFractionAfterAway": 0.203,
+    "litFractionAfterHover": 0.935
+  }
+}

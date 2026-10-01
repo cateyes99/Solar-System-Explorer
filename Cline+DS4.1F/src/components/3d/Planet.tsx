@@ -190,8 +190,15 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       detailRef.current.visible = apparentSize > detailThreshold
     }
 
-    // --- Hover / selection emphasis ---------------------------------------
-    const highlightTarget = isSelected ? 0.3 : isHovered ? 0.2 : 0
+    // --- Hover emphasis ---------------------------------------------------
+    // The glow is a pointing aid, not a badge: it answers "the pointer is on
+    // this world" and nothing else. Letting selection keep it lit made a
+    // selected world sit there looking luminous — worst of all on Earth, whose
+    // accent is a bright cyan that washes the land and the clouds into a glass
+    // ball — until some other body was clicked. Selection still has its own
+    // cues: the ecliptic marker below, the brighter orbit path, the emphasised
+    // label and the highlighted button in the bottom bar.
+    const highlightTarget = isHovered ? 0.2 : 0
     highlight.current += (highlightTarget - highlight.current) * Math.min(1, step * 8)
     surfaceMaterial.emissiveIntensity = highlight.current
 

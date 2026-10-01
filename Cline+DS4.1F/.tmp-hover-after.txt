@@ -1,0 +1,65 @@
+{
+  "label": "after",
+  "clicked": true,
+  "paused": true,
+  "away": {
+    "file": "verify-hover-after-away.png",
+    "discPixels": 21994,
+    "discRadius": 83.7,
+    "centre": [
+      593.6,
+      396.9
+    ],
+    "discMeanLuma": 59.66,
+    "darkDecileLuma": 25.47,
+    "medianLuma": 55,
+    "meanB": 76.96,
+    "meanR": 46.08
+  },
+  "awayAgain": {
+    "file": "verify-hover-after-away-again.png",
+    "discPixels": 22001,
+    "discRadius": 83.7,
+    "centre": [
+      593.7,
+      396.8
+    ],
+    "discMeanLuma": 59.65,
+    "darkDecileLuma": 25.28,
+    "medianLuma": 55,
+    "meanB": 76.87,
+    "meanR": 46.11
+  },
+  "hover": {
+    "file": "verify-hover-after-hover.png",
+    "discPixels": 49342,
+    "discRadius": 125.3,
+    "centre": [
+      641.8,
+      405.4
+    ],
+    "discMeanLuma": 93.74,
+    "darkDecileLuma": 58.19,
+    "medianLuma": 94,
+    "meanB": 136.75,
+    "meanR": 40.49
+  },
+  "awayEnd": {
+    "file": "verify-hover-after-away-end.png",
+    "discPixels": 22014,
+    "discRadius": 83.7,
+    "centre": [
+      593.9,
+      396.4
+    ],
+    "discMeanLuma": 59.58,
+    "darkDecileLuma": 25.03,
+    "medianLuma": 55,
+    "meanB": 76.69,
+    "meanR": 46.13
+  },
+  "still": 0.01,
+  "hoverMinusAway": 34.09,
+  "darkHoverMinusAway": 32.91,
+  "messages": []
+}
