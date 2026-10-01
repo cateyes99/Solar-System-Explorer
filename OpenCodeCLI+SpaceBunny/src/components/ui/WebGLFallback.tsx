@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Vector3 } from 'three'
 import { PLANETS, SUN } from '../../data/planets'
 import { Icon } from './Icon'
 import { resolveBodyName } from '../../utils/astronomy'
 import { formatYears } from '../../utils/astronomy'
+import { centuriesPastJ2000, heliocentricEcliptic } from '../../utils/ephemeris'
+import { EPOCH_MS } from '../../store/clock'
+
+const scratch = new Vector3()
 
 /**
  * Shown when WebGL is unavailable. Rather than a dead end, it renders a simple
@@ -54,8 +59,9 @@ export function WebGLFallback() {
       }
       ctx.globalAlpha = 1
 
-      // Orbits
-      PLANETS.forEach((planet) => {
+      // Orbits. The 2D fallback projects the real JPL ecliptic longitude onto
+      // the screen, so a planet's position here agrees with the 3D scene.
+      PLANETS.forEach((planet, index) => {
         const r = (Math.pow(planet.semiMajorAxisAU, 0.62) / scale) * maxR
         ctx.beginPath()
         ctx.arc(cx, cy, r, 0, Math.PI * 2)
@@ -63,14 +69,18 @@ export function WebGLFallback() {
         ctx.lineWidth = 1
         ctx.stroke()
 
-        const angle = (time / 1000 / (planet.orbitalPeriodDays / 40) + planet.orbitPhase) % (Math.PI * 2)
-        const x = cx + Math.cos(angle) * r
-        const y = cy + Math.sin(angle) * r
-        const pr = Math.max(3, radii[PLANETS.indexOf(planet)] * 14)
+        const simulatedMs = EPOCH_MS + (time / 1000 / (planet.orbitalPeriodDays / 40)) * 86_400_000
+        const t = centuriesPastJ2000(simulatedMs)
+        const p = heliocentricEcliptic(planet.id, t, scratch)
+        const trueDistance = p ? p.length() : 0
+        // Top-down ecliptic view: x toward the equinox, y along ecliptic longitude.
+        const x = cx + (p ? p.x / trueDistance : 0) * r
+        const y = cy - (p ? p.y / trueDistance : 0) * r
+        const pr = Math.max(3, radii[index] * 14)
 
         const gradient = ctx.createRadialGradient(x - pr * 0.3, y - pr * 0.3, pr * 0.1, x, y, pr)
         gradient.addColorStop(0, '#ffffff')
-        gradient.addColorStop(0.35, colors[PLANETS.indexOf(planet)])
+        gradient.addColorStop(0.35, colors[index])
         gradient.addColorStop(1, 'rgba(0,0,0,0.6)')
         ctx.beginPath()
         ctx.arc(x, y, pr, 0, Math.PI * 2)

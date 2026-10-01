@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { AU_KM, MOONS, PLANET_BY_ID, SUN } from '../../data/planets'
+import { GEOMETRIC_ALBEDO } from '../../data/keplerian'
 import { useAppStore } from '../../store/useAppStore'
 import { Icon } from './Icon'
 import { Button } from './primitives/Button'
@@ -86,6 +87,7 @@ function PlanetContent({
   const planet = PLANET_BY_ID[id]
   const moons = MOONS.filter((m) => m.parentId === id)
   const lightTime = sunLightTime(id)
+  const albedo = GEOMETRIC_ALBEDO[id]
 
   return (
     <div className="space-y-5">
@@ -128,6 +130,11 @@ function PlanetContent({
           />
           <StatRow label="Average temperature" value={planet.tempLabel} />
           <StatRow label="Axial tilt" value={`${planet.axialTiltDeg.toFixed(1)}°`} />
+          <StatRow
+            label="Brightness (albedo)"
+            value={albedo !== undefined ? `${Math.round(albedo * 100)}%` : '—'}
+            hint="The share of sunlight the planet reflects back into space."
+          />
         </dl>
       </section>
 

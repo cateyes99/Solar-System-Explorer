@@ -115,6 +115,34 @@ Mercury still crawls, Venus still turns backwards, and Earth takes about 20 seco
 per turn at the Slow preset — slow enough to read continents, fast enough to feel
 alive.
 
+**Where the planets actually are, and which way they point.** Orbits are not
+drawn from guesswork. `data/keplerian.ts` carries the JPL approximate elements
+(Standish & Williams, valid 1800–2050): semi-major axis, eccentricity,
+inclination, mean longitude, longitude of perihelion and longitude of the
+ascending node, each with its per-century rate. `utils/ephemeris.ts` propagates
+those to the simulated date, solves Kepler's equation for the eccentric anomaly
+and rotates the result into the ecliptic frame. Consequences you can actually see:
+
+- Planets sit where they really are on the displayed date, not at an invented phase.
+- Each orbit lies in its true orbital plane, correctly inclined to the ecliptic.
+- Mercury really does race at perihelion and crawl at aphelion, because the mean
+  anomaly advances linearly while the eccentric anomaly does not.
+- Uranus' rings are near-vertical and Venus is tipped over, because axial tilt now
+  comes from the IAU north-pole directions rather than an arbitrary rotation.
+- Saturn is visibly squashed — planets are drawn with their real rotational
+  flattening, and the atmosphere shell is squashed to match.
+
+Radii are still compressed so the whole system fits on screen, but only the
+radius: the sunward vector keeps its true direction, so compression never
+distorts the orbital geometry. Geometric albedo is carried through to the info
+panel, which is why Venus reads 65% against Mercury's 11%.
+
+`npm run verify:astronomy` re-checks the maths against the published values:
+Kepler round-trips, heliocentric distances inside each planet's real
+perihelion/aphelion range, Earth's distance and the Sun's apparent longitude in
+early January, every planet's obliquity recovered from its pole against its own
+orbit normal, prograde orbital direction, and orbit rings that close exactly once.
+
 **Everything visual is procedural.** `utils/textures.ts` paints every surface on a
 2D canvas from seeded noise — including Earth's continents, which are rasterised
 from hand-authored coastline polygons and then warped by noise. The space
@@ -160,8 +188,9 @@ the tour auto-advancing.
   lights; there is no ring shadowing on Saturn.
 - **The asteroid belt** is denser and larger than reality — a realistic belt is
   almost entirely empty space.
-- **Orbits** use true eccentricity, inclination and Kepler's third law for period,
-  but nodes are spread for legibility rather than taken from the real data.
+- **Orbital *distances* are compressed**, which slightly squares off each orbit's
+  perihelion/aphelion aspect. Directions, orbital planes and speeds are real.
+- **Moon orbits** are still compressed and their inclinations are stylistic.
 - The tour auto-advance stops entirely under reduced motion.
 
 ## Verification
@@ -172,6 +201,12 @@ four scenarios, mission control, the scale switcher, the tour, the fact deck, th
 reduced-motion setting, five viewport sizes, keyboard order, button accessibility
 names, the WebGL fallback path and frame pacing. It fails the run on any console
 error. Screenshots land in `screenshots/`.
+
+`npm run verify:astronomy` checks the orbital maths against published values
+rather than against itself — see the note on real ephemeris above. It covers
+Kepler's equation, perihelion/aphelion distances, Earth's position in early
+January, all eight obliquities recovered from real poles, prograde motion, and
+orbit rings closing exactly once.
 
 Note: `THREE.Clock` deprecation warnings come from react-three-fiber's internal
 store, not from application code.

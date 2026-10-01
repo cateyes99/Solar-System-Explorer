@@ -61,7 +61,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#7f8a99',
     atmosphereStrength: 0.12,
-    orbitPhase: 0.6,
   },
   {
     id: 'venus',
@@ -98,7 +97,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#ffd9a0',
     atmosphereStrength: 0.7,
-    orbitPhase: 2.1,
   },
   {
     id: 'earth',
@@ -135,7 +133,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#5aa9ff',
     atmosphereStrength: 1,
-    orbitPhase: 3.4,
   },
   {
     id: 'mars',
@@ -172,7 +169,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#ff9a6b',
     atmosphereStrength: 0.35,
-    orbitPhase: 5.0,
   },
   {
     id: 'jupiter',
@@ -209,7 +205,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#ffcf9b',
     atmosphereStrength: 0.4,
-    orbitPhase: 0.15,
   },
   {
     id: 'saturn',
@@ -246,7 +241,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#ffe6b8',
     atmosphereStrength: 0.35,
-    orbitPhase: 3.9,
   },
   {
     id: 'uranus',
@@ -283,7 +277,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#9be8f5',
     atmosphereStrength: 0.45,
-    orbitPhase: 1.35,
   },
   {
     id: 'neptune',
@@ -320,7 +313,6 @@ export const PLANETS: Planet[] = [
     hasAtmosphere: true,
     atmosphereColor: '#6f9bff',
     atmosphereStrength: 0.5,
-    orbitPhase: 5.7,
   },
 ]
 

@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
     "shots": "node scripts/shots.mjs",
-    "responsive": "node scripts/responsive.mjs"
+    "responsive": "node scripts/responsive.mjs",
+    "verify:ephemeris": "tsx scripts/verify-ephemeris.ts",
+    "verify:orbits": "tsx scripts/verify-orbitpath.ts",
+    "verify:astronomy": "npm run verify:ephemeris && npm run verify:orbits"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -33,6 +36,7 @@
     "oxlint": "^1.81.0",
     "playwright": "^1.63.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

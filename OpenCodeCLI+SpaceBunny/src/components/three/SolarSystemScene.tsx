@@ -46,9 +46,9 @@ export function SolarSystemScene() {
 
   const planetData = useMemo(
     () =>
-      PLANETS.map((planet, index) => ({
+      PLANETS.map((planet) => ({
         planet,
-        orbit: planetOrbit(planet, scale, index),
+        orbit: planetOrbit(planet, scale),
         radius: planetRadiusUnits(planet.diameterKm, scale.sizeExponent),
         moons: MOONS_BY_PARENT[planet.id] ?? [],
       })),
@@ -65,11 +65,20 @@ export function SolarSystemScene() {
       {planetData.map(({ planet, orbit, radius, moons }) => (
         <group key={planet.id}>
           {orbitsVisible && (
-            <group rotation={[orbit.inclination, orbit.node, 0]}>
-              <OrbitRing orbit={orbit} color={planet.accentColor} opacity={0.22} />
-            </group>
+            <OrbitRing
+              orbit={orbit}
+              color={planet.accentColor}
+              distanceExponent={scale.distanceExponent}
+              opacity={0.22}
+            />
           )}
-          <Planet planet={planet} orbit={orbit} radius={radius} moons={moonsVisible ? moons : []} />
+          <Planet
+            planet={planet}
+            orbit={orbit}
+            radius={radius}
+            moons={moonsVisible ? moons : []}
+            distanceExponent={scale.distanceExponent}
+          />
         </group>
       ))}
 

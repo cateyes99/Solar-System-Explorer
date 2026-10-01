@@ -11,6 +11,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  Quaternion,
   ShaderMaterial,
   SphereGeometry,
   Vector3,
@@ -20,14 +21,19 @@ import { getBodyTexture, getEarthClouds, getEarthNightTexture, getRingTexture } 
 import { bodyPosition, setBodyRadius } from '../../store/registry'
 import { simClock } from '../../store/clock'
 import { useAppStore } from '../../store/useAppStore'
-import { clamp, degToRad } from '../../utils/math'
+import { FLATTENING, POLE_ELEMENTS } from '../../data/keplerian'
+import { centuriesPastJ2000, equatorialToScene } from '../../utils/ephemeris'
+import { clamp } from '../../utils/math'
 import type { OrbitGeometry } from './orbitMath'
-import { orbitAngle, orbitPosition } from './orbitMath'
+import { orbitPositionAt } from './orbitMath'
 import { Atmosphere } from './Atmosphere'
 import { Moons } from './Moons'
 
 const SPHERE_W = 64
 const SPHERE_H = 40
+
+const UP_Y = new Vector3(0, 1, 0)
+const _poleVector = new Vector3()
 
 const RETICLE_VERT = /* glsl */ `
   varying vec2 vUv;
@@ -126,17 +132,29 @@ export function Planet({
   orbit,
   radius,
   moons,
+  distanceExponent,
 }: {
   planet: Planet
   orbit: OrbitGeometry
   radius: number
   moons: MoonDef[]
+  distanceExponent: number
 }) {
   const positionRef = useRef<Group>(null)
   const scaleRef = useRef<Group>(null)
   const spinRef = useRef<Group>(null)
   const cloudRef = useRef<Mesh>(null)
+  const tiltRef = useRef<Group>(null)
   const atmosphereBoost = useRef(0)
+
+  /**
+   * Real planets are not spheres. Saturn is squashed by nearly a tenth, which
+   * is one of the few planetary features visible on an ordinary photograph, so
+   * the sphere is scaled along its own polar axis to match the published
+   * flattening.
+   */
+  const flattening = FLATTENING[planet.id] ?? 0
+  const polarScale = 1 - flattening
 
   const hoveredId = useAppStore((s) => s.hoveredId)
   const focusedId = useAppStore((s) => s.focusedId)
@@ -151,6 +169,43 @@ export function Planet({
   const cloudTexture = useMemo(() => (planet.id === 'earth' ? getEarthClouds() : null), [planet.id])
 
   const sphereGeometry = useMemo(() => new SphereGeometry(1, SPHERE_W, SPHERE_H), [])
+
+  /**
+   * The real direction of the north pole, as a quaternion for the tilt group.
+   *
+   * Previously the tilt was an arbitrary rotation about the scene's Z axis, which
+   * made every planet lean the same way regardless of where it was in its orbit
+   * or how its pole is actually oriented. Using the IAU pole means Earth's tilt
+   * points the right way relative to the Sun, Uranus really does lie on its side,
+   * and Saturn's 26.7° lean is the correct one for its position in space.
+   */
+  const poleQuaternion = useMemo(() => {
+    const pole = POLE_ELEMENTS[planet.id]
+    const target = new Quaternion()
+    if (!pole) return target.identity()
+
+    const t = centuriesPastJ2000(simClock.simulatedMs)
+    let alphaDeg = pole.alpha + (pole.alphaDot ?? 0) * t
+    let deltaDeg = pole.delta + (pole.deltaDot ?? 0) * t
+    if (pole.oscillation) {
+      const phase = ((pole.oscillation.phaseDeg + (360 / pole.oscillation.periodCenturies) * t) % 360) * (Math.PI / 180)
+      alphaDeg += pole.oscillation.amplitudeDeg * Math.sin(phase)
+      deltaDeg += pole.oscillation.amplitudeDeg * Math.cos(phase)
+    }
+
+    const alpha = alphaDeg * (Math.PI / 180)
+    const delta = deltaDeg * (Math.PI / 180)
+    equatorialToScene(
+      new Vector3(Math.cos(delta) * Math.cos(alpha), Math.cos(delta) * Math.sin(alpha), Math.sin(delta)),
+      _poleVector,
+    )
+    // The mesh's polar axis is its local +Y, so align +Y with the true pole.
+    return target.setFromUnitVectors(UP_Y, _poleVector.normalize())
+  }, [planet.id])
+
+  useEffect(() => {
+    if (tiltRef.current) tiltRef.current.quaternion.copy(poleQuaternion)
+  }, [poleQuaternion])
 
   const material = useMemo(() => {
     const mat = new MeshStandardMaterial({
@@ -261,8 +316,9 @@ export function Planet({
     if (!pos || !scaler) return
 
     // --- orbital motion -------------------------------------------------
-    const angle = orbitAngle(simClock.simDays, planet)
-    orbitPosition(orbit, angle, worldPosition)
+    // Position comes from the real JPL elements, so this is the planet's true
+    // place in its true orbital plane at this instant.
+    orbitPositionAt(orbit, simClock.simulatedMs, distanceExponent, worldPosition)
     pos.position.copy(worldPosition)
 
     // --- axial spin -----------------------------------------------------
@@ -295,15 +351,15 @@ export function Planet({
   }
 
   return (
-    <group rotation={[orbit.inclination, orbit.node, 0]}>
+    <group>
       <group ref={positionRef}>
         <group ref={scaleRef}>
-          <group rotation={[0, 0, degToRad(planet.axialTiltDeg)]}>
+          <group ref={tiltRef}>
             <group ref={spinRef}>
               <mesh
                 geometry={sphereGeometry}
                 material={material}
-                scale={radius}
+                scale={[radius, radius * polarScale, radius]}
                 onPointerOver={onEnter}
                 onPointerOut={() => setHovered(null)}
                 onClick={(event) => {
@@ -321,7 +377,7 @@ export function Planet({
                   ref={cloudRef}
                   geometry={sphereGeometry}
                   material={cloudMaterial}
-                  scale={radius * 1.014}
+                  scale={[radius * 1.014, radius * 1.014 * polarScale, radius * 1.014]}
                   raycast={() => null}
                 />
               )}
@@ -343,9 +399,13 @@ export function Planet({
               strength={planet.atmosphereStrength}
               worldPosition={worldPosition}
               boostRef={atmosphereBoost}
+              flattening={flattening}
             />
           )}
 
+          {/* The reticle is a camera-facing billboard, so it sits outside the tilted
+            frame — otherwise it would inherit the pole orientation and turn with
+            the planet instead of staying square to the screen. */}
           <Reticle radius={radius} color={planet.accentColor} strengthRef={reticleStrength} />
         </group>
       </group>

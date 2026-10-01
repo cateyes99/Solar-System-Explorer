@@ -65,8 +65,6 @@ export interface Planet {
   atmosphereColor: string
   /** 0..1, how strongly the rim glow reads. */
   atmosphereStrength: number
-  /** Starting phase angle of the orbit, radians. Keeps layouts from colliding. */
-  orbitPhase: number
 }
 
 export interface MoonDef {

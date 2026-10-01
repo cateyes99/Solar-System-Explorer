@@ -17,6 +17,7 @@ export function Atmosphere({
   worldPosition,
   power = 3,
   boostRef,
+  flattening = 0,
 }: {
   planetRadius: number
   thickness?: number
@@ -27,6 +28,8 @@ export function Atmosphere({
   power?: number
   /** 0..1 extra brightness, driven imperatively by hover state. */
   boostRef?: MutableRefObject<number>
+  /** Rotational flattening of the planet, so the air shell matches its equator. */
+  flattening?: number
 }) {
   const geometry = useMemo(() => new SphereGeometry(1, 48, 32), [])
   const material = useMemo(() => createAtmosphereMaterial(color, strength, power), [color, strength, power])
@@ -50,5 +53,15 @@ export function Atmosphere({
     material.uniforms.uStrength.value = strength * (1 + boost * 0.75)
   })
 
-  return <mesh geometry={geometry} material={material} scale={planetRadius * thickness} renderOrder={2} />
+  // The shell is squashed by the same flattening as the planet, otherwise a
+  // noticeably oblate world would wear a perfectly round atmosphere.
+  const scale = planetRadius * thickness
+  return (
+    <mesh
+      geometry={geometry}
+      material={material}
+      scale={[scale, scale * (1 - flattening), scale]}
+      renderOrder={2}
+    />
+  )
 }
