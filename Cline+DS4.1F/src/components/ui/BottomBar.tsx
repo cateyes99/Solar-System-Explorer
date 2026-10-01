@@ -18,7 +18,9 @@ const TIMELINE_ORDER: BodyId[] = [
   'saturn',
   'uranus',
   'neptune',
+  'pluto',
   'comet',
+  'halley',
 ]
 
 export function BottomBar() {

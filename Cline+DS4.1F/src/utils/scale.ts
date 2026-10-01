@@ -76,6 +76,7 @@ const PARENT_DIAMETER_KM: Record<string, number> = {
   saturn: 116_460,
   uranus: 50_724,
   neptune: 49_244,
+  pluto: 2_377,
 }
 
 function radiusOfId(id: BodyId, mode: ScaleMode, custom: CustomScale): number {

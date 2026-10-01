@@ -46,8 +46,8 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 
 **Learn**
 
-- **Cinematic Tour**: a 14-stage guided fly-through from the Sun to Neptune and back, with
-  narration, pause / resume / skip / exit.
+- **Cinematic Tour**: a 16-stage guided fly-through from the Sun, past the planets and the dwarf planet
+  Pluto, out to Halley's Comet and back, with narration, pause / resume / skip / exit.
 - **Explore & Learn**: eight lessons (the Sun, planet sizes, distances, gravity, day and night,
   seasons, Moon phases, orbits), each with an interactive widget and a button that shows it
   happening in the 3D scene.
@@ -65,7 +65,7 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 
 - Click the Sun three times.
 - Find the comet that drifts through the scene.
-- Click the asteroid belt, the Moon, Jupiter's moons…
+- Click the asteroid belt, the Moon, Jupiter's moons, Pluto, Halley's Comet…
 - "Surprise Me" in the camera controls jumps you somewhere new.
 
 ---
@@ -129,7 +129,7 @@ the science.
   longitudes and mean longitudes at epoch J2000.
 - **Approximated:** positions come from mean orbital elements, with Kepler's equation solved exactly
   for the ellipse. That is accurate enough to show which planet is where on a given date (and it produces
-  visibly elliptical orbits, the correct speed-up at perihelion, and a comet that always travels the same
+  visibly elliptical orbits, the correct speed-up at perihelion, and comets that always travel the same
   way round), but it is not a full VSOP87 ephemeris, so it will not match a planetarium to the
   arc-minute.
 - **Simplified on purpose:** the scale (above), moon sizes and moon orbits, the lighting falloff

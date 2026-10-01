@@ -87,14 +87,14 @@ export function PlanetPanel() {
               <Stat label="Length of day" value={formatRotation(body.rotationPeriodHours)} />
             ) : null}
             {body.kind === 'star' ? <Stat label="Planets" value="8" hint="plus dwarf planets" /> : null}
-            {body.kind === 'planet' || body.kind === 'moon' ? (
+            {body.kind === 'planet' || body.kind === 'moon' || body.kind === 'dwarf' ? (
               <Stat label="Moons" value={String(body.moons)} hint="confirmed, rounding up" />
             ) : null}
             {body.surfaceGravity > 0 ? (
               <Stat label="Surface gravity" value={`${body.surfaceGravity.toFixed(2)} m/s²`} hint="how hard it pulls" />
             ) : null}
             <Stat label="Average temperature" value={formatTemperature(body.temperatureC)} />
-            {body.kind === 'planet' || body.kind === 'moon' ? (
+            {body.kind === 'planet' || body.kind === 'moon' || body.kind === 'dwarf' ? (
               <Stat
                 label="Compared with Earth"
                 value={
@@ -104,7 +104,7 @@ export function PlanetPanel() {
                 }
               />
             ) : null}
-            {body.kind === 'planet' || body.kind === 'moon' ? (
+            {body.kind === 'planet' || body.kind === 'moon' || body.kind === 'dwarf' ? (
               <Stat label="Tilt of its axis" value={`${body.axialTiltDeg.toFixed(1)}°`} hint="this makes seasons" />
             ) : null}
           </div>
