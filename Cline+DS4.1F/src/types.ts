@@ -15,14 +15,20 @@ export type BodyId =
   | 'saturn'
   | 'uranus'
   | 'neptune'
+  | 'pluto'
   | 'moon'
   | 'belt'
   | 'comet'
+  | 'halley'
 
 /** Every body that can be orbited, focused and followed. */
 export type FocusTargetId = BodyId | 'spacecraft'
 
-export type BodyKind = 'star' | 'planet' | 'moon' | 'belt' | 'comet'
+/**
+ * `dwarf` is a world that is round and orbits the Sun but has not cleared its
+ * lane — which is exactly why Pluto is no longer counted among the planets.
+ */
+export type BodyKind = 'star' | 'planet' | 'dwarf' | 'moon' | 'belt' | 'comet'
 
 export interface CelestialBody {
   id: BodyId
@@ -58,6 +64,12 @@ export interface CelestialBody {
   description: string
   facts: string[]
   didYouKnow: string
+  /**
+   * Shown the first time a visitor clicks this body in the scene, when finding
+   * it is meant to feel like a discovery (the comets). Most bodies have no
+   * message of their own, so clicking them simply selects them.
+   */
+  discoveryToast?: string
   /** Set for natural satellites. */
   parentId?: BodyId
 }
