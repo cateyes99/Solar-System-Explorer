@@ -715,6 +715,46 @@ function paintNeptune(size: MapSize): HTMLCanvasElement {
   return canvas
 }
 
+/**
+ * Pluto: a mottled crust of dark reddish tholins with broad, bright plains of
+ * nitrogen ice — the "heart" New Horizons photographed. Only a few impact scars,
+ * because Pluto's surface is young and mostly resurfaced by ice.
+ */
+function paintPluto(size: MapSize): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const plains = sampleField(size.width, size.height, {
+    radius: 1.8,
+    height: 1.2,
+    octaves: 3,
+    seed: 4507,
+  })
+  const field = sampleField(size.width, size.height, {
+    radius: 4.2,
+    height: 2.4,
+    octaves: 6,
+    seed: 7717,
+    warp: 0.05,
+  })
+  const ctx = colorize(canvas, field, (value, _u, _v, x, y) => {
+    const base = ramp(
+      [
+        [0, [56, 40, 34]],
+        [0.35, [104, 76, 62]],
+        [0.6, [158, 128, 104]],
+        [0.8, [200, 178, 152]],
+        [1, [232, 219, 200]],
+      ],
+      value,
+    )
+    // The brightest, smoothest ground sits in the largest patches of the map.
+    const plain = smoothstep(0.58, 0.78, plains[y * size.width + x])
+    return mix(base, [238, 232, 220], plain * 0.7)
+  })
+  // Sparse, shallow craters: most of the surface has been repaved by ice.
+  addCraters(ctx, 26, 9931, size.width * 0.012, size.width * 0.035, 0.5)
+  return canvas
+}
+
 const gauss = (x: number, mu: number, sigma: number): number =>
   Math.exp(-((x - mu) * (x - mu)) / (2 * sigma * sigma))
 
@@ -1155,6 +1195,7 @@ const PAINTERS: Painter[] = [
   { id: 'uranusRings', label: 'Threading Uranus’s nine rings', build: (size) => paintUranusRings(size) },
   { id: 'uranus', label: 'Chilling Uranus', build: (size) => paintUranus(size) },
   { id: 'neptune', label: 'Winding up Neptune’s winds', build: (size) => paintNeptune(size) },
+  { id: 'pluto', label: 'Freezing Pluto’s plains', build: (size) => paintPluto(size) },
   { id: 'comet', label: 'Waking a distant comet', build: (size) => paintComet(size) },
 ]
 

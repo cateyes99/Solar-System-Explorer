@@ -296,6 +296,51 @@ export const NEPTUNE: CelestialBody = {
     'Neptune has completed only about one orbit since it was discovered in 1846 — its first lap finished in 2011!',
 }
 
+/**
+ * Pluto: round, orbiting the Sun, and far too small to have cleared its lane —
+ * a dwarf planet, and for 76 years the ninth planet people had learned at school.
+ *
+ * Elements are the JPL/Standish J2000 set (a 39.482 au, e 0.2488, ϖ 224.07°,
+ * L 238.93°), which is the same source the planets above use. Pluto's orbit is
+ * tipped 17° out of the ecliptic and crosses inside Neptune's, but the scene is a
+ * flat plane (see `utils/astronomy.ts`), so the tilt is described in the panel
+ * rather than drawn.
+ */
+export const PLUTO: CelestialBody = {
+  id: 'pluto',
+  name: 'Pluto',
+  kind: 'dwarf',
+  type: 'Dwarf planet',
+  diameterKm: 2_377,
+  distanceFromSunKm: 5_906_400_000,
+  orbitalPeriodDays: 90_560,
+  // Pluto is tipped right over and spins backwards: 122.53° of obliquity.
+  rotationPeriodHours: -153.3,
+  semiMajorAxisKm: 5_906_400_000,
+  orbitalEccentricity: 0.2488,
+  longitudeOfPeriapsisDeg: 224.07,
+  meanLongitudeJ2000Deg: 238.93,
+  axialTiltDeg: 122.53,
+  moons: 5,
+  // Mean surface temperature: 44 K. New Horizons measured -240 °C in the coldest
+  // spots and -218 °C in the warmest.
+  temperatureC: -229,
+  massEarths: 0.0022,
+  surfaceGravity: 0.62,
+  color: '#cbb39c',
+  tagline: 'The icy world that lost its planet badge',
+  description:
+    'Pluto is a small, icy world far beyond Neptune — smaller than our own Moon. From 1930 to 2006 it was called the ninth planet. Astronomers then found many more worlds like it, so they gave them a name of their own: dwarf planets.',
+  facts: [
+    'Pluto is smaller than our Moon: only about 2,377 km across.',
+    'Its biggest moon, Charon, is half Pluto’s size, and the two spin around a point between them.',
+    'One lap of its orbit takes 248 Earth years, so Pluto has not finished a single lap since it was found in 1930.',
+    'In July 2015 the New Horizons spacecraft flew past Pluto and sent back the first close-up pictures.',
+  ],
+  didYouKnow:
+    'Pluto has a bright, heart-shaped plain of nitrogen ice called Tombaugh Regio, after the astronomer who spotted the world in 1930. At about -229 °C that ice is far too cold to melt — it behaves more like rock.',
+}
+
 export const MOON: CelestialBody = {
   id: 'moon',
   name: 'The Moon',
@@ -359,6 +404,58 @@ export const COMET_CLINE: CelestialBody = {
   ],
   didYouKnow:
     'You have just discovered Comet Cline-1 — a friendly visitor on a very stretched, elliptical path around the Sun.',
+  discoveryToast: 'You found Comet Cline-1! A dusty snowball with a glowing tail.',
+}
+
+/**
+ * Halley's Comet (1P/Halley): the one that comes back.
+ *
+ * Elements are the J2000 osculating set (a 17.834 au, e 0.96714, ϖ 169.75°),
+ * anchored to the perihelion it was last seen at — 9 February 1986 — so the comet
+ * sits where it really was on the date a child is looking at. Its orbit is
+ * retrograde (tipped 162°, so it travels the "wrong" way round) and successive
+ * returns take anywhere from 74 to 79 years because Jupiter tugs on it; neither
+ * shows up in a single mean ellipse, so both are explained in the panel instead.
+ */
+export const COMET_HALLEY: CelestialBody = {
+  id: 'halley',
+  name: 'Halley’s Comet',
+  kind: 'comet',
+  type: 'Periodic comet, back about every 76 years',
+  // The nucleus is a lumpy potato about 15 km long and 8 km across.
+  diameterKm: 11,
+  distanceFromSunKm: 2_667_900_000,
+  orbitalPeriodDays: 27_511,
+  rotationPeriodHours: 52.8,
+  semiMajorAxisKm: 2_667_900_000,
+  orbitalEccentricity: 0.96714,
+  longitudeOfPeriapsisDeg: 169.75,
+  meanLongitudeJ2000Deg: 236.2,
+  // The scene applies no tilt to a comet's nucleus (see `Comet.tsx`) and the
+  // orientation of Halley's spin axis is not published in the app's terms, so no
+  // invented figure is stored here.
+  axialTiltDeg: 0,
+  moons: 0,
+  // A comet has no single temperature. Giotto and the Vega probes measured the
+  // sunlit ice at 370–400 K — about 100 °C — as Halley passed the Sun in 1986,
+  // while its shaded side stayed far below freezing.
+  temperatureC: 100,
+  massEarths: 0,
+  surfaceGravity: 0.0005,
+  color: '#cfe9ff',
+  tagline: 'The comet that keeps its promise',
+  description:
+    'Halley’s Comet is a lump of ice, dust and rock about 15 km long. As it swings close to the Sun the ice turns to gas and it grows a tail millions of kilometres long. It comes back about every 76 years — it is the first comet anyone worked out would return.',
+  facts: [
+    'In 1705 Edmond Halley predicted his comet would come back, and it did — in 1758, sixteen years after he died.',
+    'Halley was last here in 1986 and comes back in 2061. You might be the person who sees it!',
+    'Its nucleus is darker than charcoal: it bounces back only 4% of the sunlight that hits it.',
+    'Halley orbits the Sun the wrong way round, backwards compared with the planets.',
+  ],
+  didYouKnow:
+    'In 1986 five spacecraft flew out to meet Halley. Europe’s Giotto passed just 596 km from the nucleus and sent back the first close-up pictures of a comet ever taken.',
+  discoveryToast:
+    'You found Halley’s Comet! The snowball of 1705, last seen in 1986 and due back in 2061.',
 }
 /** The asteroid belt has a panel of its own, so it is a "body" too. */
 export const ASTEROID_BELT: CelestialBody = {
@@ -393,7 +490,11 @@ export const ASTEROID_BELT: CelestialBody = {
     'The asteroid belt is not a crowded minefield like in the movies. The rocks are millions of kilometres apart!',
 }
 
-/** The Sun first, then the planets in orbital order, then our Moon and the comet. */
+/**
+ * Every body in the app, in the order they sit out from the Sun: the star, the
+ * eight planets, the dwarf planet out past Neptune, our Moon, the belt and the
+ * comets.
+ */
 export const BODIES: CelestialBody[] = [
   SUN,
   MERCURY,
@@ -404,9 +505,11 @@ export const BODIES: CelestialBody[] = [
   SATURN,
   URANUS,
   NEPTUNE,
+  PLUTO,
   MOON,
   ASTEROID_BELT,
   COMET_CLINE,
+  COMET_HALLEY,
 ]
 
 /** The eight planets in orbital order. */
@@ -420,6 +523,15 @@ export const PLANETS: CelestialBody[] = [
   URANUS,
   NEPTUNE,
 ]
+
+/**
+ * Every world the scene draws as a sphere: the eight planets and the dwarf planet
+ * Pluto, in orbital order.
+ */
+export const ORBITING_WORLDS: CelestialBody[] = [...PLANETS, PLUTO]
+
+/** The comets: each one an icy visitor on an orbit of its own. */
+export const COMETS: CelestialBody[] = [COMET_CLINE, COMET_HALLEY]
 
 export const BODY_BY_ID: Record<string, CelestialBody> = Object.fromEntries(
   BODIES.map((body) => [body.id, body]),
@@ -524,6 +636,16 @@ export const SATELLITES: SatelliteDefinition[] = [
     orbitalPeriodDays: 5.877,
     color: '#cfd8e3',
     note: 'Orbits backwards and has icy geysers.',
+  },
+  {
+    id: 'charon',
+    name: 'Charon',
+    parentId: 'pluto',
+    diameterKm: 1_212,
+    orbitalRadiusKm: 19_591,
+    orbitalPeriodDays: 6.387,
+    color: '#b3aca2',
+    note: 'Half the size of Pluto — they circle a point between them.',
   },
 ]
 

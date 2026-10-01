@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, MeshStandardMaterial } from 'three'
 import type { Group, Mesh, PointsMaterial, Sprite, SpriteMaterial } from 'three'
-import { COMET_CLINE } from '../../data/planets'
-import { orbitalState, toSceneXZ } from '../../utils/astronomy'
+import type { CelestialBody } from '../../types'
+import type { CometVisuals } from '../../data/visuals'
+import { BODY_VISUALS } from '../../data/visuals'
+import { AU_KM, orbitalState, toSceneXZ } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
 import { scaleDistanceKm } from '../../utils/scale'
 import { createRandom } from '../../utils/random'
@@ -15,11 +17,13 @@ import { LOW_DETAIL_SPHERE } from './geometry'
 import { PlanetLabel } from './PlanetLabel'
 
 /**
- * Comet Cline-1: a little ball of ice on a very stretched orbit, with a tail that
+ * A comet: a little ball of ice on a very stretched orbit, with a tail that
  * always points away from the Sun.
  *
- * Finding it is Easter egg number two — the comet is easy to miss, and clicking
- * it unlocks its story.
+ * There are two of them. Comet Cline-1 is the friendly, bright snowball that
+ * turns up in the middle of the scene; Halley's Comet is the famous visitor on a
+ * huge retrograde ellipse that spends most of its life far beyond Neptune.
+ * Finding either one and clicking it unlocks its story.
  */
 const TAIL_PARTICLES = 240
 
@@ -39,12 +43,21 @@ function createTailGeometry(): BufferGeometry {
   return geometry
 }
 
+/** Fallback look if a comet were ever defined without its own recipe. */
+const DEFAULT_COMET_LOOK: CometVisuals = {
+  nucleusColor: '#dff6ff',
+  emissiveColor: '#4fd8ff',
+  emissiveIntensity: 0.35,
+  tailColor: '#a9ecff',
+}
+
 interface CometProps {
+  body: CelestialBody
   reducedMotion: boolean
   showLabels: boolean
 }
 
-export function Comet({ reducedMotion, showLabels }: CometProps) {
+export function Comet({ body, reducedMotion, showLabels }: CometProps) {
   const groupRef = useRef<Group>(null)
   const tailRef = useRef<Group>(null)
   const spriteMaterialRef = useRef<SpriteMaterial>(null)
@@ -61,18 +74,22 @@ export function Comet({ reducedMotion, showLabels }: CometProps) {
   const showToast = useSimulationStore((state) => state.showToast)
   const discoveries = useSimulationStore((state) => state.discoveries)
 
+  const visuals = BODY_VISUALS[body.id]
+  // Every comet ships a `comet` recipe; fall back to the bright default if one is ever missing.
+  const look = visuals.comet ?? DEFAULT_COMET_LOOK
+
   const tailGeometry = useMemo(() => createTailGeometry(), [])
   const material = useMemo(
     () =>
       new MeshStandardMaterial({
-        map: getTexture('comet'),
-        color: '#dff6ff',
-        roughness: 0.85,
-        metalness: 0,
-        emissive: '#4fd8ff',
-        emissiveIntensity: 0.35,
+        map: getTexture(visuals.textureId),
+        color: look.nucleusColor,
+        roughness: visuals.roughness,
+        metalness: visuals.metalness,
+        emissive: look.emissiveColor,
+        emissiveIntensity: look.emissiveIntensity,
       }),
-    [],
+    [visuals.textureId, visuals.roughness, visuals.metalness, look],
   )
 
   useEffect(
@@ -86,15 +103,15 @@ export function Comet({ reducedMotion, showLabels }: CometProps) {
   useEffect(() => {
     const object = groupRef.current
     if (!object) return
-    registerBody('comet', object)
-    return () => unregisterBody('comet', object)
-  }, [])
+    registerBody(body.id, object)
+    return () => unregisterBody(body.id, object)
+  }, [body.id])
 
   useFrame((_, delta) => {
     const group = groupRef.current
     if (!group) return
     const days = clock.daysSinceJ2000
-    const state = orbitalState(COMET_CLINE, days)
+    const state = orbitalState(body, days)
     const distance = scaleDistanceKm(state.distanceKm, scaleMode, customScale)
     const scene = toSceneXZ(distance, state.angleRad)
     group.position.set(scene.x, 0, scene.z)
@@ -106,7 +123,7 @@ export function Comet({ reducedMotion, showLabels }: CometProps) {
     }
 
     // A comet's tail grows and brightens as it approaches the Sun.
-    const au = state.distanceKm / 149_597_870.7
+    const au = state.distanceKm / AU_KM
     const activity = Math.min(1, Math.max(0.15, 1.35 - au / 2.2))
     if (tailRef.current) {
       tailRef.current.scale.set(1 + activity * 0.7, 1 + activity * 0.7, 9 + activity * 26)
@@ -120,7 +137,7 @@ export function Comet({ reducedMotion, showLabels }: CometProps) {
     }
   })
 
-  const discovered = discoveries.includes('comet')
+  const discovered = discoveries.includes(body.id)
 
   return (
     <group ref={groupRef}>
@@ -131,17 +148,17 @@ export function Comet({ reducedMotion, showLabels }: CometProps) {
         scale={0.32}
         onPointerOver={(event) => {
           event.stopPropagation()
-          setHovered('comet')
+          setHovered(body.id)
         }}
         onPointerOut={() => setHovered(null)}
         onClick={(event) => {
           event.stopPropagation()
-          selectBody('comet')
-          focusBody('comet', 'planet', 9)
+          selectBody(body.id)
+          focusBody(body.id, 'planet', 9)
           audio.play('arrive')
           if (!discovered) {
-            registerDiscovery('comet')
-            showToast('You found Comet Cline-1! A dusty snowball with a glowing tail.', 'fun')
+            registerDiscovery(body.id)
+            showToast(body.discoveryToast ?? `You found ${body.name}!`, 'fun')
           }
         }}
       />
@@ -169,14 +186,14 @@ export function Comet({ reducedMotion, showLabels }: CometProps) {
             transparent
             depthWrite={false}
             opacity={0.35}
-            color="#a9ecff"
+            color={look.tailColor}
             toneMapped={false}
           />
         </points>
       </group>
 
       {showLabels ? (
-        <PlanetLabel bodyId="comet" name="Comet Cline-1" accent="#bff4ff" offset={1.1} />
+        <PlanetLabel bodyId={body.id} name={body.name} accent={visuals.accent} offset={1.1} />
       ) : null}
     </group>
   )

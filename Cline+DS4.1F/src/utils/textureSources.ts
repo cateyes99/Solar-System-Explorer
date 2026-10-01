@@ -95,6 +95,11 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     label: 'Sounding Neptune’s winds',
     credit: 'Voyager 2 disc',
   },
+  pluto: {
+    file: '2k_pluto.jpg',
+    label: 'Mapping Pluto’s icy heart',
+    credit: 'New Horizons encounter mosaic',
+  },
   nebula: {
     file: '2k_stars_milky_way.jpg',
     label: 'Painting the Milky Way',
@@ -122,5 +127,6 @@ export const TEXTURE_IDS: TextureId[] = [
   'uranusRings',
   'uranus',
   'neptune',
+  'pluto',
   'comet',
 ]
