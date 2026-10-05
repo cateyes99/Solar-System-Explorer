@@ -71,6 +71,33 @@ export function orbitalPosition(idx: number, simDays: number, mode: ScaleMode, d
   return [Math.cos(a) * d, 0, Math.sin(a) * d];
 }
 
+export const EARTH_INDEX = 2;
+export const MOON_ORBIT_RADIUS_ADD = 1.7;
+export const MOON_ORBIT_Y = 0.2;
+
+/** Moon's orbital angle around Earth (matches the 3D Moon mesh). */
+export function moonAngle(simDays: number, manual: boolean, phase: number): number {
+  if (manual) return phase * Math.PI * 2;
+  return simDays * 0.48 + EARTH_INDEX;
+}
+
+/** World position of the Moon = Earth position + lunar orbit offset. */
+export function moonWorldPosition(
+  simDays: number,
+  mode: ScaleMode,
+  distMult: number,
+  massBoost: number,
+  sizeMult: number,
+  bigEarth: boolean,
+  manual: boolean,
+  phase: number,
+): [number, number, number] {
+  const e = orbitalPosition(EARTH_INDEX, simDays, mode, distMult, massBoost);
+  const r = planetRadius(EARTH_INDEX, mode, sizeMult, bigEarth);
+  const a = moonAngle(simDays, manual, phase);
+  return [e[0] + Math.cos(a) * (r + MOON_ORBIT_RADIUS_ADD), MOON_ORBIT_Y, e[2] + Math.sin(a) * (r + MOON_ORBIT_RADIUS_ADD)];
+}
+
 export function formatSimDate(simDays: number): string {
   const base = Date.UTC(2026, 0, 1);
   const t = new Date(base + simDays * 86400000);

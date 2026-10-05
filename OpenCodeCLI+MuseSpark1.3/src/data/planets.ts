@@ -37,6 +37,22 @@ export const SUN = {
     'The Sun shines because it squeezes tiny pieces called hydrogen together — like a never-ending super-hug called fusion!',
 };
 
+export const MOON = {
+  id: 'moon',
+  name: 'Moon',
+  type: "Earth's moon",
+  emoji: '🌙',
+  diameterKm: 3474,
+  description:
+    'The Moon is Earth’s best friend in space! It circles us about once a month, pulls on our oceans to make tides, and always shows us the same face — the “far side” is hidden from view.',
+  facts: [
+    'The Moon is about 384,400 km away — the farthest place humans have ever visited.',
+    'Footprints on the Moon could last millions of years — there is no wind to blow them away.',
+    'The Moon is slowly drifting away from Earth, about 3.8 cm every year.',
+  ],
+  didYouKnow: 'The Moon makes the oceans rise and fall — that sloshing is called tides!',
+};
+
 export const PLANETS: Planet[] = [
   {
     id: 'mercury',

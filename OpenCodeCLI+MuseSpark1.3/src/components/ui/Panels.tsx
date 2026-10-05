@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PLANETS, SUN, LESSONS, TOUR_STOPS } from '../../data/planets';
+import { PLANETS, SUN, MOON, LESSONS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
 import { formatSimDate } from '../../utils/scale';
 import { timeRef, craftRef } from '../3d/SolarSystemScene';
@@ -11,8 +11,9 @@ export function PlanetPanel() {
   const selectedId = useSim((s) => s.selectedId);
   if (!selectedId) return null;
   const isSun = selectedId === 'sun';
-  const p = isSun ? null : PLANETS.find((x) => x.id === selectedId);
-  if (!isSun && !p) return null;
+  const isMoon = selectedId === 'moon';
+  const p = isSun || isMoon ? null : PLANETS.find((x) => x.id === selectedId);
+  if (!isSun && !isMoon && !p) return null;
 
   const rows: [string, string][] = isSun
     ? [
@@ -21,6 +22,15 @@ export function PlanetPanel() {
         ['Temperature', '5,505°C surface'],
         ['Age', '4.6 billion years'],
         ['Light to Earth', '~8 minutes'],
+      ]
+    : isMoon
+    ? [
+        ['Type', 'Moon 🌙'],
+        ['Diameter', `${MOON.diameterKm.toLocaleString()} km`],
+        ['Distance from Earth', '384,400 km'],
+        ['Orbit around Earth', '27.3 days'],
+        ['Day length', '29.5 days (same face always toward us!)'],
+        ['Temperature', '-180 to 120°C'],
       ]
     : [
         ['Type', p!.type],
@@ -32,11 +42,11 @@ export function PlanetPanel() {
         ['Temperature', p!.temperatureC],
       ];
 
-  const desc = isSun ? SUN.description : p!.description;
-  const facts = isSun ? SUN.facts : p!.facts;
-  const dyk = isSun ? SUN.didYouKnow : p!.didYouKnow;
-  const emoji = isSun ? '☀️' : p!.emoji;
-  const name = isSun ? 'Sun' : p!.name;
+  const desc = isSun ? SUN.description : isMoon ? MOON.description : p!.description;
+  const facts = isSun ? SUN.facts : isMoon ? MOON.facts : p!.facts;
+  const dyk = isSun ? SUN.didYouKnow : isMoon ? MOON.didYouKnow : p!.didYouKnow;
+  const emoji = isSun ? '☀️' : isMoon ? '🌙' : p!.emoji;
+  const name = isSun ? 'Sun' : isMoon ? 'Moon' : p!.name;
 
   return (
     <motion.aside
@@ -52,7 +62,7 @@ export function PlanetPanel() {
           <div>
             <div className="text-3xl">{emoji}</div>
             <h2 className="text-xl font-extrabold text-white text-glow">{name}</h2>
-            <div className="text-xs text-cyan-300 font-semibold">{isSun ? 'Our star' : p!.type}</div>
+            <div className="text-xs text-cyan-300 font-semibold">{isSun ? 'Our star' : isMoon ? MOON.type : p!.type}</div>
           </div>
           <button aria-label={`Close ${name} panel`} onClick={() => useSim.getState().set({ selectedId: null, cameraMode: 'overview' })}
             className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 font-bold">✕</button>
@@ -93,6 +103,51 @@ export function PlanetPanel() {
         </div>
       </div>
     </motion.aside>
+  );
+}
+
+/* ---------------- Left-hand bodies menu (Sun · planets · Moon) ---------------- */
+const BODY_MENU: { id: string; emoji: string; name: string }[] = [
+  { id: 'sun', emoji: '☀️', name: 'Sun' },
+  ...PLANETS.map((p) => ({ id: p.id, emoji: p.emoji, name: p.name })),
+  { id: 'moon', emoji: '🌙', name: 'Moon' },
+];
+
+export function BodyMenu() {
+  const open = useSim((s) => s.bodiesMenuOpen);
+  const selectedId = useSim((s) => s.selectedId);
+  return (
+    <div className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 z-10" role="navigation" aria-label="Celestial bodies">
+      {!open ? (
+        <button aria-label="Open bodies menu" title="Bodies"
+          onClick={() => { uiBlip(); useSim.getState().set({ bodiesMenuOpen: true }); }}
+          className="glass w-10 h-10 rounded-xl text-lg hover:bg-white/15 active:scale-95">🪐</button>
+      ) : (
+        <div className="glass rounded-2xl p-1.5 w-36 sm:w-40 max-h-[52vh] overflow-y-auto scroll-thin">
+          <div className="flex items-center justify-between px-1.5 py-1">
+            <span className="text-[11px] font-extrabold tracking-widest text-slate-300">🪐 BODIES</span>
+            <button aria-label="Collapse bodies menu" onClick={() => useSim.getState().set({ bodiesMenuOpen: false })}
+              className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold">‹</button>
+          </div>
+          <ul className="space-y-0.5">
+            {BODY_MENU.map((b) => (
+              <li key={b.id}>
+                <button
+                  aria-label={`View ${b.name}`}
+                  title={`${b.name} — click to view, double-click to follow`}
+                  onClick={() => { uiBlip(); useSim.getState().select(b.id); }}
+                  onDoubleClick={() => useSim.getState().set({ selectedId: b.id, cameraMode: 'follow' })}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 ${selectedId === b.id ? 'bg-cyan-400/90 text-slate-950 border-cyan-300' : 'bg-white/5 text-slate-100 border-transparent hover:bg-white/15'}`}
+                >
+                  <span className="text-base leading-none">{b.emoji}</span>
+                  <span className="truncate">{b.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -398,7 +453,7 @@ export function SideDock() {
         <button aria-label="Surprise me — fly somewhere random"
           onClick={() => {
             uiBlip();
-            const pool = [...PLANETS.map((p) => p.id), 'sun'];
+            const pool = [...PLANETS.map((p) => p.id), 'sun', 'moon'];
             const pick = pool[Math.floor(Math.random() * pool.length)];
             useSim.getState().set({ tourActive: false, selectedId: pick, cameraMode: Math.random() > 0.5 ? 'follow' : 'focus' });
             useSim.getState().advanceFact();

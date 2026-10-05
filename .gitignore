@@ -23,3 +23,11 @@ Thumbs.db
 # Local env files
 .env
 .env.*
+
+# Solar System Explorer — local test artefacts
+screenshots/
+shots/
+smoke-log.txt
+smoke-stdout.txt
+smoke-stderr.txt
+

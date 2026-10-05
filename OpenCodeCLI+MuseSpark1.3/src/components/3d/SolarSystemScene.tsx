@@ -5,7 +5,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { PLANETS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
-import { orbitalPosition, planetIndex, planetRadius, sunRadius, planetDistance, orbitalAngle } from '../../utils/scale';
+import { orbitalPosition, planetIndex, planetRadius, sunRadius, planetDistance, orbitalAngle, moonWorldPosition } from '../../utils/scale';
 import { glowSprite, REAL_TEXTURE_URLS, prepColorMap, remapRingUVs, type RealMaps } from '../../utils/textures';
 
 // Shared smooth simulation clock (not React state — updated every frame)
@@ -76,6 +76,10 @@ export function CameraRig() {
       const p = orbitalPosition(idx, timeRef.days, s.scaleMode, s.distMult, s.gravityMass);
       return new THREE.Vector3(p[0], 0, p[2]);
     }
+    if (s.selectedId === 'moon') {
+      const m = moonWorldPosition(timeRef.days, s.scaleMode, s.distMult, s.gravityMass, s.sizeMult, s.bigEarth, s.moonPhaseManual, s.moonPhase);
+      return new THREE.Vector3(m[0], m[1], m[2]);
+    }
     if (s.selectedId && s.selectedId !== 'sun') {
       const idx = planetIndex(s.selectedId);
       if (idx >= 0) {
@@ -101,6 +105,10 @@ export function CameraRig() {
         toPos = new THREE.Vector3(0, 62, 105);
       } else if (s.selectedId === 'sun' || (s.tourActive && TOUR_STOPS[s.tourIndex]?.target === 'sun')) {
         toPos = new THREE.Vector3(0, 12, 30);
+      } else if (s.selectedId === 'moon') {
+        // the Moon is tiny — get close enough for kids to see its craters
+        const off = 2.2;
+        toPos = toTg.clone().add(new THREE.Vector3(off * 0.7, off * 0.45, off));
       } else {
         const idx = planetIndex(s.selectedId ?? TOUR_STOPS[s.tourIndex]?.target ?? '');
         const r = idx >= 0 ? planetRadius(idx, s.scaleMode, s.sizeMult, s.bigEarth) : 1;
@@ -132,7 +140,7 @@ export function CameraRig() {
     ctl.update();
   });
 
-  return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} minDistance={3} maxDistance={320} enablePan />;
+  return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={320} enablePan />;
 }
 
 /* ---------------- Sun (real SDO-style surface map + slow rotation) ---------------- */
@@ -299,12 +307,32 @@ function EarthClouds({ r, map, innerRef }: { r: number; map: THREE.Texture; inne
 }
 
 function EarthMoon({ innerRef, map }: { innerRef: React.RefObject<THREE.Group | null>; map: THREE.Texture }) {
+  const hovered = useSim((s) => s.hoveredId === 'moon');
+  const selected = useSim((s) => s.selectedId === 'moon');
   return (
-    <group ref={innerRef}>
+    <group
+      ref={innerRef}
+      onClick={(e) => { e.stopPropagation(); useSim.getState().select('moon'); }}
+      onDoubleClick={(e) => { e.stopPropagation(); useSim.getState().set({ selectedId: 'moon', cameraMode: 'follow' }); }}
+      onPointerOver={(e) => { e.stopPropagation(); useSim.getState().set({ hoveredId: 'moon' }); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { useSim.getState().set({ hoveredId: null }); document.body.style.cursor = 'auto'; }}
+    >
       <mesh>
         <sphereGeometry args={[0.32, 32, 32]} />
         <meshStandardMaterial map={map} bumpMap={map} bumpScale={0.04} roughness={1} metalness={0} />
       </mesh>
+      {/* invisible-but-raycastable hit bubble: the Moon is small and hard to tap */}
+      <mesh>
+        <sphereGeometry args={[0.8, 8, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {(hovered || selected) && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.52, 0.6, 32]} />
+          <meshBasicMaterial color={selected ? '#22d3ee' : '#94a3b8'} transparent opacity={0.9} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {hovered && <HoverTip name="Moon" r={0.32} />}
     </group>
   );
 }
@@ -355,11 +383,9 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
       if (clouds.current) clouds.current.rotation.y += d * rate * 1.4 + d * 0.02;
     }
     if (moonG.current) {
-      let a: number;
-      if (st.moonPhaseManual && planet.id === 'earth') a = st.moonPhase * Math.PI * 2;
-      else a = timeRef.days * 0.48 + idx;
-      const r = planetRadius(idx, st.scaleMode, st.sizeMult, st.bigEarth);
-      moonG.current.position.set(Math.cos(a) * (r + 1.7), 0.2, Math.sin(a) * (r + 1.7));
+      const m = moonWorldPosition(timeRef.days, st.scaleMode, st.distMult, st.gravityMass, st.sizeMult, st.bigEarth, st.moonPhaseManual, st.moonPhase);
+      const e = orbitalPosition(idx, timeRef.days, st.scaleMode, st.distMult, st.gravityMass);
+      moonG.current.position.set(m[0] - e[0], m[1], m[2] - e[2]);
     }
     if (moon2.current) {
       const a = -timeRef.days * 0.34 + 2;

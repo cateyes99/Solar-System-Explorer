@@ -41,6 +41,7 @@ type SimState = {
   gravityMass: number; // 0.2..2.5 multiplier for gravity demo
   showHelp: boolean;
   webglFailed: boolean;
+  bodiesMenuOpen: boolean;
 
   set: (p: Partial<SimState>) => void;
   select: (id: string | null) => void;
@@ -89,6 +90,7 @@ export const useSim = create<SimState>((set) => ({
   gravityMass: 1,
   showHelp: false,
   webglFailed: false,
+  bodiesMenuOpen: typeof window !== 'undefined' ? window.innerWidth >= 640 : true,
   set: (p) => set(p),
   select: (id) => set({ selectedId: id, cameraMode: id ? 'focus' : 'overview' }),
   advanceFact: () => set((s) => ({ factIndex: s.factIndex + 1, showFact: true })),

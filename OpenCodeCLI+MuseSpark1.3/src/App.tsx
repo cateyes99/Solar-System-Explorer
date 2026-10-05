@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { AnimatePresence } from 'framer-motion';
 import { SolarSystemScene, timeRef } from './components/3d/SolarSystemScene';
 import { TopBar, TimeControls, ScaleControl, RandomFactButton } from './components/ui/TopBar';
-import { PlanetPanel, LearnPanel, WhatIfPanel, TourOverlay, MissionControl, SideDock, Welcome } from './components/ui/Panels';
+import { PlanetPanel, BodyMenu, LearnPanel, WhatIfPanel, TourOverlay, MissionControl, SideDock, Welcome } from './components/ui/Panels';
 import { PLANETS } from './data/planets';
 import { useSim } from './store/simulationStore';
 import { stopAmbient } from './utils/audio';
@@ -160,6 +160,7 @@ export default function App() {
               className="glass w-10 h-10 rounded-xl text-lg">🔭</button>
           </div>
           <AnimatePresence><PlanetPanel key="pp" /></AnimatePresence>
+          <BodyMenu />
           <LearnPanel />
           <WhatIfPanel />
           <TourOverlay />
