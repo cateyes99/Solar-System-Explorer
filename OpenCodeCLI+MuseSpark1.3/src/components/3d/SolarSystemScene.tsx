@@ -5,7 +5,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { PLANETS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
-import { orbitalPosition, planetIndex, planetRadius, sunRadius, planetDistance, orbitalAngle, moonWorldPosition, halleyPosition, halleySunDistance, HALLEY_ORBIT } from '../../utils/scale';
+import { orbitalPosition, planetIndex, planetRadius, sunRadius, moonWorldPosition, halleyPosition, halleyPositionAtAnomaly, halleySunDistance } from '../../utils/scale';
 import { glowSprite, plutoTexture, REAL_TEXTURE_URLS, prepColorMap, remapRingUVs, type RealMaps } from '../../utils/textures';
 
 // Shared smooth simulation clock (not React state — updated every frame)
@@ -75,7 +75,7 @@ export function CameraRig() {
       const idx = planetIndex(stop.target);
       if (idx < 0) return new THREE.Vector3(0, 0, 0);
       const p = orbitalPosition(idx, timeRef.days, s.scaleMode, s.distMult, s.gravityMass);
-      return new THREE.Vector3(p[0], 0, p[2]);
+      return new THREE.Vector3(p[0], p[1], p[2]);
     }
     if (s.selectedId === 'moon') {
       const m = moonWorldPosition(timeRef.days, s.scaleMode, s.distMult, s.gravityMass, s.sizeMult, s.bigEarth, s.moonPhaseManual, s.moonPhase);
@@ -89,7 +89,7 @@ export function CameraRig() {
       const idx = planetIndex(s.selectedId);
       if (idx >= 0) {
         const p = orbitalPosition(idx, timeRef.days, s.scaleMode, s.distMult, s.gravityMass);
-        return new THREE.Vector3(p[0], 0, p[2]);
+        return new THREE.Vector3(p[0], p[1], p[2]);
       }
     }
     return new THREE.Vector3(0, 0, 0);
@@ -410,7 +410,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
     const s = useSim.getState();
     const d = Math.min(delta, 0.1);
     const pos = orbitalPosition(idx, timeRef.days, s.scaleMode, s.distMult, s.gravityMass);
-    group.current?.position.set(pos[0], 0, pos[2]);
+    group.current?.position.set(pos[0], pos[1], pos[2]);
     const st = useSim.getState();
     if (!st.noSpin && !st.paused) {
       const dir = planet.rotationPeriodHours < 0 ? -1 : 1;
@@ -421,7 +421,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
     if (moonG.current) {
       const m = moonWorldPosition(timeRef.days, st.scaleMode, st.distMult, st.gravityMass, st.sizeMult, st.bigEarth, st.moonPhaseManual, st.moonPhase);
       const e = orbitalPosition(idx, timeRef.days, st.scaleMode, st.distMult, st.gravityMass);
-      moonG.current.position.set(m[0] - e[0], m[1], m[2] - e[2]);
+      moonG.current.position.set(m[0] - e[0], m[1] - e[1], m[2] - e[2]);
     }
     if (moon2.current) {
       const a = -timeRef.days * 0.34 + 2;
@@ -548,37 +548,66 @@ function HoverTip({ name, r }: { name: string; r: number }) {
 
 /* ---------------- Orbits ---------------- */
 function OrbitLines() {
-  const mode = useSim((s) => s.scaleMode);
-  const distMult = useSim((s) => s.distMult);
-  const mass = useSim((s) => s.gravityMass);
   const show = useSim((s) => s.showOrbits);
-  const arrows = useSim((s) => s.showOrbitArrows);
-  const lines = useMemo(() => PLANETS.map((_, i) => planetDistance(i, mode, distMult, mass)), [mode, distMult, mass]);
   if (!show) return null;
   return (
     <group>
-      {lines.map((d, i) => (
-        <group key={PLANETS[i].id}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[d - 0.035, d + 0.035, 180]} />
-            <meshBasicMaterial color={useSim.getState().selectedId === PLANETS[i].id ? '#22d3ee' : '#3b4a6b'} transparent opacity={0.55} side={THREE.DoubleSide} />
-          </mesh>
-          {arrows && <OrbitArrow dist={d} idx={i} />}
-        </group>
+      {PLANETS.map((p, i) => (
+        <OrbitPath key={p.id} idx={i} />
       ))}
     </group>
   );
 }
 
-function OrbitArrow({ dist, idx }: { dist: number; idx: number }) {
+/* True orbit path: samples one full Kepler revolution so Mercury's stretched
+ * ellipse and Pluto's tilted oval draw exactly as JPL's elements describe.
+ * Element drift is glacial, so the path rebuilds only when view params change. */
+function OrbitPath({ idx }: { idx: number }) {
+  const mode = useSim((s) => s.scaleMode);
+  const distMult = useSim((s) => s.distMult);
+  const mass = useSim((s) => s.gravityMass);
+  const arrows = useSim((s) => s.showOrbitArrows);
+  const selected = useSim((s) => s.selectedId === PLANETS[idx].id);
+  const geo = useMemo(() => {
+    const N = 180;
+    const period = PLANETS[idx].orbitalPeriodDays;
+    const t0 = timeRef.days;
+    const pts: THREE.Vector3[] = [];
+    for (let k = 0; k < N; k++) {
+      const p = orbitalPosition(idx, t0 + (k / N) * period, mode, distMult, mass);
+      pts.push(new THREE.Vector3(p[0], p[1], p[2]));
+    }
+    return new THREE.BufferGeometry().setFromPoints(pts);
+  }, [idx, mode, distMult, mass]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <group>
+      <lineLoop geometry={geo}>
+        <lineBasicMaterial color={selected ? '#22d3ee' : '#3b4a6b'} transparent opacity={0.55} />
+      </lineLoop>
+      {arrows && <OrbitArrow idx={idx} />}
+    </group>
+  );
+}
+
+function OrbitArrow({ idx }: { idx: number }) {
   const ref = useRef<THREE.Mesh>(null);
+  const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0) }), []);
   useFrame(() => {
-    const a = orbitalAngle(idx, timeRef.days) + 0.35;
-    ref.current?.position.set(Math.cos(a) * dist, 0, Math.sin(a) * dist);
-    ref.current?.rotation.set(0, -a, 0);
+    if (!ref.current) return;
+    const s = useSim.getState();
+    const a = orbitalPosition(idx, timeRef.days - 1, s.scaleMode, s.distMult, s.gravityMass);
+    const b = orbitalPosition(idx, timeRef.days + 1, s.scaleMode, s.distMult, s.gravityMass);
+    tmp.a.set(a[0], a[1], a[2]);
+    tmp.b.set(b[0], b[1], b[2]).sub(tmp.a);
+    if (tmp.b.lengthSq() < 1e-8) return;
+    tmp.b.normalize();
+    // ride slightly ahead on the path, nose along the true velocity
+    ref.current.position.copy(tmp.a).addScaledVector(tmp.b, 1.1);
+    ref.current.quaternion.setFromUnitVectors(tmp.up, tmp.b);
   });
   return (
-    <mesh ref={ref} rotation={[0, 0, 0]}>
+    <mesh ref={ref}>
       <coneGeometry args={[0.45, 1.2, 10]} />
       <meshBasicMaterial color="#67e8f9" />
     </mesh>
@@ -712,8 +741,10 @@ function HalleyOrbit() {
   const show = useSim((s) => s.showOrbits);
   const geo = useMemo(() => {
     const pts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 160; i++) {
-      const p = halleyPosition((i / 160) * HALLEY_ORBIT.periodDays);
+    const N = 256;
+    for (let i = 0; i < N; i++) {
+      // uniform in true anomaly: even spacing around the sharp perihelion bend
+      const p = halleyPositionAtAnomaly((i / N) * Math.PI * 2);
       pts.push(new THREE.Vector3(p[0], p[1], p[2]));
     }
     return new THREE.BufferGeometry().setFromPoints(pts);
@@ -845,7 +876,7 @@ function Spacecraft() {
       let best = 'Deep space', bd = Infinity;
       PLANETS.forEach((p, i) => {
         const q = orbitalPosition(i, timeRef.days, s.scaleMode, s.distMult, s.gravityMass);
-        const dd = Math.hypot(q[0] - craftRef.pos.x, q[2] - craftRef.pos.z);
+        const dd = Math.hypot(q[0] - craftRef.pos.x, q[1] - craftRef.pos.y, q[2] - craftRef.pos.z);
         if (dd < bd) { bd = dd; best = p.name; }
       });
       const el = document.getElementById('craft-hud');

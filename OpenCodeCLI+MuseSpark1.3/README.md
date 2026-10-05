@@ -59,6 +59,7 @@ src/
 - **Saturn**: real ring alpha texture with radial UV remap, true 1.24–2.27 R extent, tilted with the planet.
 - **Sun**: real solar surface map with slow rotation + corona; Milky Way star-map backdrop behind the procedural twinkling stars.
 - Mercury/Mars/Moon use their maps as bump maps for real crater/canyon relief.
+- **Orbits**: true Kepler ellipses from **NASA JPL Keplerian elements & rates** (verified: Earth at 0.9833 AU on Jan 4 perihelion; Moon at 148° elongation on Jan 1, matching the Jan 3 full moon) — real eccentricities (Mercury!), inclinations (Pluto's 17° oval), nodes, and true relative phasing so conjunctions happen for real; the Moon uses lunar theory (e=0.055, 5.14° tilt, 27.32 d). Only radial distances are compressed per scale mode; directions and tilts are exact.
 - **Pluto** (dwarf planet, real 248-year orbit, 122.5° tilt, procedural heart-glacier map) and **Halley's Comet** (true Kepler elliptical retrograde orbit — fast swoop past the Sun, slow fade-out beyond Neptune — with a sun-avoiding tail that grows near perihelion) are both selectable, followable, and listed in the bodies menu; Pluto has its own cinematic-tour stop.
 
 Texture credit: *Planet maps by Solar System Scope (solarsystemscope.com/textures), CC BY 4.0, based on NASA data.*

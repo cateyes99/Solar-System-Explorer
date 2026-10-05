@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PLANETS, SUN, MOON, HALLEY, LESSONS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
-import { formatSimDate } from '../../utils/scale';
+import { formatSimDate, moonCyclePhase } from '../../utils/scale';
 import { timeRef, craftRef } from '../3d/SolarSystemScene';
 import { uiBlip } from '../../utils/audio';
 
@@ -265,7 +265,7 @@ function LessonWidget({ id }: { id: string }) {
   }
 
   if (id === 'moon') {
-    const phase = manual ? moonPhase : (timeRef.days * 0.48) % 1;
+    const phase = manual ? moonPhase : moonCyclePhase(timeRef.days);
     const names: [number, string][] = [[0.03, '🌑 New Moon'], [0.2, '🌒 Crescent'], [0.28, '🌓 First Quarter'], [0.45, '🌔 Gibbous'], [0.53, '🌕 Full Moon'], [0.7, '🌖 Gibbous'], [0.8, '🌗 Last Quarter'], [0.95, '🌘 Crescent']];
     const label = [...names].reverse().find(([t]) => phase >= t)?.[1] ?? '🌑 New Moon';
     return (
