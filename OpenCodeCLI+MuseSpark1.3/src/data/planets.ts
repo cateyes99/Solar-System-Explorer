@@ -65,6 +65,8 @@ export const HALLEY = {
     'Its next visit is in 2061 — start counting down!',
     'Its tail always points AWAY from the Sun, blown by solar wind.',
     'Its icy heart is about 15 km long — the size of a city!',
+    'Its surface is darker than charcoal — it reflects only 4% of sunlight!',
+    'Its potato shape was mapped from Giotto spacecraft photos taken in 1986!',
   ],
   didYouKnow: 'Halley’s tail grows millions of kilometers long near the Sun — then it fades away into the dark!',
 };

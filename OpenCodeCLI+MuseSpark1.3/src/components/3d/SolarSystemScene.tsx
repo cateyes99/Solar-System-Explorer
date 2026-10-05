@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { PLANETS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
 import { orbitalPosition, planetIndex, planetRadius, sunRadius, moonWorldPosition, halleyPosition, halleyPositionAtAnomaly, halleySunDistance } from '../../utils/scale';
-import { glowSprite, plutoTexture, REAL_TEXTURE_URLS, prepColorMap, remapRingUVs, type RealMaps } from '../../utils/textures';
+import { glowSprite, REAL_TEXTURE_URLS, prepColorMap, remapRingUVs, type RealMaps } from '../../utils/textures';
+import { HALLEY_SHAPE_RADII, HALLEY_SHAPE_MEAN_KM } from '../../data/halleyShape';
 
 // Shared smooth simulation clock (not React state — updated every frame)
 export const timeRef = { days: 120 };
@@ -304,6 +305,7 @@ const DAY_MAP: Record<string, keyof RealMaps> = {
   saturn: 'saturn',
   uranus: 'uranus',
   neptune: 'neptune',
+  pluto: 'pluto',
 };
 
 const ROUGHNESS: Record<string, number> = {
@@ -328,7 +330,7 @@ const BUMP: Record<string, number> = {
   saturn: 0,
   uranus: 0,
   neptune: 0,
-  pluto: 0,
+  pluto: 0.02, // subtle relief so craters catch the sunlight
 };
 
 function EarthClouds({ r, map, innerRef }: { r: number; map: THREE.Texture; innerRef: React.RefObject<THREE.Mesh | null> }) {
@@ -404,7 +406,6 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
   const sizeMult = useSim((s) => s.sizeMult);
   const distMult = useSim((s) => s.distMult);
   const bigEarth = useSim((s) => s.bigEarth);
-  const plutoTex = useMemo(() => plutoTexture(), []);
 
   useFrame(({ camera, clock }, delta) => {
     const s = useSim.getState();
@@ -440,7 +441,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
   });
 
   const r = planetRadius(idx, scaleMode, sizeMult, bigEarth);
-  const dayMap = planet.id === 'pluto' ? plutoTex : maps[DAY_MAP[planet.id]];
+  const dayMap = maps[DAY_MAP[planet.id]];
   const bump = BUMP[planet.id] ?? 0;
   void distMult;
 
@@ -760,31 +761,107 @@ function HalleyOrbit() {
 
 function HalleyComet() {
   const g = useRef<THREE.Group>(null);
-  const tail = useRef<THREE.Mesh>(null);
-  const glow = useRef<THREE.Sprite>(null);
-  const glowTex = useMemo(() => glowSprite('#bfe9ff'), []);
-  const tmp = useMemo(() => ({ dir: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion() }), []);
+  const nucleus = useRef<THREE.Mesh>(null);
+  const ionTail = useRef<THREE.Mesh>(null);
+  const dustTail = useRef<THREE.Mesh>(null);
+  const comaCore = useRef<THREE.Sprite>(null);
+  const comaHalo = useRef<THREE.Sprite>(null);
+  const coreTex = useMemo(() => glowSprite('#eafff3'), []);
+  const haloTex = useMemo(() => glowSprite('#bfe9ff'), []);
+  const tmp = useMemo(() => ({
+    dir: new THREE.Vector3(), dust: new THREE.Vector3(), vel: new THREE.Vector3(),
+    up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(),
+  }), []);
   const hovered = useSim((s) => s.hoveredId === 'halley');
   const selected = useSim((s) => s.selectedId === 'halley');
 
-  useFrame(() => {
+  // nucleus: the REAL measured shape — Stooke's grid (Giotto/Vega) sampled with
+  // bilinear interpolation, true proportions kept, plus a whisper of grain.
+  const nucleusGeo = useMemo(() => {
+    const geo = new THREE.IcosahedronGeometry(0.3, 4);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const v = new THREE.Vector3();
+    const colors = new Float32Array(pos.count * 3);
+    const stookRadius = (lon01: number, lat01: number): number => {
+      const x = ((((lon01 % 1) + 1) % 1) * 72);
+      const y = Math.min(36, Math.max(0, lat01 * 36));
+      const x0 = Math.floor(x) % 72, x1 = (x0 + 1) % 72;
+      const y0 = Math.min(36, Math.floor(y)), y1 = Math.min(36, y0 + 1);
+      const fx = x - Math.floor(x), fy = y - y0;
+      const g = HALLEY_SHAPE_RADII;
+      return ((g[y0][x0] * (1 - fx) + g[y0][x1] * fx) * (1 - fy) +
+        (g[y1][x0] * (1 - fx) + g[y1][x1] * fx) * fy) / HALLEY_SHAPE_MEAN_KM;
+    };
+    const grain = (x: number, y: number, z: number) =>
+      Math.abs(Math.sin(x * 61.1 + y * 17.3 + z * 29.7) * 0.6 +
+        Math.sin(x * 27.3 + y * 41.7 + z * 63.1) * 0.4);
+    const shade = (x: number, y: number, z: number) =>
+      Math.abs(Math.sin(x * 12.9 + y * 78.2 + z * 37.7) * 0.55 +
+        Math.sin(x * 27.3 + y * 41.7 + z * 63.1) * 0.3 +
+        Math.sin(x * 61.1 + y * 17.3 + z * 29.7) * 0.15);
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const n = v.clone().normalize();
+      const lon01 = Math.atan2(-n.z, n.x) / (Math.PI * 2);
+      const lat01 = Math.asin(Math.min(1, Math.max(-1, n.y))) / Math.PI + 0.5;
+      // measured shape × fine surface grain
+      const dd = stookRadius(lon01, lat01) * (1 + (grain(n.x + 3, n.y + 3, n.z + 3) - 0.5) * 0.09);
+      pos.setXYZ(i, n.x * 0.3 * dd, n.y * 0.3 * dd, n.z * 0.3 * dd);
+      // dusty shading: crevices darker, ridges faintly warmer
+      const cc = 0.075 + shade(n.z + 9, n.x + 9, n.y + 9) * 0.09;
+      colors[i * 3] = cc * 1.1;
+      colors[i * 3 + 1] = cc * 0.98;
+      colors[i * 3 + 2] = cc * 0.86;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, []);
+  useEffect(() => () => nucleusGeo.dispose(), [nucleusGeo]);
+
+  useFrame((_, delta) => {
     if (!g.current) return;
+    const s = useSim.getState();
+    const d = Math.min(delta, 0.1);
     const p = halleyPosition(timeRef.days);
     g.current.position.set(p[0], p[1], p[2]);
     const sunDist = halleySunDistance(timeRef.days);
-    // tail streams AWAY from the Sun, growing as ice vaporizes near perihelion
-    tmp.dir.set(p[0], p[1], p[2]).normalize();
-    const len = THREE.MathUtils.clamp(400 / (sunDist * sunDist), 0.4, 7);
-    if (tail.current) {
-      tail.current.position.copy(tmp.dir).multiplyScalar(0.3 + len / 2);
-      tmp.q.setFromUnitVectors(tmp.up, tmp.dir);
-      tail.current.quaternion.copy(tmp.q);
-      tail.current.scale.set(0.6, len, 0.6);
-      (tail.current.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(1.6 - sunDist / 30, 0.12, 0.5);
+    if (nucleus.current && !s.paused && !s.reducedMotion) {
+      // real nuclei tumble instead of spinning neatly
+      nucleus.current.rotation.x += d * 0.35;
+      nucleus.current.rotation.y += d * 0.27;
     }
-    if (glow.current) {
-      const gs = 1.8 + THREE.MathUtils.clamp(26 / sunDist, 0, 3.2);
-      glow.current.scale.set(gs, gs, 1);
+    // anti-sun direction + orbital velocity (numeric derivative) for the tails
+    tmp.dir.set(p[0], p[1], p[2]).normalize();
+    const pa = halleyPosition(timeRef.days - 2);
+    const pb = halleyPosition(timeRef.days + 2);
+    tmp.vel.set(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]).normalize();
+    const ionLen = THREE.MathUtils.clamp(400 / (sunDist * sunDist), 0.4, 7);
+    if (ionTail.current) {
+      // straight blue ion tail, blown directly away from the Sun
+      ionTail.current.position.copy(tmp.dir).multiplyScalar(0.3 + ionLen / 2);
+      tmp.q.setFromUnitVectors(tmp.up, tmp.dir);
+      ionTail.current.quaternion.copy(tmp.q);
+      ionTail.current.scale.set(0.55, ionLen, 0.55);
+      (ionTail.current.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(1.6 - sunDist / 30, 0.12, 0.5);
+    }
+    if (dustTail.current) {
+      // broad dust tail: lags between anti-sun and behind-the-motion, like photos
+      tmp.dust.copy(tmp.dir).addScaledVector(tmp.vel, -0.5).normalize();
+      const dustLen = ionLen * 0.55;
+      dustTail.current.position.copy(tmp.dust).multiplyScalar(0.25 + dustLen / 2);
+      tmp.q.setFromUnitVectors(tmp.up, tmp.dust);
+      dustTail.current.quaternion.copy(tmp.q);
+      dustTail.current.scale.set(1.1, dustLen, 1.1);
+      (dustTail.current.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(1.2 - sunDist / 40, 0.08, 0.32);
+    }
+    if (comaCore.current && comaHalo.current) {
+      // greenish inner coma (glowing carbon gas) in a diffuse halo, both
+      // swelling as the comet nears the Sun — kept tight so the dark
+      // nucleus stays visible inside, like Giotto's photos
+      const boost = THREE.MathUtils.clamp(26 / sunDist, 0, 3.2);
+      comaCore.current.scale.setScalar(0.8 + boost * 0.35);
+      comaHalo.current.scale.setScalar(1.3 + boost * 0.7);
     }
   });
 
@@ -796,19 +873,26 @@ function HalleyComet() {
       onPointerOver={(e) => { e.stopPropagation(); useSim.getState().set({ hoveredId: 'halley' }); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { useSim.getState().set({ hoveredId: null }); document.body.style.cursor = 'auto'; }}
     >
-      {/* nucleus: a city-sized dirty snowball */}
-      <mesh>
-        <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial color="#9a8f80" roughness={1} metalness={0} />
+      {/* craggy charcoal-dark nucleus, tumbling as it goes */}
+      <mesh ref={nucleus} geometry={nucleusGeo}>
+        <meshStandardMaterial vertexColors roughness={1} metalness={0} />
       </mesh>
-      {/* glowing coma */}
-      <sprite ref={glow}>
-        <spriteMaterial map={glowTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.9} />
+      {/* coma: bright greenish core in a diffuse halo */}
+      <sprite ref={comaCore}>
+        <spriteMaterial map={coreTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.95} />
+      </sprite>
+      <sprite ref={comaHalo}>
+        <spriteMaterial map={haloTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.55} />
       </sprite>
       {/* ion tail: narrow at the head, fanning out away from the Sun */}
-      <mesh ref={tail}>
+      <mesh ref={ionTail}>
         <cylinderGeometry args={[0.55, 0.1, 1, 12, 1, true]} />
         <meshBasicMaterial color="#7dd3fc" transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} fog={false} />
+      </mesh>
+      {/* dust tail: broader, warmer, curving behind the motion */}
+      <mesh ref={dustTail}>
+        <cylinderGeometry args={[0.8, 0.12, 1, 12, 1, true]} />
+        <meshBasicMaterial color="#e5d3a8" transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} fog={false} />
       </mesh>
       {/* invisible-but-raycastable hit bubble: the nucleus is tiny */}
       <mesh>

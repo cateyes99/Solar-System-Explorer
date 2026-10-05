@@ -246,6 +246,7 @@ export const REAL_TEXTURE_URLS = {
   jupiter: '/textures/2k_jupiter.jpg',
   saturn: '/textures/2k_saturn.jpg',
   saturnRing: '/textures/2k_saturn_ring_alpha.png',
+  pluto: '/textures/2k_pluto.jpg',
   uranus: '/textures/2k_uranus.jpg',
   neptune: '/textures/2k_neptune.jpg',
   milkyWay: '/textures/2k_stars_milky_way.jpg',
@@ -272,47 +273,102 @@ export function remapRingUVs(geo: THREE.RingGeometry, inner: number, outer: numb
   uv.needsUpdate = true;
 }
 
-/** Pluto: pale tan world, dark equatorial band (Cthulhu Macula) and the bright
- *  heart of Tombaugh Regio at ~180° longitude — its most famous feature. */
+/** Pluto, faithful to the New Horizons global map (Stern et al.): pale methane
+ *  frost at the poles, peach-tan mid-latitudes, the dark reddish Cthulhu band
+ *  along the equator, and the bright heart of Tombaugh Regio with the smooth
+ *  nitrogen plains of Sputnik Planitia. 1024px with craters + fine grain. */
 export function plutoTexture(): THREE.CanvasTexture {
-  const key = 'pluto-heart';
+  const key = 'pluto-heart-v2';
   const hit = cache.get(key);
   if (hit) return hit;
-  const { c, ctx } = canvas(512, 256);
-  // latitude shading: bright poles, tan mid-latitudes
-  const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, '#ddd2bd');
-  g.addColorStop(0.3, '#c4a87f');
-  g.addColorStop(0.5, '#a9855e');
-  g.addColorStop(0.62, '#6f5840');
-  g.addColorStop(0.72, '#a9855e');
-  g.addColorStop(1, '#cfc0a8');
+  const { c, ctx } = canvas(1024, 512);
+  // latitude base in true-color New Horizons palette
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, '#ded2b8'); // north polar frost, faintly yellow
+  g.addColorStop(0.18, '#d3b98f');
+  g.addColorStop(0.38, '#bd9868'); // peach-tan mid-latitudes
+  g.addColorStop(0.52, '#8a6a48');
+  g.addColorStop(0.62, '#7a5c3e');
+  g.addColorStop(0.74, '#a37f56');
+  g.addColorStop(0.9, '#c2a87f');
+  g.addColorStop(1, '#d8cbb2'); // south polar frost
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 512, 256);
-  const r = { s: 2015 };
-  // mottled terrain
-  for (let i = 0; i < 500; i++) {
-    ctx.globalAlpha = 0.08 + rand(r) * 0.16;
-    ctx.fillStyle = rand(r) > 0.5 ? '#7a6248' : '#e6d9c2';
+  ctx.fillRect(0, 0, 1024, 512);
+  const r = { s: 20150714 };
+  // large soft albedo blotches
+  for (let i = 0; i < 130; i++) {
+    ctx.globalAlpha = 0.06 + rand(r) * 0.12;
+    ctx.fillStyle = rand(r) > 0.45 ? '#6e5138' : '#e4d5b8';
     ctx.beginPath();
-    ctx.ellipse(rand(r) * 512, rand(r) * 256, 2 + rand(r) * 14, 1 + rand(r) * 7, rand(r) * 3, 0, 7);
+    ctx.ellipse(rand(r) * 1024, rand(r) * 512, 12 + rand(r) * 70, 8 + rand(r) * 36, rand(r) * 3, 0, 7);
     ctx.fill();
   }
-  // Tombaugh Regio — the heart (left + right lobes)
+  // Cthulhu Macula: broken dark reddish equatorial band (the "whale")
+  for (let i = 0; i < 46; i++) {
+    const x = 60 + rand(r) * 900;
+    const y = 258 + (rand(r) - 0.35) * 90;
+    ctx.globalAlpha = 0.3 + rand(r) * 0.45;
+    ctx.fillStyle = rand(r) > 0.4 ? '#4e3a28' : '#6b4433';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 14 + rand(r) * 55, 8 + rand(r) * 22, (rand(r) - 0.5) * 0.5, 0, 7);
+    ctx.fill();
+  }
+  // Tartarus Dorsa: bladed terrain streaks east of the heart
+  ctx.globalAlpha = 0.28;
+  ctx.strokeStyle = '#e0d0ae';
+  for (let i = 0; i < 40; i++) {
+    ctx.lineWidth = 1 + rand(r) * 2;
+    const x = 640 + rand(r) * 200;
+    const y = 150 + rand(r) * 120;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 20 + rand(r) * 40, y + (rand(r) - 0.5) * 24);
+    ctx.stroke();
+  }
+  // Tombaugh Regio — the heart, slightly north of the equator (~lon 180°)
   ctx.globalAlpha = 0.95;
-  ctx.fillStyle = '#ece1cd';
-  ctx.beginPath();
-  ctx.ellipse(238, 118, 26, 30, -0.25, 0, 7);
+  ctx.fillStyle = '#e7dcc4';
+  ctx.beginPath(); // left lobe
+  ctx.ellipse(478, 232, 40, 48, -0.22, 0, 7);
   ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(282, 116, 30, 34, 0.25, 0, 7);
+  ctx.beginPath(); // right lobe
+  ctx.ellipse(560, 226, 48, 54, 0.22, 0, 7);
   ctx.fill();
-  // smooth nitrogen-ice plains (Sputnik Planitia, right lobe) + darker left lobe edge
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = '#f4ecdc';
+  // Sputnik Planitia: ultra-smooth bright nitrogen ice (right lobe + cells hint)
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#f2ead8';
   ctx.beginPath();
-  ctx.ellipse(284, 118, 20, 24, 0.2, 0, 7);
+  ctx.ellipse(562, 228, 34, 40, 0.2, 0, 7);
   ctx.fill();
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = '#c9b891';
+  for (let i = 0; i < 26; i++) {
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(562 + (rand(r) - 0.5) * 56, 228 + (rand(r) - 0.5) * 66, 4 + rand(r) * 7, 3 + rand(r) * 5, rand(r) * 3, 0, 7);
+    ctx.stroke();
+  }
+  // craters: dark floors, bright rims (ejecta shows up bright on Pluto)
+  for (let i = 0; i < 110; i++) {
+    const x = rand(r) * 1024, y = rand(r) * 512, rad = 1 + rand(r) * 6;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#5d4a34';
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, 7);
+    ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#e8dcc2';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, rad + 0.8, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.stroke();
+  }
+  // fine grain
+  for (let i = 0; i < 2600; i++) {
+    ctx.globalAlpha = 0.04 + rand(r) * 0.09;
+    ctx.fillStyle = rand(r) > 0.5 ? '#3f3122' : '#f0e6d2';
+    ctx.fillRect(rand(r) * 1024, rand(r) * 512, 1.4, 1.4);
+  }
   ctx.globalAlpha = 1;
   return toTexture(key, c);
 }
