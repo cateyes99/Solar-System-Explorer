@@ -53,6 +53,22 @@ export const MOON = {
   didYouKnow: 'The Moon makes the oceans rise and fall — that sloshing is called tides!',
 };
 
+export const HALLEY = {
+  id: 'halley',
+  name: "Halley's Comet",
+  type: 'Comet',
+  emoji: '☄️',
+  description:
+    'Halley’s Comet is the most famous comet of all! It is a giant dirty snowball that dives close past the Sun and then zooms far beyond Neptune — and it travels BACKWARDS compared to the planets! Mark Twain was born with it in 1835 and died with its return in 1910.',
+  facts: [
+    'Halley visits the inner Solar System every 75–76 years — it was last here in 1986.',
+    'Its next visit is in 2061 — start counting down!',
+    'Its tail always points AWAY from the Sun, blown by solar wind.',
+    'Its icy heart is about 15 km long — the size of a city!',
+  ],
+  didYouKnow: 'Halley’s tail grows millions of kilometers long near the Sun — then it fades away into the dark!',
+};
+
 export const PLANETS: Planet[] = [
   {
     id: 'mercury',
@@ -246,6 +262,31 @@ export const PLANETS: Planet[] = [
     ],
     didYouKnow: 'Neptune is so far away that it has only finished ONE lap around the Sun since it was discovered in 1846!',
   },
+  {
+    id: 'pluto',
+    name: 'Pluto',
+    type: 'Dwarf planet',
+    emoji: '♇',
+    diameterKm: 2376,
+    distanceFromSunKm: 5906,
+    distanceAU: 39.5,
+    orbitalPeriodDays: 90560,
+    rotationPeriodHours: -153.3,
+    moons: 5,
+    temperatureC: 'Average -232°C',
+    color: '#d8c2a8',
+    accentColor: '#e8d5b5',
+    tiltDeg: 122.5,
+    description:
+      'Tiny Pluto used to be called the 9th planet! In 2006 scientists made it a “dwarf planet” because it is so small — even smaller than our Moon. It has a giant heart-shaped glacier and takes 248 Earth years to orbit the Sun once!',
+    facts: [
+      'Pluto is smaller than Earth’s Moon!',
+      'Pluto has a giant heart of ice called Tombaugh Regio. 💘',
+      'Its biggest moon Charon is half Pluto’s size — they dance around each other!',
+      'Pluto was discovered in 1930 by Clyde Tombaugh.',
+    ],
+    didYouKnow: 'Pluto takes 248 years to orbit the Sun — it has not finished even ONE lap since it was discovered!',
+  },
 ];
 
 export const RANDOM_FACTS: string[] = [
@@ -285,7 +326,8 @@ export const TOUR_STOPS: TourStop[] = [
   { target: 'jupiter', title: 'Jupiter — The Giant', text: 'Behold the king! Over 1,000 Earths could fit inside Jupiter. That red swirl is a storm bigger than Earth.', duration: 7 },
   { target: 'saturn', title: 'Saturn — Ringed Jewel', text: 'Saturn’s rings are billions of glittering ice pieces. They are wide but amazingly thin!', duration: 7 },
   { target: 'uranus', title: 'Uranus — The Sideways Roller', text: 'Uranus rolls around the Sun on its side. It is the coldest, most tilted planet of all.', duration: 6 },
-  { target: 'neptune', title: 'Neptune — The Windy Deep', text: 'Far, dark, deep-blue Neptune has supersonic winds of 2,000 km/h. What a finale!', duration: 6 },
+  { target: 'neptune', title: 'Neptune — The Windy Deep', text: 'Far, dark, deep-blue Neptune has supersonic winds of 2,000 km/h. But our journey has one bonus stop…', duration: 6 },
+  { target: 'pluto', title: 'Pluto — The Little Heart World', text: 'Tiny Pluto was a planet for 76 years! It wears a giant heart of ice and takes 248 Earth years to circle the Sun once.', duration: 6 },
   { target: 'overview', title: 'Home Again', text: 'Tour complete! Drag to explore, click any planet to learn more, or fly the spacecraft. What will you discover next?', duration: 7 },
 ];
 

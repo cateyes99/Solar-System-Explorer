@@ -5,8 +5,8 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { PLANETS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
-import { orbitalPosition, planetIndex, planetRadius, sunRadius, planetDistance, orbitalAngle, moonWorldPosition } from '../../utils/scale';
-import { glowSprite, REAL_TEXTURE_URLS, prepColorMap, remapRingUVs, type RealMaps } from '../../utils/textures';
+import { orbitalPosition, planetIndex, planetRadius, sunRadius, planetDistance, orbitalAngle, moonWorldPosition, halleyPosition, halleySunDistance, HALLEY_ORBIT } from '../../utils/scale';
+import { glowSprite, plutoTexture, REAL_TEXTURE_URLS, prepColorMap, remapRingUVs, type RealMaps } from '../../utils/textures';
 
 // Shared smooth simulation clock (not React state — updated every frame)
 export const timeRef = { days: 120 };
@@ -81,6 +81,10 @@ export function CameraRig() {
       const m = moonWorldPosition(timeRef.days, s.scaleMode, s.distMult, s.gravityMass, s.sizeMult, s.bigEarth, s.moonPhaseManual, s.moonPhase);
       return new THREE.Vector3(m[0], m[1], m[2]);
     }
+    if (s.selectedId === 'halley') {
+      const h = halleyPosition(timeRef.days);
+      return new THREE.Vector3(h[0], h[1], h[2]);
+    }
     if (s.selectedId && s.selectedId !== 'sun') {
       const idx = planetIndex(s.selectedId);
       if (idx >= 0) {
@@ -109,6 +113,10 @@ export function CameraRig() {
       } else if (s.selectedId === 'moon') {
         // the Moon is tiny — get close enough for kids to see its craters
         const off = 2.2;
+        toPos = toTg.clone().add(new THREE.Vector3(off * 0.7, off * 0.45, off));
+      } else if (s.selectedId === 'halley') {
+        // small nucleus + long tail: frame it a little wider
+        const off = 3;
         toPos = toTg.clone().add(new THREE.Vector3(off * 0.7, off * 0.45, off));
       } else {
         const idx = planetIndex(s.selectedId ?? TOUR_STOPS[s.tourIndex]?.target ?? '');
@@ -307,6 +315,7 @@ const ROUGHNESS: Record<string, number> = {
   saturn: 0.9,
   uranus: 0.85,
   neptune: 0.8,
+  pluto: 1,
 };
 
 // bump only where the map carries real relief (craters/canyons), never on gas giants
@@ -319,6 +328,7 @@ const BUMP: Record<string, number> = {
   saturn: 0,
   uranus: 0,
   neptune: 0,
+  pluto: 0,
 };
 
 function EarthClouds({ r, map, innerRef }: { r: number; map: THREE.Texture; innerRef: React.RefObject<THREE.Mesh | null> }) {
@@ -394,6 +404,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
   const sizeMult = useSim((s) => s.sizeMult);
   const distMult = useSim((s) => s.distMult);
   const bigEarth = useSim((s) => s.bigEarth);
+  const plutoTex = useMemo(() => plutoTexture(), []);
 
   useFrame(({ camera, clock }, delta) => {
     const s = useSim.getState();
@@ -429,7 +440,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
   });
 
   const r = planetRadius(idx, scaleMode, sizeMult, bigEarth);
-  const dayMap = maps[DAY_MAP[planet.id]];
+  const dayMap = planet.id === 'pluto' ? plutoTex : maps[DAY_MAP[planet.id]];
   const bump = BUMP[planet.id] ?? 0;
   void distMult;
 
@@ -696,27 +707,90 @@ function AsteroidBelt() {
   );
 }
 
-/* ---------------- Hidden comet (easter egg) ---------------- */
-function Comet() {
-  const g = useRef<THREE.Group>(null);
-  const tailTex = useMemo(() => glowSprite('#a5f3fc'), []);
-  useFrame(() => {
-    const t = timeRef.days * 0.05;
-    // eccentric path
-    const a = 85, b = 48;
-    const x = Math.cos(t) * a;
-    const z = Math.sin(t) * b - 10;
-    g.current?.position.set(x, 8 + Math.sin(t * 2) * 6, z);
-  });
+/* ---------------- Halley's Comet: eccentric retrograde visitor ---------------- */
+function HalleyOrbit() {
+  const show = useSim((s) => s.showOrbits);
+  const geo = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 160; i++) {
+      const p = halleyPosition((i / 160) * HALLEY_ORBIT.periodDays);
+      pts.push(new THREE.Vector3(p[0], p[1], p[2]));
+    }
+    return new THREE.BufferGeometry().setFromPoints(pts);
+  }, []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  if (!show) return null;
   return (
-    <group ref={g}>
+    <lineLoop geometry={geo}>
+      <lineBasicMaterial color="#67e8f9" transparent opacity={0.35} />
+    </lineLoop>
+  );
+}
+
+function HalleyComet() {
+  const g = useRef<THREE.Group>(null);
+  const tail = useRef<THREE.Mesh>(null);
+  const glow = useRef<THREE.Sprite>(null);
+  const glowTex = useMemo(() => glowSprite('#bfe9ff'), []);
+  const tmp = useMemo(() => ({ dir: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion() }), []);
+  const hovered = useSim((s) => s.hoveredId === 'halley');
+  const selected = useSim((s) => s.selectedId === 'halley');
+
+  useFrame(() => {
+    if (!g.current) return;
+    const p = halleyPosition(timeRef.days);
+    g.current.position.set(p[0], p[1], p[2]);
+    const sunDist = halleySunDistance(timeRef.days);
+    // tail streams AWAY from the Sun, growing as ice vaporizes near perihelion
+    tmp.dir.set(p[0], p[1], p[2]).normalize();
+    const len = THREE.MathUtils.clamp(400 / (sunDist * sunDist), 0.4, 7);
+    if (tail.current) {
+      tail.current.position.copy(tmp.dir).multiplyScalar(0.3 + len / 2);
+      tmp.q.setFromUnitVectors(tmp.up, tmp.dir);
+      tail.current.quaternion.copy(tmp.q);
+      tail.current.scale.set(0.6, len, 0.6);
+      (tail.current.material as THREE.MeshBasicMaterial).opacity = THREE.MathUtils.clamp(1.6 - sunDist / 30, 0.12, 0.5);
+    }
+    if (glow.current) {
+      const gs = 1.8 + THREE.MathUtils.clamp(26 / sunDist, 0, 3.2);
+      glow.current.scale.set(gs, gs, 1);
+    }
+  });
+
+  return (
+    <group
+      ref={g}
+      onClick={(e) => { e.stopPropagation(); useSim.getState().select('halley'); }}
+      onDoubleClick={(e) => { e.stopPropagation(); useSim.getState().set({ selectedId: 'halley', cameraMode: 'follow' }); }}
+      onPointerOver={(e) => { e.stopPropagation(); useSim.getState().set({ hoveredId: 'halley' }); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { useSim.getState().set({ hoveredId: null }); document.body.style.cursor = 'auto'; }}
+    >
+      {/* nucleus: a city-sized dirty snowball */}
       <mesh>
-        <sphereGeometry args={[0.4, 12, 12]} />
-        <meshBasicMaterial color="#e0f2fe" toneMapped={false} />
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshStandardMaterial color="#9a8f80" roughness={1} metalness={0} />
       </mesh>
-      <sprite scale={[7, 7, 1]}>
-        <spriteMaterial map={tailTex} transparent opacity={0.7} depthWrite={false} blending={THREE.AdditiveBlending} />
+      {/* glowing coma */}
+      <sprite ref={glow}>
+        <spriteMaterial map={glowTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.9} />
       </sprite>
+      {/* ion tail: narrow at the head, fanning out away from the Sun */}
+      <mesh ref={tail}>
+        <cylinderGeometry args={[0.55, 0.1, 1, 12, 1, true]} />
+        <meshBasicMaterial color="#7dd3fc" transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} fog={false} />
+      </mesh>
+      {/* invisible-but-raycastable hit bubble: the nucleus is tiny */}
+      <mesh>
+        <sphereGeometry args={[1.2, 8, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {(hovered || selected) && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.6, 0.7, 32]} />
+          <meshBasicMaterial color={selected ? '#22d3ee' : '#94a3b8'} transparent opacity={0.9} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {hovered && <HoverTip name="Halley's Comet" r={0.3} />}
     </group>
   );
 }
@@ -831,7 +905,8 @@ export function SolarSystemScene() {
         <PlanetMesh key={p.id} idx={i} maps={maps} />
       ))}
       <AsteroidBelt />
-      <Comet />
+      <HalleyOrbit />
+      <HalleyComet />
       <Spacecraft />
     </>
   );

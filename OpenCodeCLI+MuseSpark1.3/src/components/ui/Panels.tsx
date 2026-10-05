@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PLANETS, SUN, MOON, LESSONS, TOUR_STOPS } from '../../data/planets';
+import { PLANETS, SUN, MOON, HALLEY, LESSONS, TOUR_STOPS } from '../../data/planets';
 import { useSim } from '../../store/simulationStore';
 import { formatSimDate } from '../../utils/scale';
 import { timeRef, craftRef } from '../3d/SolarSystemScene';
@@ -12,8 +12,9 @@ export function PlanetPanel() {
   if (!selectedId) return null;
   const isSun = selectedId === 'sun';
   const isMoon = selectedId === 'moon';
-  const p = isSun || isMoon ? null : PLANETS.find((x) => x.id === selectedId);
-  if (!isSun && !isMoon && !p) return null;
+  const isHalley = selectedId === 'halley';
+  const p = isSun || isMoon || isHalley ? null : PLANETS.find((x) => x.id === selectedId);
+  if (!isSun && !isMoon && !isHalley && !p) return null;
 
   const rows: [string, string][] = isSun
     ? [
@@ -32,6 +33,15 @@ export function PlanetPanel() {
         ['Day length', '29.5 days (same face always toward us!)'],
         ['Temperature', '-180 to 120°C'],
       ]
+    : isHalley
+    ? [
+        ['Type', 'Comet ☄️'],
+        ['Nucleus', '~15 × 8 km (city-sized!)'],
+        ['Period', '75–76 years'],
+        ['Last visit', '1986'],
+        ['Next visit', '2061'],
+        ['Direction', 'Backwards (retrograde!)'],
+      ]
     : [
         ['Type', p!.type],
         ['Diameter', `${p!.diameterKm.toLocaleString()} km`],
@@ -42,11 +52,11 @@ export function PlanetPanel() {
         ['Temperature', p!.temperatureC],
       ];
 
-  const desc = isSun ? SUN.description : isMoon ? MOON.description : p!.description;
-  const facts = isSun ? SUN.facts : isMoon ? MOON.facts : p!.facts;
-  const dyk = isSun ? SUN.didYouKnow : isMoon ? MOON.didYouKnow : p!.didYouKnow;
-  const emoji = isSun ? '☀️' : isMoon ? '🌙' : p!.emoji;
-  const name = isSun ? 'Sun' : isMoon ? 'Moon' : p!.name;
+  const desc = isSun ? SUN.description : isMoon ? MOON.description : isHalley ? HALLEY.description : p!.description;
+  const facts = isSun ? SUN.facts : isMoon ? MOON.facts : isHalley ? HALLEY.facts : p!.facts;
+  const dyk = isSun ? SUN.didYouKnow : isMoon ? MOON.didYouKnow : isHalley ? HALLEY.didYouKnow : p!.didYouKnow;
+  const emoji = isSun ? '☀️' : isMoon ? '🌙' : isHalley ? '☄️' : p!.emoji;
+  const name = isSun ? 'Sun' : isMoon ? 'Moon' : isHalley ? "Halley's Comet" : p!.name;
 
   return (
     <motion.aside
@@ -62,7 +72,7 @@ export function PlanetPanel() {
           <div>
             <div className="text-3xl">{emoji}</div>
             <h2 className="text-xl font-extrabold text-white text-glow">{name}</h2>
-            <div className="text-xs text-cyan-300 font-semibold">{isSun ? 'Our star' : isMoon ? MOON.type : p!.type}</div>
+            <div className="text-xs text-cyan-300 font-semibold">{isSun ? 'Our star' : isMoon ? MOON.type : isHalley ? HALLEY.type : p!.type}</div>
           </div>
           <button aria-label={`Close ${name} panel`} onClick={() => useSim.getState().set({ selectedId: null, cameraMode: 'overview' })}
             className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 font-bold">✕</button>
@@ -111,6 +121,7 @@ const BODY_MENU: { id: string; emoji: string; name: string }[] = [
   { id: 'sun', emoji: '☀️', name: 'Sun' },
   ...PLANETS.map((p) => ({ id: p.id, emoji: p.emoji, name: p.name })),
   { id: 'moon', emoji: '🌙', name: 'Moon' },
+  { id: 'halley', emoji: '☄️', name: "Halley's" },
 ];
 
 export function BodyMenu() {

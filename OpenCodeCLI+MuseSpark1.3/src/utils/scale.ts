@@ -5,8 +5,8 @@ import type { ScaleMode } from '../store/simulationStore';
 // Real scale would make planets invisible, so we compress distances with a
 // roughly logarithmic mapping and exaggerate small planets.
 
-const EDU_DIST = [14, 18, 23, 28, 38, 50, 61, 71];
-const EDU_SIZE = [0.5, 0.85, 0.95, 0.7, 2.9, 2.5, 1.7, 1.65];
+const EDU_DIST = [14, 18, 23, 28, 38, 50, 61, 71, 80];
+const EDU_SIZE = [0.5, 0.85, 0.95, 0.7, 2.9, 2.5, 1.7, 1.65, 0.4];
 
 export function planetIndex(id: string): number {
   return PLANETS.findIndex((p) => p.id === id);
@@ -102,4 +102,50 @@ export function formatSimDate(simDays: number): string {
   const base = Date.UTC(2026, 0, 1);
   const t = new Date(base + simDays * 86400000);
   return t.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+/* ---------------- Halley's Comet: long eccentric retrograde ellipse --------
+   Real Halley: period ~75.3y, e ≈ 0.967, diving to 0.59 AU and retreating to
+   35 AU, orbiting backwards. Scene units compress that shape (perihelion 8,
+   aphelion 95) and run it on a visual period so kids can watch the swoop.
+   Motion follows real Kepler mechanics: fast near the Sun, slow far away. */
+
+export const HALLEY_ORBIT = {
+  perihelion: 8,
+  aphelion: 95,
+  /** visual period in sim-days (real one is ~27,500 days — far too slow to see) */
+  periodDays: 750,
+  /** orbital plane tilt vs the ecliptic, degrees (real: 162°, i.e. backwards) */
+  tiltDeg: 18,
+};
+
+const HALLEY_A = (HALLEY_ORBIT.perihelion + HALLEY_ORBIT.aphelion) / 2;
+const HALLEY_E = (HALLEY_ORBIT.aphelion - HALLEY_ORBIT.perihelion) / (HALLEY_ORBIT.aphelion + HALLEY_ORBIT.perihelion);
+const HALLEY_TILT = (HALLEY_ORBIT.tiltDeg * Math.PI) / 180;
+const HALLEY_M0 = 1.0; // starting mean anomaly — Halley begins inbound
+
+/** Solve Kepler's equation M = E − e·sinE (Newton iterations). */
+export function halleyEccentricAnomaly(simDays: number): number {
+  const M = HALLEY_M0 - ((simDays / HALLEY_ORBIT.periodDays) * Math.PI * 2) % (Math.PI * 2);
+  let E = M;
+  for (let i = 0; i < 5; i++) E = E - (E - HALLEY_E * Math.sin(E) - M) / (1 - HALLEY_E * Math.cos(E));
+  return E;
+}
+
+/** Distance from the Sun in scene units (for tail/brightness effects). */
+export function halleySunDistance(simDays: number): number {
+  const E = halleyEccentricAnomaly(simDays);
+  return HALLEY_A * (1 - HALLEY_E * Math.cos(E));
+}
+
+/** World position — retrograde (backwards vs the planets) and tilted. */
+export function halleyPosition(simDays: number): [number, number, number] {
+  const E = halleyEccentricAnomaly(simDays);
+  // true anomaly from eccentric anomaly
+  const nu = 2 * Math.atan2(Math.sqrt(1 + HALLEY_E) * Math.sin(E / 2), Math.sqrt(1 - HALLEY_E) * Math.cos(E / 2));
+  const r = HALLEY_A * (1 - HALLEY_E * HALLEY_E) / (1 + HALLEY_E * Math.cos(nu));
+  const u = r * Math.cos(nu);
+  const w = r * Math.sin(nu);
+  // retrograde + tilted out of the ecliptic
+  return [u, w * Math.sin(HALLEY_TILT), -w * Math.cos(HALLEY_TILT)];
 }

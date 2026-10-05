@@ -272,6 +272,51 @@ export function remapRingUVs(geo: THREE.RingGeometry, inner: number, outer: numb
   uv.needsUpdate = true;
 }
 
+/** Pluto: pale tan world, dark equatorial band (Cthulhu Macula) and the bright
+ *  heart of Tombaugh Regio at ~180° longitude — its most famous feature. */
+export function plutoTexture(): THREE.CanvasTexture {
+  const key = 'pluto-heart';
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const { c, ctx } = canvas(512, 256);
+  // latitude shading: bright poles, tan mid-latitudes
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#ddd2bd');
+  g.addColorStop(0.3, '#c4a87f');
+  g.addColorStop(0.5, '#a9855e');
+  g.addColorStop(0.62, '#6f5840');
+  g.addColorStop(0.72, '#a9855e');
+  g.addColorStop(1, '#cfc0a8');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 512, 256);
+  const r = { s: 2015 };
+  // mottled terrain
+  for (let i = 0; i < 500; i++) {
+    ctx.globalAlpha = 0.08 + rand(r) * 0.16;
+    ctx.fillStyle = rand(r) > 0.5 ? '#7a6248' : '#e6d9c2';
+    ctx.beginPath();
+    ctx.ellipse(rand(r) * 512, rand(r) * 256, 2 + rand(r) * 14, 1 + rand(r) * 7, rand(r) * 3, 0, 7);
+    ctx.fill();
+  }
+  // Tombaugh Regio — the heart (left + right lobes)
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = '#ece1cd';
+  ctx.beginPath();
+  ctx.ellipse(238, 118, 26, 30, -0.25, 0, 7);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(282, 116, 30, 34, 0.25, 0, 7);
+  ctx.fill();
+  // smooth nitrogen-ice plains (Sputnik Planitia, right lobe) + darker left lobe edge
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#f4ecdc';
+  ctx.beginPath();
+  ctx.ellipse(284, 118, 20, 24, 0.2, 0, 7);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  return toTexture(key, c);
+}
+
 export function textureForPlanet(id: string): THREE.CanvasTexture {
   switch (id) {
     case 'mercury':
