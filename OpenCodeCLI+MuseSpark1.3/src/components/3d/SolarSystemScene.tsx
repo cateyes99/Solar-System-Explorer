@@ -65,6 +65,7 @@ export function CameraRig() {
   const { camera } = useThree();
   const fly = useRef<{ t: number; dur: number; fromPos: THREE.Vector3; toPos: THREE.Vector3; fromTg: THREE.Vector3; toTg: THREE.Vector3; active: boolean }>({ t: 1, dur: 1.8, fromPos: new THREE.Vector3(), toPos: new THREE.Vector3(), fromTg: new THREE.Vector3(), toTg: new THREE.Vector3(), active: false });
   const lastKey = useRef('');
+  const interacting = useRef(false);
 
   const desiredTarget = (s: ReturnType<typeof useSim.getState>): THREE.Vector3 => {
     if (s.tourActive) {
@@ -123,6 +124,15 @@ export function CameraRig() {
       }
     }
     if (fly.current.active) {
+      // Re-aim at the body's LIVE position every frame: fast bodies (Mercury,
+      // Moon) travel several units during the 1.9s flight and would otherwise
+      // "slip away" before the camera arrives. The chosen offset is preserved.
+      if (s.selectedId) {
+        const live = desiredTarget(s);
+        const offset = fly.current.toPos.clone().sub(fly.current.toTg);
+        fly.current.toTg.copy(live);
+        fly.current.toPos.copy(live).add(offset);
+      }
       fly.current.t += delta / fly.current.dur;
       const k = easeInOut(Math.min(1, fly.current.t));
       camera.position.lerpVectors(fly.current.fromPos, fly.current.toPos, k);
@@ -134,13 +144,18 @@ export function CameraRig() {
       const shift = toTg.clone().sub(ctl.target);
       ctl.target.copy(toTg);
       camera.position.add(shift);
+    } else if (s.cameraMode === 'focus' && s.selectedId && !interacting.current) {
+      // keep looking at the body as it orbits (camera itself stays put, so the
+      // user can still orbit/zoom freely). Paused while dragging so we never
+      // fight the user's input.
+      ctl.target.copy(desiredTarget(s));
     } else if (s.cameraMode === 'follow') {
       ctl.target.copy(desiredTarget(s));
     }
     ctl.update();
   });
 
-  return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={320} enablePan />;
+  return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={320} enablePan onStart={() => { interacting.current = true; }} onEnd={() => { interacting.current = false; }} />;
 }
 
 /* ---------------- Sun (real SDO-style surface map + slow rotation) ---------------- */
@@ -148,10 +163,11 @@ function Sun({ map }: { map: THREE.Texture }) {
   const mesh = useRef<THREE.Mesh>(null);
   const spin = useRef<THREE.Group>(null);
   const glow = useRef<THREE.Sprite>(null);
+  const sunLabelDiv = useRef<HTMLDivElement>(null);
   const glowTex = useMemo(() => glowSprite('#ff9d00'), []);
   const flareTex = useMemo(() => glowSprite('#ffdd55'), []);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ camera, clock }, delta) => {
     const s = useSim.getState();
     const t = clock.elapsedTime;
     const r = sunRadius(s.scaleMode, s.sizeMult);
@@ -165,11 +181,19 @@ function Sun({ map }: { map: THREE.Texture }) {
       glow.current.scale.set(base, base, 1);
       (glow.current.material as THREE.SpriteMaterial).opacity = s.sunOff ? 0.08 : 0.85;
     }
+    // fade the "Sun" tag as the camera dives in, so it never balloons over the view
+    if (sunLabelDiv.current) {
+      const dd = camera.position.length();
+      const o = THREE.MathUtils.clamp((dd - r - 3) / 6, 0, 1);
+      sunLabelDiv.current.style.opacity = o.toFixed(2);
+      sunLabelDiv.current.style.visibility = o <= 0.01 ? 'hidden' : 'visible';
+    }
   });
 
   const r = 5;
   const s = useSim((st) => st.sunOff);
   const selected = useSim((st) => st.selectedId === 'sun');
+  const labelY = sunRadius(useSim((st) => st.scaleMode), useSim((st) => st.sizeMult)) + 2.6;
   return (
     <group>
       <group ref={spin}>
@@ -205,7 +229,7 @@ function Sun({ map }: { map: THREE.Texture }) {
           <meshBasicMaterial color="#67e8f9" transparent opacity={0.8} side={THREE.DoubleSide} />
         </mesh>
       )}
-      <SunLabel />
+      <SunLabel y={labelY} divRef={sunLabelDiv} />
     </group>
   );
 }
@@ -229,12 +253,12 @@ function FlareSprite({ tex }: { tex: THREE.Texture }) {
   );
 }
 
-function SunLabel() {
+function SunLabel({ y, divRef }: { y: number; divRef: React.RefObject<HTMLDivElement | null> }) {
   const show = useSim((s) => s.showLabels);
   if (!show) return null;
   return (
-    <Html position={[0, 7.6, 0]} center distanceFactor={120} style={{ pointerEvents: 'none' }}>
-      <div className="px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide text-amber-200 bg-black/40 border border-amber-300/20">☀️ Sun</div>
+    <Html position={[0, y, 0]} center style={{ pointerEvents: 'none' }}>
+      <div ref={divRef} className="px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide text-amber-200 bg-black/40 border border-amber-300/20 whitespace-nowrap">☀️ Sun</div>
     </Html>
   );
 }
@@ -360,6 +384,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
   const clouds = useRef<THREE.Mesh>(null);
   const moonG = useRef<THREE.Group>(null);
   const moon2 = useRef<THREE.Group>(null);
+  const labelDiv = useRef<HTMLDivElement>(null);
 
   const selected = useSim((s) => s.selectedId === planet.id);
   const hovered = useSim((s) => s.hoveredId === planet.id);
@@ -370,7 +395,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
   const distMult = useSim((s) => s.distMult);
   const bigEarth = useSim((s) => s.bigEarth);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ camera, clock }, delta) => {
     const s = useSim.getState();
     const d = Math.min(delta, 0.1);
     const pos = orbitalPosition(idx, timeRef.days, s.scaleMode, s.distMult, s.gravityMass);
@@ -391,6 +416,14 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
       const a = -timeRef.days * 0.34 + 2;
       const r = planetRadius(idx, st.scaleMode, st.sizeMult, st.bigEarth);
       moon2.current.position.set(Math.cos(a) * (r + 2.6), -0.4, Math.sin(a) * (r + 2.6));
+    }
+    // fade the name tag as the camera closes in, so it never balloons over the planet
+    if (labelDiv.current && group.current) {
+      const rr = planetRadius(idx, st.scaleMode, st.sizeMult, st.bigEarth);
+      const dd = camera.position.distanceTo(group.current.position);
+      const o = THREE.MathUtils.clamp((dd - rr - 2) / 4, 0, 1);
+      labelDiv.current.style.opacity = o.toFixed(2);
+      labelDiv.current.style.visibility = o <= 0.01 ? 'hidden' : 'visible';
     }
     void clock;
   });
@@ -463,7 +496,7 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
                 <sphereGeometry args={[0.22, 20, 20]} />
                 <meshStandardMaterial color="#a5b4fc" roughness={1} emissive="#312e81" emissiveIntensity={0.4} />
               </mesh>
-              <Html center distanceFactor={60} style={{ pointerEvents: 'none' }}>
+              <Html center style={{ pointerEvents: 'none' }}>
                 <div className="text-[10px] text-indigo-200 bg-black/50 px-1.5 py-0.5 rounded-full border border-indigo-300/30">2nd Moon!</div>
               </Html>
             </group>
@@ -478,25 +511,25 @@ function PlanetMesh({ idx, maps }: { idx: number; maps: RealMaps }) {
         </mesh>
       )}
 
-      <PlanetLabel idx={idx} r={r} />
+      <PlanetLabel idx={idx} r={r} divRef={labelDiv} />
       {hovered && <HoverTip name={planet.name} r={r} />}
     </group>
   );
 }
 
-function PlanetLabel({ idx, r }: { idx: number; r: number }) {
+function PlanetLabel({ idx, r, divRef }: { idx: number; r: number; divRef: React.RefObject<HTMLDivElement | null> }) {
   const show = useSim((s) => s.showLabels);
   if (!show) return null;
   return (
-    <Html position={[0, r + 1.1, 0]} center distanceFactor={110} style={{ pointerEvents: 'none' }}>
-      <div className="px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-100 bg-black/40 border border-white/10 whitespace-nowrap">{PLANETS[idx].name}</div>
+    <Html position={[0, r + 1.1, 0]} center style={{ pointerEvents: 'none' }}>
+      <div ref={divRef} className="px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-100 bg-black/40 border border-white/10 whitespace-nowrap">{PLANETS[idx].name}</div>
     </Html>
   );
 }
 
 function HoverTip({ name, r }: { name: string; r: number }) {
   return (
-    <Html position={[0, r + 2.1, 0]} center distanceFactor={90} style={{ pointerEvents: 'none' }}>
+    <Html position={[0, r + 2.1, 0]} center style={{ pointerEvents: 'none' }}>
       <div className="px-2.5 py-1 rounded-lg text-xs font-semibold glass text-cyan-100 whitespace-nowrap">✨ {name} — click to explore</div>
     </Html>
   );
