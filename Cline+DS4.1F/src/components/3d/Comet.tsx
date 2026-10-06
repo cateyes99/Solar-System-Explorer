@@ -1,54 +1,172 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, MeshStandardMaterial } from 'three'
-import type { Group, Mesh, PointsMaterial, Sprite, SpriteMaterial } from 'three'
+import {
+  AdditiveBlending,
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  MeshStandardMaterial,
+  SphereGeometry,
+  Vector3,
+} from 'three'
+import type { BufferAttribute, Group, Mesh, PointsMaterial, Sprite, SpriteMaterial } from 'three'
 import type { CelestialBody } from '../../types'
 import type { CometVisuals } from '../../data/visuals'
 import { BODY_VISUALS } from '../../data/visuals'
 import { AU_KM, orbitalState, toSceneXZ } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
 import { scaleDistanceKm } from '../../utils/scale'
-import { createRandom } from '../../utils/random'
+import { clamp, createRandom, fbm } from '../../utils/random'
 import { getTexture } from '../../utils/textures'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { useSimulationStore } from '../../store/simulationStore'
 import { audio } from '../../utils/audio'
-import { LOW_DETAIL_SPHERE } from './geometry'
 import { PlanetLabel } from './PlanetLabel'
 
 /**
- * A comet: a little ball of ice on a very stretched orbit, with a tail that
- * always points away from the Sun.
+ * A comet.
  *
- * There are two of them. Comet Cline-1 is the friendly, bright snowball that
- * turns up in the middle of the scene; Halley's Comet is the famous visitor on a
- * huge retrograde ellipse that spends most of its life far beyond Neptune.
- * Finding either one and clicking it unlocks its story.
+ * A comet is not a little planet: it is a few kilometres of dark, dirty ice that
+ * spends most of its life frozen and invisible, then boils off a glowing coma and
+ * two very different tails as it nears the Sun.
+ *
+ * Everything here is drawn from the published measurements:
+ *
+ *  - **Nucleus.** Halley's is a 15 × 7 × 7 km peanut photographed by Giotto in
+ *    1986, so it is modelled as an elongated, lumpy ellipsoid with a pinched
+ *    waist. Its crust reflects about 4% of the sunlight that hits it — one of the
+ *    darkest surfaces ever measured — so it is rendered as near-black, mottled,
+ *    cratered ice tinted with reddish tholins. Cline-1, a younger visitor, is
+ *    rounder and paler.
+ *  - **Coma.** The halo of gas and dust that hugs the nucleus. It grows and
+ *    brightens as the comet heats up.
+ *  - **Two tails.** The blue plasma (ion) tail is thin, straight and points
+ *    exactly anti-sunward, carried by the solar wind. The dust tail is broader,
+ *    warmer in colour and visibly curved, because the dust lags behind the
+ *    comet's own motion instead of following the field lines.
+ *  - **Activity.** Comet water ice starts sublimating inside about 3 au; the
+ *    production scales roughly with the inverse square of the heliocentric
+ *    distance, so a comet at 17 au is dormant and one at perihelion is blazing.
+ *
+ * The nucleus's true size (a few km) is far below anything the scene can show, so
+ * it is drawn at a small, deliberately cosmetic size — the same honest cheat the
+ * rest of the app makes for planets — while the tails carry the real drama.
  */
-const TAIL_PARTICLES = 240
+const NUCLEUS_LONG_RADIUS = 0.24
+const NUCLEUS_SEGMENTS = 48
 
-function createTailGeometry(): BufferGeometry {
-  const random = createRandom(606)
-  const positions = new Float32Array(TAIL_PARTICLES * 3)
-  for (let i = 0; i < TAIL_PARTICLES; i += 1) {
-    // Local -Z is the anti-sun direction once the comet has looked at the Sun.
-    const along = -Math.pow(random(), 0.7)
-    const spread = 0.06 + Math.pow(random(), 2) * 0.42
-    positions[i * 3] = (random() - 0.5) * spread
-    positions[i * 3 + 1] = (random() - 0.5) * spread
-    positions[i * 3 + 2] = along
+interface NucleusOptions {
+  /** Longest, middle and shortest axis, normalised to the longest. */
+  axes: [number, number, number]
+  /** Depth of the peanut-like waist, 0 = plain ellipsoid. */
+  waist: number
+  seed: number
+}
+
+/**
+ * A lumpy, elongated nucleus.
+ *
+ * A sphere is warped in two ways: its radius is perturbed by fractal noise, so
+ * the surface is irregular rather than egg-smooth, and the middle is pinched in
+ * along the long axis, which is what turns a 2:1 cigar into the peanut Giotto
+ * photographed.
+ */
+function createNucleusGeometry({ axes, waist, seed }: NucleusOptions): BufferGeometry {
+  const [ax, ay, az] = axes
+  const geometry = new SphereGeometry(1, NUCLEUS_SEGMENTS, Math.round(NUCLEUS_SEGMENTS * 0.7))
+  const position = geometry.attributes.position as BufferAttribute
+  const normal = geometry.attributes.normal as BufferAttribute
+  const point = new Vector3()
+  const face = new Vector3()
+
+  for (let i = 0; i < position.count; i += 1) {
+    const nx = normal.getX(i)
+    const ny = normal.getY(i)
+    const nz = normal.getZ(i)
+    // Broad lumps plus finer relief, both deterministic and seed-specific.
+    const lumps = fbm(nx * 1.4 + seed * 0.11, ny * 1.4, nz * 1.4, 3, seed)
+    const grain = fbm(nx * 3.8, ny * 3.8, nz * 3.8, 4, seed + 917)
+    const radius = 1 + (lumps - 0.5) * 0.5 + (grain - 0.5) * 0.14
+
+    point.set(nx * ax, ny * ay, nz * az).multiplyScalar(radius)
+    // Pinch the middle: only the long (x) axis's centre is squeezed, so the
+    // ends stay fat and the silhouette becomes a dumbbell.
+    const pinch = 1 - waist * Math.exp(-(point.x * point.x) / (ax * ax * 0.34))
+    point.y *= pinch
+    point.z *= pinch
+
+    position.setXYZ(i, point.x, point.y, point.z)
+    face.copy(point).normalize()
+    normal.setXYZ(i, face.x, face.y, face.z)
   }
+
+  position.needsUpdate = true
+  normal.needsUpdate = true
+  geometry.computeBoundingSphere()
+  return geometry
+}
+
+interface TailOptions {
+  count: number
+  /** Length of the tail along -Z (anti-sunward) before group scaling. */
+  length: number
+  /** Radius of the stream where it leaves the coma. */
+  width: number
+  /** How far the tail bends sideways over its length (dust lags; ions do not). */
+  curve: number
+  /** Vertical squash, so a tail is a sheet rather than a tube. */
+  flatten: number
+  /** Brightness falloff along the tail: higher = fades sooner. */
+  fade: number
+  color: string
+  seed: number
+}
+
+/**
+ * A tail as a stream of additive points, with a per-point colour that fades from
+ * the bright head to nothing at the tip. Positions are baked with the bend, so
+ * scaling the group stretches the tail along its own curve.
+ */
+function createTailGeometry(options: TailOptions): BufferGeometry {
+  const random = createRandom(options.seed)
+  const tint = new Color(options.color)
+  const positions = new Float32Array(options.count * 3)
+  const colors = new Float32Array(options.count * 3)
+
+  for (let i = 0; i < options.count; i += 1) {
+    const t = Math.pow(random(), 0.62)
+    const back = -t * options.length
+    const bend = options.curve * t * t
+    const angle = random() * Math.PI * 2
+    const spread = options.width * (0.14 + t * 0.9) * Math.pow(random(), 0.7)
+
+    positions[i * 3] = Math.cos(angle) * spread + bend
+    positions[i * 3 + 1] = Math.sin(angle) * spread * options.flatten
+    positions[i * 3 + 2] = back
+
+    const fade = Math.pow(1 - t, options.fade) * (0.5 + random() * 0.5)
+    colors[i * 3] = tint.r * fade
+    colors[i * 3 + 1] = tint.g * fade
+    colors[i * 3 + 2] = tint.b * fade
+  }
+
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3))
   return geometry
 }
 
 /** Fallback look if a comet were ever defined without its own recipe. */
 const DEFAULT_COMET_LOOK: CometVisuals = {
-  nucleusColor: '#dff6ff',
-  emissiveColor: '#4fd8ff',
-  emissiveIntensity: 0.35,
-  tailColor: '#a9ecff',
+  nucleusColor: '#cec7ba',
+  emissiveColor: '#8fe0ff',
+  emissiveIntensity: 0.1,
+  tailColor: '#b6e8ff',
+  nucleusAxes: [1, 0.8, 0.9],
+  nucleusWaist: 0.12,
+  ionTailColor: '#8fd2ff',
+  dustTailColor: '#eef2ff',
+  comaColor: '#c8ecff',
 }
 
 interface CometProps {
@@ -59,11 +177,13 @@ interface CometProps {
 
 export function Comet({ body, reducedMotion, showLabels }: CometProps) {
   const groupRef = useRef<Group>(null)
-  const tailRef = useRef<Group>(null)
-  const spriteMaterialRef = useRef<SpriteMaterial>(null)
-  const tailMaterialRef = useRef<PointsMaterial>(null)
-  const haloRef = useRef<Sprite>(null)
   const nucleusRef = useRef<Mesh>(null)
+  const haloRef = useRef<Sprite>(null)
+  const ionRef = useRef<Group>(null)
+  const dustRef = useRef<Group>(null)
+  const spriteMaterialRef = useRef<SpriteMaterial>(null)
+  const ionMaterialRef = useRef<PointsMaterial>(null)
+  const dustMaterialRef = useRef<PointsMaterial>(null)
 
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
@@ -78,26 +198,76 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
   // Every comet ships a `comet` recipe; fall back to the bright default if one is ever missing.
   const look = visuals.comet ?? DEFAULT_COMET_LOOK
 
-  const tailGeometry = useMemo(() => createTailGeometry(), [])
-  const material = useMemo(
+  const seed = useMemo(() => {
+    let value = 0
+    for (let i = 0; i < body.id.length; i += 1) value = (value * 31 + body.id.charCodeAt(i)) >>> 0
+    return value
+  }, [body.id])
+
+  const nucleusGeometry = useMemo(
     () =>
-      new MeshStandardMaterial({
-        map: getTexture(visuals.textureId),
-        color: look.nucleusColor,
-        roughness: visuals.roughness,
-        metalness: visuals.metalness,
-        emissive: look.emissiveColor,
-        emissiveIntensity: look.emissiveIntensity,
+      createNucleusGeometry({
+        axes: look.nucleusAxes ?? [1, 0.8, 0.9],
+        waist: look.nucleusWaist ?? 0.12,
+        seed,
       }),
-    [visuals.textureId, visuals.roughness, visuals.metalness, look],
+    [look.nucleusAxes, look.nucleusWaist, seed],
+  )
+
+  const nucleusMaterial = useMemo(() => {
+    const map = getTexture('cometNucleus')
+    return new MeshStandardMaterial({
+      map,
+      bumpMap: map,
+      bumpScale: 0.02,
+      color: look.nucleusColor,
+      roughness: visuals.roughness,
+      metalness: visuals.metalness,
+      emissive: look.emissiveColor,
+      emissiveIntensity: look.emissiveIntensity,
+    })
+  }, [look.nucleusColor, look.emissiveColor, look.emissiveIntensity, visuals.roughness, visuals.metalness])
+
+  const ionColor = look.ionTailColor ?? look.tailColor
+  const dustColor = look.dustTailColor ?? look.tailColor
+
+  const ionGeometry = useMemo(
+    () =>
+      createTailGeometry({
+        count: 900,
+        length: 13,
+        width: 0.3,
+        curve: 0,
+        flatten: 0.7,
+        fade: 1.5,
+        color: ionColor,
+        seed: seed + 3,
+      }),
+    [ionColor, seed],
+  )
+  const dustGeometry = useMemo(
+    () =>
+      createTailGeometry({
+        count: 1100,
+        length: 9,
+        width: 1.05,
+        curve: 3.6,
+        flatten: 0.6,
+        fade: 1.15,
+        color: dustColor,
+        seed: seed + 7,
+      }),
+    [dustColor, seed],
   )
 
   useEffect(
     () => () => {
-      tailGeometry.dispose()
-      material.dispose()
+      nucleusGeometry.dispose()
+      ionGeometry.dispose()
+      dustGeometry.dispose()
+      nucleusMaterial.dispose()
     },
-    [tailGeometry, material],
+    [nucleusGeometry, ionGeometry, dustGeometry, nucleusMaterial],
   )
 
   useEffect(() => {
@@ -115,24 +285,39 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     const distance = scaleDistanceKm(state.distanceKm, scaleMode, customScale)
     const scene = toSceneXZ(distance, state.angleRad)
     group.position.set(scene.x, 0, scene.z)
-    // +Z then points at the Sun, so the tail (built along -Z) trails behind.
+    // +Z then points at the Sun, so the tails (built along -Z) trail behind.
     group.lookAt(0, 0, 0)
 
+    // --- How alive is the comet? -------------------------------------------
+    // Sublimation of water ice turns on sharply inside a few au, so activity is
+    // driven by the real heliocentric distance rather than by the drawn orbit.
+    const au = state.distanceKm / AU_KM
+    const activity = clamp((3.2 / Math.max(au, 0.2)) ** 2, 0.004, 1)
+
+    // --- Nucleus tumble -----------------------------------------------------
     if (nucleusRef.current && !reducedMotion) {
-      nucleusRef.current.rotation.y += delta * 0.35
+      // Spin at the body's real sidereal period (Halley takes 2.2 days per turn),
+      // plus a slow secondary tumble: real nuclei are not principal-axis spinners.
+      const spin =
+        body.rotationPeriodHours !== 0
+          ? (clock.lastFrameDays * 24 / body.rotationPeriodHours) * Math.PI * 2
+          : delta * 0.2
+      nucleusRef.current.rotation.y += spin
+      nucleusRef.current.rotation.z += delta * 0.06
     }
 
-    // A comet's tail grows and brightens as it approaches the Sun.
-    const au = state.distanceKm / AU_KM
-    const activity = Math.min(1, Math.max(0.15, 1.35 - au / 2.2))
-    if (tailRef.current) {
-      tailRef.current.scale.set(1 + activity * 0.7, 1 + activity * 0.7, 9 + activity * 26)
-    }
-    if (tailMaterialRef.current) tailMaterialRef.current.opacity = 0.12 + activity * 0.42
-    if (spriteMaterialRef.current) spriteMaterialRef.current.opacity = 0.4 + activity * 0.5
+    // --- Coma and tails grow with activity ---------------------------------
+    const ionScale = 0.14 + activity * 1.55
+    const dustScale = 0.12 + activity * 1.35
+    if (ionRef.current) ionRef.current.scale.setScalar(ionScale)
+    if (dustRef.current) dustRef.current.scale.setScalar(dustScale)
+    if (ionMaterialRef.current) ionMaterialRef.current.opacity = 0.16 + activity * 0.5
+    if (dustMaterialRef.current) dustMaterialRef.current.opacity = 0.13 + activity * 0.42
+    if (spriteMaterialRef.current) spriteMaterialRef.current.opacity = 0.3 + activity * 0.42
+
     if (haloRef.current) {
-      const shimmer = reducedMotion ? 1 : 1 + Math.sin(performance.now() * 0.0013) * 0.06
-      const size = 2.4 * shimmer * (0.8 + activity)
+      const shimmer = reducedMotion ? 1 : 1 + Math.sin(performance.now() * 0.0013) * 0.05
+      const size = (0.45 + activity * 1.35) * shimmer
       haloRef.current.scale.set(size, size, 1)
     }
   })
@@ -143,9 +328,9 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     <group ref={groupRef}>
       <mesh
         ref={nucleusRef}
-        geometry={LOW_DETAIL_SPHERE}
-        material={material}
-        scale={0.32}
+        geometry={nucleusGeometry}
+        material={nucleusMaterial}
+        scale={NUCLEUS_LONG_RADIUS}
         onPointerOver={(event) => {
           event.stopPropagation()
           setHovered(body.id)
@@ -163,37 +348,58 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
         }}
       />
 
-      <sprite ref={haloRef} scale={[2.4, 2.4, 1]}>
+      {/* The coma: a soft glow of freshly sublimated gas and dust. */}
+      <sprite ref={haloRef} scale={[0.5, 0.5, 1]}>
         <spriteMaterial
           ref={spriteMaterialRef}
           map={getTexture('comet')}
+          color={look.comaColor ?? look.tailColor}
           blending={AdditiveBlending}
           transparent
           depthWrite={false}
-          opacity={0.7}
+          opacity={0.4}
           toneMapped={false}
         />
       </sprite>
 
-      <group ref={tailRef}>
-        <points geometry={tailGeometry} frustumCulled={false}>
+      {/* Plasma tail: thin, straight, blown exactly anti-sunward. */}
+      <group ref={ionRef}>
+        <points geometry={ionGeometry} frustumCulled={false}>
           <pointsMaterial
-            ref={tailMaterialRef}
+            ref={ionMaterialRef}
             map={getTexture('glow')}
-            size={0.55}
+            size={0.17}
             sizeAttenuation
+            vertexColors
             blending={AdditiveBlending}
             transparent
             depthWrite={false}
-            opacity={0.35}
-            color={look.tailColor}
+            opacity={0.3}
+            toneMapped={false}
+          />
+        </points>
+      </group>
+
+      {/* Dust tail: broader and warmer, curving as the dust lags the comet. */}
+      <group ref={dustRef}>
+        <points geometry={dustGeometry} frustumCulled={false}>
+          <pointsMaterial
+            ref={dustMaterialRef}
+            map={getTexture('glow')}
+            size={0.26}
+            sizeAttenuation
+            vertexColors
+            blending={AdditiveBlending}
+            transparent
+            depthWrite={false}
+            opacity={0.25}
             toneMapped={false}
           />
         </points>
       </group>
 
       {showLabels ? (
-        <PlanetLabel bodyId={body.id} name={body.name} accent={visuals.accent} offset={1.1} />
+        <PlanetLabel bodyId={body.id} name={body.name} accent={visuals.accent} offset={2.1} />
       ) : null}
     </group>
   )

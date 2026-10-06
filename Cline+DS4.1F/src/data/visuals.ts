@@ -22,6 +22,7 @@ export type TextureId =
   | 'nebula'
   | 'star'
   | 'comet'
+  | 'cometNucleus'
 
 export interface AtmosphereVisuals {
   color: string
@@ -78,8 +79,22 @@ export interface CometVisuals {
   emissiveColor: string
   /** Strength of that glow, before the distance-from-the-Sun boost. */
   emissiveIntensity: number
-  /** Colour of the dust and gas streaming away in the tail. */
+  /** Colour of the dust and gas streaming away in the tail (fallback tint). */
   tailColor: string
+  /**
+   * The nucleus's three axis lengths, normalised to the longest. Halley really is
+   * a 15 × 7 × 7 km peanut, so its long axis is about twice the other two; a
+   * younger, rounder comet sits nearer the middle.
+   */
+  nucleusAxes?: [number, number, number]
+  /** How deeply the middle of the nucleus is pinched in (0 = a plain ellipsoid). */
+  nucleusWaist?: number
+  /** The straight, blue CO+ plasma tail, blown exactly anti-sunward. */
+  ionTailColor?: string
+  /** The broad, warm dust tail that lags behind the comet's own motion. */
+  dustTailColor?: string
+  /** Tint of the glowing coma that hugs the nucleus. */
+  comaColor?: string
 }
 
 export interface BodyVisuals {
@@ -281,11 +296,20 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     textureId: 'pluto',
     roughness: 0.95,
     metalness: 0.01,
-    bumpScale: 0.012,
+    bumpScale: 0.014,
     textureOffsetU: 0.1,
-    // Pluto's nitrogen atmosphere is a hundred-thousandth of Earth's pressure:
-    // New Horizons saw it only as a faint pale haze along the limb.
-    atmosphere: { color: '#d8e8ff', intensity: 0.18, power: 3.6 },
+    // Pluto's nitrogen atmosphere is a hundred-thousandth of Earth's pressure, but
+    // when New Horizons looked back at the night side the haze glowed a clear
+    // blue — sunlight scattering off soot-like tholin particles. It climbs some
+    // 200 km above the surface, so it forms a broad, pale-blue halo rather than
+    // the tight rim a thicker atmosphere would give.
+    atmosphere: {
+      color: '#7fa8ff',
+      intensity: 0.3,
+      power: 3.1,
+      hazeColor: '#a9c8ff',
+      hazeIntensity: 0.22,
+    },
     accent: '#d9bd9a',
     focusRingScale: 2.4,
   },
@@ -300,34 +324,45 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     focusRingScale: 2.4,
   },
   comet: {
-    textureId: 'comet',
-    roughness: 0.9,
+    textureId: 'cometNucleus',
+    roughness: 0.88,
     metalness: 0,
     textureOffsetU: 0,
-    atmosphere: { color: '#bdf3ff', intensity: 0.9, power: 2.4 },
-    // Cline-1 is a young, bright comet: pale ice that glows as it nears the Sun.
+    // Cline-1 is a younger, rounder comet: a lumpy ellipsoid of pale ice that
+    // glows as it nears the Sun, wrapped in a wide blue-white coma.
     comet: {
-      nucleusColor: '#dff6ff',
-      emissiveColor: '#4fd8ff',
-      emissiveIntensity: 0.35,
-      tailColor: '#a9ecff',
+      nucleusColor: '#cec7ba',
+      emissiveColor: '#8fe0ff',
+      emissiveIntensity: 0.1,
+      tailColor: '#b6e8ff',
+      nucleusAxes: [1, 0.84, 0.92],
+      nucleusWaist: 0.12,
+      ionTailColor: '#8fd2ff',
+      dustTailColor: '#eef2ff',
+      comaColor: '#c8ecff',
     },
     accent: '#bff4ff',
     focusRingScale: 3,
   },
   halley: {
-    textureId: 'comet',
-    roughness: 0.95,
+    textureId: 'cometNucleus',
+    roughness: 0.97,
     metalness: 0,
     textureOffsetU: 0,
     // Giotto found a crust that reflects 4% of the light that lands on it — one
     // of the darkest surfaces measured in the Solar System — so the nucleus is
-    // drawn nearly black and the glow comes from the gas boiling off it.
+    // drawn near-black and the glow comes from the gas boiling off it. Its shape
+    // is the famous 15 × 7 × 7 km peanut photographed by Giotto in 1986.
     comet: {
-      nucleusColor: '#4a4a46',
+      nucleusColor: '#6a6158',
       emissiveColor: '#9fe8ff',
-      emissiveIntensity: 0.22,
+      emissiveIntensity: 0.05,
       tailColor: '#dbeaff',
+      nucleusAxes: [1, 0.48, 0.48],
+      nucleusWaist: 0.26,
+      ionTailColor: '#6fb0ff',
+      dustTailColor: '#f0e2c2',
+      comaColor: '#bfe0d4',
     },
     accent: '#cfe9ff',
     focusRingScale: 3,
