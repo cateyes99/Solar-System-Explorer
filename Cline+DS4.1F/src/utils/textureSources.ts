@@ -129,4 +129,5 @@ export const TEXTURE_IDS: TextureId[] = [
   'neptune',
   'pluto',
   'comet',
+  'cometNucleus',
 ]
