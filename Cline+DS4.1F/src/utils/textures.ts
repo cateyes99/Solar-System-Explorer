@@ -1025,6 +1025,51 @@ function paintComet(size: MapSize): HTMLCanvasElement {
   return canvas
 }
 
+/**
+ * The surface of a comet nucleus.
+ *
+ * Both comets are wrapped around this map, but they tint it very differently:
+ * Halley's crust reflects only 4% of the light that hits it — darker than coal,
+ * and slightly red because the ice is mixed with tholins — while the younger
+ * Cline-1 is paler grey ice. So the map itself is drawn as a near-neutral,
+ * heavily mottled rock and the colour comes from the body's `nucleusColor`.
+ *
+ * A handful of bright pits stand in for the active vents Giotto photographed
+ * venting dust into space, and fine craters give the surface some relief.
+ */
+function paintCometNucleus(size: MapSize): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const field = sampleField(size.width, size.height, {
+    radius: 3.1,
+    height: 2.1,
+    octaves: 6,
+    seed: 1986,
+    warp: 0.08,
+  })
+  const vents = sampleField(size.width, size.height, {
+    radius: 1.7,
+    height: 1.1,
+    octaves: 3,
+    seed: 2061,
+  })
+  const ctx = colorize(canvas, field, (value, _u, _v, x, y) => {
+    const base = ramp(
+      [
+        [0, [26, 23, 21]],
+        [0.4, [46, 40, 36]],
+        [0.7, [68, 60, 52]],
+        [1, [96, 86, 74]],
+      ],
+      value,
+    )
+    // Bright, freshly exposed ice inside the active vents.
+    const vent = smoothstep(0.66, 0.82, vents[y * size.width + x])
+    return mix(base, [188, 176, 158], vent * 0.55)
+  })
+  addCraters(ctx, 90, 4815, size.width * 0.006, size.width * 0.05, 0.85)
+  return canvas
+}
+
 /* ------------------------------------------------------------------ *
  * Real map data
  * ------------------------------------------------------------------ */
@@ -1197,6 +1242,7 @@ const PAINTERS: Painter[] = [
   { id: 'neptune', label: 'Winding up Neptune’s winds', build: (size) => paintNeptune(size) },
   { id: 'pluto', label: 'Freezing Pluto’s plains', build: (size) => paintPluto(size) },
   { id: 'comet', label: 'Waking a distant comet', build: (size) => paintComet(size) },
+  { id: 'cometNucleus', label: 'Cratering a comet’s crust', build: (size) => paintCometNucleus(size) },
 ]
 
 const PAINTER_BY_ID = new Map<TextureId, Painter>(PAINTERS.map((painter) => [painter.id, painter]))
@@ -1207,6 +1253,7 @@ function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'star') return { width: 64, height: 64 }
   if (id === 'glow') return { width: 256, height: 256 }
   if (id === 'comet') return { width: 128, height: 128 }
+  if (id === 'cometNucleus') return { width: 256, height: 128 }
   if (id === 'saturnRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
   if (id === 'uranusRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
 
