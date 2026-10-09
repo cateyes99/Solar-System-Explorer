@@ -125,16 +125,20 @@ the science.
 ### What is real, what is simplified
 
 - **Real:** diameters, masses, mean distances, orbital and rotation periods, axial tilts, surface
-  gravities, temperatures, moon counts, light travel times, orbital eccentricities, and the periapsis
-  longitudes and mean longitudes at epoch J2000.
-- **Approximated:** positions come from mean orbital elements, with Kepler's equation solved exactly
-  for the ellipse. That is accurate enough to show which planet is where on a given date (and it produces
-  visibly elliptical orbits, the correct speed-up at perihelion, and comets that always travel the same
-  way round), but it is not a full VSOP87 ephemeris, so it will not match a planetarium to the
-  arc-minute.
-- **Simplified on purpose:** the scale (above), moon sizes and moon orbits, the lighting falloff
-  (the Sun's light does not fade with distance, so distant planets stay readable) and the spacecraft,
-  which is a friendly arcade model rather than a real trajectory.
+  gravities, temperatures, moon counts, light travel times, and the full set of orbital elements —
+  eccentricity, inclination to the ecliptic, longitude of the ascending node, periapsis longitude and
+  mean longitude at epoch J2000 — for the planets, Pluto, Halley's Comet and the moons.
+- **Approximated:** positions come from those mean elements, with Kepler's equation solved exactly for
+  the ellipse and the perifocal point rotated into space by the real inclination and node. That is
+  accurate enough to show which planet is where on a given date — and it produces visibly elliptical
+  orbits that are correctly tilted (Mercury's 7°, Pluto's 17°, Halley's retrograde 162°), the speed-up
+  at perihelion, and comets that always travel the same way round — but it is not a full VSOP87
+  ephemeris, so it will not match a planetarium to the arc-minute. A moon's place along its path is
+  representative unless the data carries its J2000 mean anomaly.
+- **Simplified on purpose:** the scale (above), moon sizes, the compression of moon orbital radii so a
+  family fits beside its planet, the lighting falloff (the Sun's light does not fade with distance, so
+  distant planets stay readable) and the spacecraft, which is a friendly arcade model rather than a
+  real trajectory.
 - **Hypothetical:** everything in *What If?* is clearly labelled as an educational simulation.
 
 ---
