@@ -50,6 +50,10 @@ export interface CelestialBody {
   longitudeOfPeriapsisDeg: number
   /** Mean longitude (degrees) at J2000. */
   meanLongitudeJ2000Deg: number
+  /** Inclination of the orbit to the ecliptic (degrees, J2000). */
+  orbitalInclinationDeg: number
+  /** Longitude of the ascending node (degrees, J2000). */
+  longitudeOfAscendingNodeDeg: number
   axialTiltDeg: number
   /** Number of confirmed natural satellites (rounded, approximate). */
   moons: number
@@ -84,6 +88,20 @@ export interface SatelliteDefinition {
   orbitalPeriodDays: number
   color: string
   note: string
+  /**
+   * Inclination of the moon's orbit to the ecliptic (degrees). Most large moons
+   * circle their planet's equator, so this is close to the planet's obliquity —
+   * which is why Titan's orbit leans 27° and Titania's stands nearly upright.
+   */
+  orbitalInclinationDeg?: number
+  /** Longitude of the ascending node (degrees); 0 when not measured here. */
+  longitudeOfAscendingNodeDeg?: number
+  /** Argument of periapsis (degrees). */
+  argumentOfPeriapsisDeg?: number
+  /** Orbital eccentricity — small, but real: our Moon's is 0.055. */
+  orbitalEccentricity?: number
+  /** Mean anomaly at J2000.0 (degrees): where the moon sits on its orbit. */
+  meanAnomalyJ2000Deg?: number
 }
 
 export type ScaleMode = 'educational' | 'relativeSize' | 'distances' | 'custom'

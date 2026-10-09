@@ -14,9 +14,9 @@ import type { BufferAttribute, Group, Mesh, PointsMaterial, Sprite, SpriteMateri
 import type { CelestialBody } from '../../types'
 import type { CometVisuals } from '../../data/visuals'
 import { BODY_VISUALS } from '../../data/visuals'
-import { AU_KM, orbitalState, toSceneXZ } from '../../utils/astronomy'
+import { AU_KM, orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
-import { scaleDistanceKm } from '../../utils/scale'
+import { sceneFromEclipticKm } from '../../utils/scale'
 import { clamp, createRandom, fbm } from '../../utils/random'
 import { getTexture } from '../../utils/textures'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
@@ -287,17 +287,16 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     const group = groupRef.current
     if (!group) return
     const days = clock.daysSinceJ2000
-    const state = orbitalState(body, days)
-    const distance = scaleDistanceKm(state.distanceKm, scaleMode, customScale)
-    const scene = toSceneXZ(distance, state.angleRad)
-    group.position.set(scene.x, 0, scene.z)
+    const ecliptic = orbitalPositionKm(body, days)
+    const scene = sceneFromEclipticKm(ecliptic.x, ecliptic.y, ecliptic.z, scaleMode, customScale)
+    group.position.set(scene.x, scene.y, scene.z)
     // +Z then points at the Sun, so the tails (built along -Z) trail behind.
     group.lookAt(0, 0, 0)
 
     // --- How alive is the comet? -------------------------------------------
     // Sublimation of water ice turns on sharply inside a few au, so activity is
     // driven by the real heliocentric distance rather than by the drawn orbit.
-    const au = state.distanceKm / AU_KM
+    const au = Math.hypot(ecliptic.x, ecliptic.y, ecliptic.z) / AU_KM
     const activity = clamp((3.2 / Math.max(au, 0.2)) ** 2, 0.004, 1)
 
     // --- Nucleus tumble -----------------------------------------------------
@@ -316,10 +315,9 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     // The plasma tail follows the solar wind and points dead anti-sunward, but
     // the heavier dust keeps some of the comet's own sideways motion, so its tail
     // lags behind and the two tails visibly split apart.
-    const aheadState = orbitalState(body, days + 0.1)
-    const aheadDistance = scaleDistanceKm(aheadState.distanceKm, scaleMode, customScale)
-    const ahead = toSceneXZ(aheadDistance, aheadState.angleRad)
-    motionTmp.current.set(ahead.x - scene.x, 0, ahead.z - scene.z)
+    const aheadState = orbitalPositionKm(body, days + 0.1)
+    const ahead = sceneFromEclipticKm(aheadState.x, aheadState.y, aheadState.z, scaleMode, customScale)
+    motionTmp.current.set(ahead.x - scene.x, ahead.y - scene.y, ahead.z - scene.z)
     if (motionTmp.current.lengthSq() > 1e-8) {
       inverseQuaternion.current.copy(group.quaternion).invert()
       // Trailing direction = -velocity, expressed in the comet's own frame.

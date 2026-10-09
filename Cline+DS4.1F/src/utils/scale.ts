@@ -140,6 +140,26 @@ export function scaleDistanceKm(km: number, mode: ScaleMode, custom: CustomScale
   return orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: km }, mode, custom)
 }
 
+/**
+ * Maps a heliocentric ecliptic position (km, J2000) into scene coordinates.
+ *
+ * The radial compression is applied to the position's distance, so a body always
+ * sits exactly on the orbit line drawn from the same elements. The ecliptic's
+ * north (z) becomes the scene's up (y), and its in-plane y becomes the scene's
+ * −z, matching the way the anti-clockwise motion reads from ecliptic north.
+ */
+export function sceneFromEclipticKm(
+  xKm: number,
+  yKm: number,
+  zKm: number,
+  mode: ScaleMode,
+  custom: CustomScale,
+): { x: number; y: number; z: number } {
+  const distance = Math.hypot(xKm, yKm, zKm)
+  const factor = distance > 0 ? scaleDistanceKm(distance, mode, custom) / distance : 0
+  return { x: xKm * factor, y: zKm * factor, z: -yKm * factor }
+}
+
 /** Visual radius for any focusable object, used to frame the camera nicely. */
 export function visualRadiusOf(id: FocusTargetId, mode: ScaleMode, custom: CustomScale): number {
   if (id === 'spacecraft') return 0.6

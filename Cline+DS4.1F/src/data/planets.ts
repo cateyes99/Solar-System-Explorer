@@ -22,6 +22,8 @@ export const SUN: CelestialBody = {
   orbitalEccentricity: 0,
   longitudeOfPeriapsisDeg: 0,
   meanLongitudeJ2000Deg: 0,
+  orbitalInclinationDeg: 0,
+  longitudeOfAscendingNodeDeg: 0,
   axialTiltDeg: 7.25,
   moons: 0,
   temperatureC: 5_505,
@@ -54,6 +56,9 @@ export const MERCURY: CelestialBody = {
   orbitalEccentricity: 0.2056,
   longitudeOfPeriapsisDeg: 77.46,
   meanLongitudeJ2000Deg: 252.25,
+  // JPL/Standish J2000 element set: inclined 7.00°, node 48.33°.
+  orbitalInclinationDeg: 7.00498,
+  longitudeOfAscendingNodeDeg: 48.33077,
   axialTiltDeg: 0.03,
   moons: 0,
   temperatureC: 167,
@@ -86,6 +91,8 @@ export const VENUS: CelestialBody = {
   orbitalEccentricity: 0.0068,
   longitudeOfPeriapsisDeg: 131.53,
   meanLongitudeJ2000Deg: 181.98,
+  orbitalInclinationDeg: 3.39468,
+  longitudeOfAscendingNodeDeg: 76.67984,
   axialTiltDeg: 177.36,
   moons: 0,
   temperatureC: 464,
@@ -118,6 +125,9 @@ export const EARTH: CelestialBody = {
   orbitalEccentricity: 0.0167,
   longitudeOfPeriapsisDeg: 102.95,
   meanLongitudeJ2000Deg: 100.46,
+  // The ecliptic is defined by Earth's orbit, so its inclination is ~0.
+  orbitalInclinationDeg: 0,
+  longitudeOfAscendingNodeDeg: 0,
   axialTiltDeg: 23.44,
   moons: 1,
   temperatureC: 15,
@@ -150,6 +160,8 @@ export const MARS: CelestialBody = {
   orbitalEccentricity: 0.0934,
   longitudeOfPeriapsisDeg: 336.06,
   meanLongitudeJ2000Deg: 355.43,
+  orbitalInclinationDeg: 1.84969,
+  longitudeOfAscendingNodeDeg: 49.55954,
   axialTiltDeg: 25.19,
   moons: 2,
   temperatureC: -65,
@@ -182,6 +194,8 @@ export const JUPITER: CelestialBody = {
   orbitalEccentricity: 0.0489,
   longitudeOfPeriapsisDeg: 14.75,
   meanLongitudeJ2000Deg: 34.35,
+  orbitalInclinationDeg: 1.3044,
+  longitudeOfAscendingNodeDeg: 100.47391,
   axialTiltDeg: 3.13,
   moons: 95,
   temperatureC: -110,
@@ -213,6 +227,8 @@ export const SATURN: CelestialBody = {
   orbitalEccentricity: 0.0565,
   longitudeOfPeriapsisDeg: 92.43,
   meanLongitudeJ2000Deg: 50.08,
+  orbitalInclinationDeg: 2.48599,
+  longitudeOfAscendingNodeDeg: 113.66242,
   axialTiltDeg: 26.73,
   moons: 146,
   temperatureC: -140,
@@ -245,6 +261,8 @@ export const URANUS: CelestialBody = {
   orbitalEccentricity: 0.0457,
   longitudeOfPeriapsisDeg: 170.96,
   meanLongitudeJ2000Deg: 314.06,
+  orbitalInclinationDeg: 0.77264,
+  longitudeOfAscendingNodeDeg: 74.01693,
   axialTiltDeg: 97.77,
   moons: 28,
   temperatureC: -195,
@@ -277,6 +295,8 @@ export const NEPTUNE: CelestialBody = {
   orbitalEccentricity: 0.0113,
   longitudeOfPeriapsisDeg: 44.97,
   meanLongitudeJ2000Deg: 304.35,
+  orbitalInclinationDeg: 1.77004,
+  longitudeOfAscendingNodeDeg: 131.78423,
   axialTiltDeg: 28.32,
   moons: 16,
   temperatureC: -200,
@@ -300,11 +320,10 @@ export const NEPTUNE: CelestialBody = {
  * Pluto: round, orbiting the Sun, and far too small to have cleared its lane —
  * a dwarf planet, and for 76 years the ninth planet people had learned at school.
  *
- * Elements are the JPL/Standish J2000 set (a 39.482 au, e 0.2488, ϖ 224.07°,
- * L 238.93°), which is the same source the planets above use. Pluto's orbit is
- * tipped 17° out of the ecliptic and crosses inside Neptune's, but the scene is a
- * flat plane (see `utils/astronomy.ts`), so the tilt is described in the panel
- * rather than drawn.
+ * Elements are the JPL/Standish J2000 set (a 39.482 au, e 0.2488, i 17.14°,
+ * Ω 110.30°, ϖ 224.07°, L 238.93°), which is the same source the planets above
+ * use. The orbit is now drawn with that real 17° tilt, and it crosses inside
+ * Neptune's path near perihelion.
  */
 export const PLUTO: CelestialBody = {
   id: 'pluto',
@@ -320,6 +339,8 @@ export const PLUTO: CelestialBody = {
   orbitalEccentricity: 0.2488,
   longitudeOfPeriapsisDeg: 224.07,
   meanLongitudeJ2000Deg: 238.93,
+  orbitalInclinationDeg: 17.14001,
+  longitudeOfAscendingNodeDeg: 110.30394,
   axialTiltDeg: 122.53,
   moons: 5,
   // Mean surface temperature: 44 K. New Horizons measured -240 °C in the coldest
@@ -352,8 +373,12 @@ export const MOON: CelestialBody = {
   rotationPeriodHours: 655.72,
   semiMajorAxisKm: 384_400,
   orbitalEccentricity: 0.0549,
-  longitudeOfPeriapsisDeg: 0,
-  meanLongitudeJ2000Deg: 0,
+  // Mean orbital elements of the Moon about the Earth at J2000.0: inclination
+  // 5.145°, node 125.08°, perigee 318.15° (so ϖ = 83.23°) and mean anomaly 135.27°.
+  longitudeOfPeriapsisDeg: 83.23,
+  meanLongitudeJ2000Deg: 218.5,
+  orbitalInclinationDeg: 5.145,
+  longitudeOfAscendingNodeDeg: 125.08,
   axialTiltDeg: 6.68,
   moons: 0,
   temperatureC: -20,
@@ -387,6 +412,9 @@ export const COMET_CLINE: CelestialBody = {
   orbitalEccentricity: 0.72,
   longitudeOfPeriapsisDeg: 48,
   meanLongitudeJ2000Deg: 190,
+  // Cline-1 is fictional, so its orbit stays a simple, unfitted ellipse.
+  orbitalInclinationDeg: 0,
+  longitudeOfAscendingNodeDeg: 0,
   axialTiltDeg: 12,
   moons: 0,
   temperatureC: -110,
@@ -410,12 +438,13 @@ export const COMET_CLINE: CelestialBody = {
 /**
  * Halley's Comet (1P/Halley): the one that comes back.
  *
- * Elements are the J2000 osculating set (a 17.834 au, e 0.96714, ϖ 169.75°),
- * anchored to the perihelion it was last seen at — 9 February 1986 — so the comet
- * sits where it really was on the date a child is looking at. Its orbit is
- * retrograde (tipped 162°, so it travels the "wrong" way round) and successive
- * returns take anywhere from 74 to 79 years because Jupiter tugs on it; neither
- * shows up in a single mean ellipse, so both are explained in the panel instead.
+ * Elements are the J2000 osculating set (a 17.834 au, e 0.96714, i 162.26°,
+ * Ω 58.42°, ϖ 169.75°), anchored to the perihelion it was last seen at — 9 February
+ * 1986 — so the comet sits where it really was on the date a child is looking at.
+ * Its orbit is retrograde — tipped 162°, so it travels the "wrong" way round, and
+ * is drawn that way — while successive returns take anywhere from 74 to 79 years
+ * because Jupiter tugs on it, which a single mean ellipse cannot show, so that is
+ * explained in the panel instead.
  */
 export const COMET_HALLEY: CelestialBody = {
   id: 'halley',
@@ -431,6 +460,10 @@ export const COMET_HALLEY: CelestialBody = {
   orbitalEccentricity: 0.96714,
   longitudeOfPeriapsisDeg: 169.75,
   meanLongitudeJ2000Deg: 236.2,
+  // Halley's orbit is retrograde: inclined 162.26° with its node at 58.42°, so
+  // it rounds the Sun the opposite way to every planet.
+  orbitalInclinationDeg: 162.2627,
+  longitudeOfAscendingNodeDeg: 58.42,
   // The scene applies no tilt to a comet's nucleus (see `Comet.tsx`) and the
   // orientation of Halley's spin axis is not published in the app's terms, so no
   // invented figure is stored here.
@@ -471,6 +504,8 @@ export const ASTEROID_BELT: CelestialBody = {
   orbitalEccentricity: 0.08,
   longitudeOfPeriapsisDeg: 0,
   meanLongitudeJ2000Deg: 0,
+  orbitalInclinationDeg: 0,
+  longitudeOfAscendingNodeDeg: 0,
   axialTiltDeg: 0,
   moons: 0,
   temperatureC: -73,
@@ -545,6 +580,11 @@ export function getBody(id: string): CelestialBody | undefined {
  * A curated set of well-known moons so children can see that planets have
  * families of their own. Distances are exaggerated in the 3D scene (see
  * `utils/scale.ts`) because the true ratios are impossible to see on a screen.
+ *
+ * The orbital elements are real: each moon's inclination is measured against the
+ * ecliptic, and because most large moons circle their planet's equator, that
+ * inclination follows the planet's own tilt — which is why Titan's path leans and
+ * Titania's stands almost upright. Eccentricities are the measured values.
  */
 export const SATELLITES: SatelliteDefinition[] = [
   {
@@ -554,6 +594,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 22.5,
     orbitalRadiusKm: 9_376,
     orbitalPeriodDays: 0.319,
+    orbitalEccentricity: 0.0151,
+    orbitalInclinationDeg: 25.19,
     color: '#9b8f86',
     note: 'Races around Mars three times a day.',
   },
@@ -564,6 +606,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 12.4,
     orbitalRadiusKm: 23_463,
     orbitalPeriodDays: 1.263,
+    orbitalEccentricity: 0.00033,
+    orbitalInclinationDeg: 25.19,
     color: '#a89b90',
     note: 'Tiny and lumpy, only 12 km across.',
   },
@@ -574,6 +618,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 3_643,
     orbitalRadiusKm: 421_700,
     orbitalPeriodDays: 1.769,
+    orbitalEccentricity: 0.0041,
+    orbitalInclinationDeg: 3.13,
     color: '#e8dc7f',
     note: 'The most volcanic world we know.',
   },
@@ -584,6 +630,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 3_122,
     orbitalRadiusKm: 671_034,
     orbitalPeriodDays: 3.551,
+    orbitalEccentricity: 0.009,
+    orbitalInclinationDeg: 3.13,
     color: '#dcd3c2',
     note: 'Has an ocean of water under an icy crust.',
   },
@@ -594,6 +642,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 5_268,
     orbitalRadiusKm: 1_070_412,
     orbitalPeriodDays: 7.155,
+    orbitalEccentricity: 0.0013,
+    orbitalInclinationDeg: 3.13,
     color: '#b9b0a6',
     note: 'The biggest moon in the Solar System.',
   },
@@ -604,6 +654,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 4_821,
     orbitalRadiusKm: 1_882_709,
     orbitalPeriodDays: 16.689,
+    orbitalEccentricity: 0.0074,
+    orbitalInclinationDeg: 3.13,
     color: '#8d8378',
     note: 'The most cratered object we know of.',
   },
@@ -614,6 +666,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 5_150,
     orbitalRadiusKm: 1_221_870,
     orbitalPeriodDays: 15.945,
+    orbitalEccentricity: 0.0288,
+    orbitalInclinationDeg: 26.73,
     color: '#e0a049',
     note: 'Has lakes and rivers of liquid methane.',
   },
@@ -624,6 +678,9 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 1_578,
     orbitalRadiusKm: 435_910,
     orbitalPeriodDays: 8.706,
+    // Uranus is tipped 97.8°, so its moons circle it almost pole-to-pole.
+    orbitalEccentricity: 0.0011,
+    orbitalInclinationDeg: 97.77,
     color: '#b6b2ad',
     note: 'The largest moon of Uranus.',
   },
@@ -634,6 +691,9 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 2_707,
     orbitalRadiusKm: 354_759,
     orbitalPeriodDays: 5.877,
+    // Triton is a captured world: its orbit runs backwards, inclined ~130°.
+    orbitalEccentricity: 0.000016,
+    orbitalInclinationDeg: 130,
     color: '#cfd8e3',
     note: 'Orbits backwards and has icy geysers.',
   },
@@ -644,6 +704,9 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 1_212,
     orbitalRadiusKm: 19_591,
     orbitalPeriodDays: 6.387,
+    // Charon orbits in Pluto's tilted equatorial plane (~113° to the ecliptic).
+    orbitalEccentricity: 0.0002,
+    orbitalInclinationDeg: 112.78,
     color: '#b3aca2',
     note: 'Half the size of Pluto — they circle a point between them.',
   },

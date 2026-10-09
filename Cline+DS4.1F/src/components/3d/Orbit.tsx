@@ -12,9 +12,9 @@ import {
   Object3D,
   Vector3,
 } from 'three'
-import type { CelestialBody } from '../../types'
-import { orbitSamples } from '../../utils/astronomy'
-import { bodyRadius, scaleDistanceKm } from '../../utils/scale'
+import type { CelestialBody, CustomScale, ScaleMode } from '../../types'
+import { orbitPathKm } from '../../utils/astronomy'
+import { bodyRadius, sceneFromEclipticKm } from '../../utils/scale'
 import { useSimulationStore } from '../../store/simulationStore'
 import { getBodyWorldPosition } from '../../utils/bodyRegistry'
 import { smoothstep } from '../../utils/random'
@@ -22,8 +22,10 @@ import { BODY_VISUALS } from '../../data/visuals'
 import { WIDE_VIEW_FADE_IN_RADII, WIDE_VIEW_FADE_OUT_RADII } from './constants'
 
 /**
- * The orbit path of a planet, drawn from its real semi-major axis and
- * eccentricity: slightly stretched ellipses, with the Sun at one focus.
+ * The orbit path of a planet, drawn from its real orbital elements: the true
+ * (slightly stretched) ellipse, lifted off the ecliptic by the body's measured
+ * inclination and node, so Mercury and Pluto weave above and below the rest and
+ * Halley's Comet rounds the Sun the wrong way.
  *
  * When a lesson or the cinematic tour asks for it, small arrows flow along the
  * path to show the direction of travel — "gravity keeps the planets moving".
@@ -34,22 +36,23 @@ const FLOW_ARROWS = 16
 
 function buildOrbitPositions(
   body: CelestialBody,
-  scaled: (km: number) => number,
+  mode: ScaleMode,
+  custom: CustomScale,
   sampleCount: number,
 ): Float32Array {
-  const samples = orbitSamples(body, sampleCount)
+  const samples = orbitPathKm(body, sampleCount)
   const positions = new Float32Array(sampleCount * 3)
   for (let i = 0; i < sampleCount; i += 1) {
-    const kmX = samples[i * 2]
-    const kmY = samples[i * 2 + 1]
-    const kmDistance = Math.hypot(kmX, kmY)
-    const sceneDistance = scaled(kmDistance)
-    const scale = kmDistance > 0 ? sceneDistance / kmDistance : 0
-    positions[i * 3] = kmX * scale
-    positions[i * 3 + 1] = 0
-    // Same convention as the planet positions: -sin keeps the motion mirrored
-    // correctly when looking down on the ecliptic from the north.
-    positions[i * 3 + 2] = -kmY * scale
+    const point = sceneFromEclipticKm(
+      samples[i * 3],
+      samples[i * 3 + 1],
+      samples[i * 3 + 2],
+      mode,
+      custom,
+    )
+    positions[i * 3] = point.x
+    positions[i * 3 + 1] = point.y
+    positions[i * 3 + 2] = point.z
   }
   return positions
 }
@@ -76,7 +79,7 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
   const arrowCount = quality === 'high' ? FLOW_ARROWS : 10
 
   const geometry = useMemo(() => {
-    const positions = buildOrbitPositions(body, (km) => scaleDistanceKm(km, scaleMode, customScale), sampleCount)
+    const positions = buildOrbitPositions(body, scaleMode, customScale, sampleCount)
     const buffer = new BufferGeometry()
     buffer.setAttribute('position', new Float32BufferAttribute(positions, 3))
     buffer.computeBoundingSphere()
@@ -145,11 +148,13 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
       const index = (i * step + Math.floor(time * count)) % count
       const next = (index + 2) % count
       const x = positions.getX(index)
+      const y = positions.getY(index)
       const z = positions.getZ(index)
       const nx = positions.getX(next)
+      const ny = positions.getY(next)
       const nz = positions.getZ(next)
-      dummy.position.set(x, 0, z)
-      dummy.lookAt(nx, 0, nz)
+      dummy.position.set(x, y, z)
+      dummy.lookAt(nx, ny, nz)
       // The cone points along +Y by default, so tip it onto the direction of travel.
       dummy.rotateX(Math.PI / 2)
       dummy.scale.setScalar(0.16)

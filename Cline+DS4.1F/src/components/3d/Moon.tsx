@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { MeshStandardMaterial } from 'three'
+import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, MeshStandardMaterial } from 'three'
 import type { ColorRepresentation, Group, Mesh } from 'three'
 import type { BodyId, FocusTargetId, QualityLevel, SatelliteDefinition } from '../../types'
 import { BODY_VISUALS } from '../../data/visuals'
 import { clock } from '../../utils/simulationClock'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { satelliteOrbitRadius, satelliteRadius } from '../../utils/scale'
+import { satellitePosition, satelliteOrbitPath, type SatelliteOrbit } from '../../utils/astronomy'
 import { hashString } from '../../utils/random'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
@@ -18,6 +19,13 @@ import { LOW_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE } from './geometry'
  * Moons are deliberately rendered as cheap low-detail spheres with solid
  * colours — except our own Moon, which gets its cratered texture and a full
  * information panel.
+ *
+ * Their paths are real Keplerian orbits, though: each one carries its measured
+ * inclination, node and eccentricity, so Titan leans over with Saturn's spin,
+ * Titania stands almost upright beside tipped-over Uranus, and Triton circles
+ * Neptune the wrong way. Most large moons have no published mean anomaly in the
+ * app's data, so their place on the path is seeded from their name — the shape
+ * and tilt are measured, the starting angle is only representative.
  */
 interface MoonProps {
   satellite: SatelliteDefinition
@@ -30,8 +38,6 @@ interface MoonProps {
   nameOverride?: string
   colorOverride?: ColorRepresentation
   periodOverrideDays?: number
-  /** Slight orbital tilt, in degrees, so the family does not look flat. */
-  inclinationDeg?: number
 }
 
 export function Moon({
@@ -43,7 +49,6 @@ export function Moon({
   nameOverride,
   colorOverride,
   periodOverrideDays,
-  inclinationDeg = 0,
 }: MoonProps) {
   const orbitRef = useRef<Group>(null)
   const meshRef = useRef<Mesh>(null)
@@ -51,15 +56,61 @@ export function Moon({
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
   const showToast = useSimulationStore((state) => state.showToast)
+  const showOrbits = useSimulationStore((state) => state.showOrbits)
 
   const visualRadius = satelliteRadius(satellite, parentRadius)
-  const orbitRadius = satelliteOrbitRadius(satellite, parentRadius)
   const periodDays = periodOverrideDays ?? satellite.orbitalPeriodDays
   // Seeded from the parent and the moon's own id, so every family is spread
   // around its planet instead of lining up at the same angle.
   const phase = useMemo(
     () => hashString(`${parentId}:${satellite.id}`) * Math.PI * 2,
     [parentId, satellite.id],
+  )
+
+  /**
+   * The moon's real orbit: measured eccentricity, inclination and node, with its
+   * semi-major axis compressed to the scene's moon-orbit radius. When the data
+   * has a J2000 mean anomaly it is used; otherwise the seeded phase stands in.
+   */
+  const orbit = useMemo<SatelliteOrbit>(
+    () => ({
+      semiMajor: satelliteOrbitRadius(satellite, parentRadius),
+      eccentricity: satellite.orbitalEccentricity ?? 0,
+      inclinationDeg: satellite.orbitalInclinationDeg ?? 0,
+      ascendingNodeDeg: satellite.longitudeOfAscendingNodeDeg ?? 0,
+      argumentOfPeriapsisDeg: satellite.argumentOfPeriapsisDeg ?? 0,
+      meanAnomaly0Deg: satellite.meanAnomalyJ2000Deg ?? phase * (180 / Math.PI),
+      periodDays,
+    }),
+    [satellite, parentRadius, periodDays, phase],
+  )
+
+  const orbitGeometry = useMemo(() => {
+    const samples = satelliteOrbitPath(orbit, quality === 'low' ? 64 : 128)
+    const geometry = new BufferGeometry()
+    geometry.setAttribute('position', new Float32BufferAttribute(samples, 3))
+    geometry.computeBoundingSphere()
+    return geometry
+  }, [orbit, quality])
+
+  const orbitLine = useMemo(() => {
+    const material = new LineBasicMaterial({
+      color: colorOverride ?? satellite.color,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+    })
+    const object = new Line(orbitGeometry, material)
+    object.frustumCulled = false
+    return object
+  }, [orbitGeometry, colorOverride, satellite.color])
+
+  useEffect(
+    () => () => {
+      orbitGeometry.dispose()
+      ;(orbitLine.material as LineBasicMaterial).dispose()
+    },
+    [orbitGeometry, orbitLine],
   )
 
   /**
@@ -102,19 +153,20 @@ export function Moon({
   }, [bodyId])
 
   useFrame(() => {
-    const orbit = orbitRef.current
-    if (!orbit) return
-    const days = clock.daysSinceJ2000
-    const angle = phase + (days / periodDays) * Math.PI * 2
-    orbit.position.set(Math.cos(angle) * orbitRadius, 0, -Math.sin(angle) * orbitRadius)
-    // Tidally locked, like every large moon in the real Solar System.
-    if (meshRef.current) meshRef.current.rotation.y = -angle
+    const group = orbitRef.current
+    if (!group) return
+    const position = satellitePosition(orbit, clock.daysSinceJ2000)
+    group.position.set(position.x, position.y, position.z)
+    // Tidally locked, like every large moon in the real Solar System: the same
+    // face always turns toward the planet at the origin of this group.
+    if (meshRef.current) meshRef.current.rotation.y = -Math.atan2(-position.z, position.x)
   })
 
   const geometry = quality === 'low' ? LOW_DETAIL_SPHERE : MEDIUM_DETAIL_SPHERE
 
   return (
-    <group rotation={[0, 0, inclinationDeg * (Math.PI / 180)]}>
+    <group>
+      {showOrbits ? <primitive object={orbitLine} /> : null}
       <group ref={orbitRef}>
         <mesh
           ref={meshRef}
