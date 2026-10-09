@@ -1055,18 +1055,18 @@ function paintCometNucleus(size: MapSize): HTMLCanvasElement {
   const ctx = colorize(canvas, field, (value, _u, _v, x, y) => {
     const base = ramp(
       [
-        [0, [26, 23, 21]],
-        [0.4, [46, 40, 36]],
-        [0.7, [68, 60, 52]],
-        [1, [96, 86, 74]],
+        [0, [20, 17, 15]],
+        [0.4, [44, 38, 33]],
+        [0.7, [78, 68, 58]],
+        [1, [122, 108, 90]],
       ],
       value,
     )
-    // Bright, freshly exposed ice inside the active vents.
-    const vent = smoothstep(0.66, 0.82, vents[y * size.width + x])
-    return mix(base, [188, 176, 158], vent * 0.55)
+    // Bright, freshly exposed ice inside the active vents Giotto saw venting.
+    const vent = smoothstep(0.58, 0.78, vents[y * size.width + x])
+    return mix(base, [196, 186, 168], vent * 0.72)
   })
-  addCraters(ctx, 90, 4815, size.width * 0.006, size.width * 0.05, 0.85)
+  addCraters(ctx, 140, 4815, size.width * 0.005, size.width * 0.06, 0.9)
   return canvas
 }
 

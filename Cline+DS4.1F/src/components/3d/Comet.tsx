@@ -6,6 +6,7 @@ import {
   Color,
   Float32BufferAttribute,
   MeshStandardMaterial,
+  Quaternion,
   SphereGeometry,
   Vector3,
 } from 'three'
@@ -86,7 +87,7 @@ function createNucleusGeometry({ axes, waist, seed }: NucleusOptions): BufferGeo
     // Broad lumps plus finer relief, both deterministic and seed-specific.
     const lumps = fbm(nx * 1.4 + seed * 0.11, ny * 1.4, nz * 1.4, 3, seed)
     const grain = fbm(nx * 3.8, ny * 3.8, nz * 3.8, 4, seed + 917)
-    const radius = 1 + (lumps - 0.5) * 0.5 + (grain - 0.5) * 0.14
+    const radius = 1 + (lumps - 0.5) * 0.62 + (grain - 0.5) * 0.2
 
     point.set(nx * ax, ny * ay, nz * az).multiplyScalar(radius)
     // Pinch the middle: only the long (x) axis's centre is squeezed, so the
@@ -184,6 +185,11 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
   const spriteMaterialRef = useRef<SpriteMaterial>(null)
   const ionMaterialRef = useRef<PointsMaterial>(null)
   const dustMaterialRef = useRef<PointsMaterial>(null)
+  // How far the dust tail currently leans away from anti-sun, in radians.
+  const dustLag = useRef(0)
+  const motionTmp = useRef(new Vector3())
+  const localTmp = useRef(new Vector3())
+  const inverseQuaternion = useRef(new Quaternion())
 
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
@@ -219,7 +225,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     return new MeshStandardMaterial({
       map,
       bumpMap: map,
-      bumpScale: 0.02,
+      bumpScale: 0.04,
       color: look.nucleusColor,
       roughness: visuals.roughness,
       metalness: visuals.metalness,
@@ -306,6 +312,23 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
       nucleusRef.current.rotation.z += delta * 0.06
     }
 
+    // --- Dust tail lag ------------------------------------------------------
+    // The plasma tail follows the solar wind and points dead anti-sunward, but
+    // the heavier dust keeps some of the comet's own sideways motion, so its tail
+    // lags behind and the two tails visibly split apart.
+    const aheadState = orbitalState(body, days + 0.1)
+    const aheadDistance = scaleDistanceKm(aheadState.distanceKm, scaleMode, customScale)
+    const ahead = toSceneXZ(aheadDistance, aheadState.angleRad)
+    motionTmp.current.set(ahead.x - scene.x, 0, ahead.z - scene.z)
+    if (motionTmp.current.lengthSq() > 1e-8) {
+      inverseQuaternion.current.copy(group.quaternion).invert()
+      // Trailing direction = -velocity, expressed in the comet's own frame.
+      localTmp.current.copy(motionTmp.current).multiplyScalar(-1).applyQuaternion(inverseQuaternion.current)
+      const lean = clamp(Math.atan2(-localTmp.current.x, -localTmp.current.z) * 0.5, -0.85, 0.85)
+      dustLag.current += (lean - dustLag.current) * Math.min(1, delta * 3)
+    }
+    if (dustRef.current) dustRef.current.rotation.y = dustLag.current
+
     // --- Coma and tails grow with activity ---------------------------------
     const ionScale = 0.14 + activity * 1.55
     const dustScale = 0.12 + activity * 1.35
@@ -367,7 +390,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
         <points geometry={ionGeometry} frustumCulled={false}>
           <pointsMaterial
             ref={ionMaterialRef}
-            map={getTexture('glow')}
+            map={getTexture('star')}
             size={0.17}
             sizeAttenuation
             vertexColors
@@ -385,7 +408,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
         <points geometry={dustGeometry} frustumCulled={false}>
           <pointsMaterial
             ref={dustMaterialRef}
-            map={getTexture('glow')}
+            map={getTexture('star')}
             size={0.26}
             sizeAttenuation
             vertexColors
