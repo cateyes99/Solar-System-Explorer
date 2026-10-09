@@ -5,9 +5,9 @@ import type { Group, Mesh, MeshBasicMaterial } from 'three'
 import type { CelestialBody, QualityLevel, SatelliteDefinition } from '../../types'
 import { BODY_VISUALS } from '../../data/visuals'
 import { MOON, satellitesOf } from '../../data/planets'
-import { orbitalState, toSceneXZ } from '../../utils/astronomy'
+import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
-import { bodyRadius, scaleDistanceKm } from '../../utils/scale'
+import { bodyRadius, sceneFromEclipticKm } from '../../utils/scale'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
@@ -30,6 +30,14 @@ const EARTHS_MOON: SatelliteDefinition = {
   orbitalPeriodDays: MOON.orbitalPeriodDays,
   color: MOON.color,
   note: 'Earth’s only natural satellite, 384,400 km away.',
+  // Mean elements of the Moon's orbit about the Earth at J2000.0: the orbit is
+  // inclined 5.145°, with its node at 125.08°, perigee at 318.15° and the Moon
+  // 135.27° past perigee at the epoch.
+  orbitalEccentricity: MOON.orbitalEccentricity,
+  orbitalInclinationDeg: MOON.orbitalInclinationDeg,
+  longitudeOfAscendingNodeDeg: MOON.longitudeOfAscendingNodeDeg,
+  argumentOfPeriapsisDeg: MOON.longitudeOfPeriapsisDeg - MOON.longitudeOfAscendingNodeDeg,
+  meanAnomalyJ2000Deg: MOON.meanLongitudeJ2000Deg - MOON.longitudeOfPeriapsisDeg,
 }
 
 /** A guest moon for the "What if Earth had two moons?" experiment. */
@@ -42,18 +50,6 @@ const GUEST_MOON: SatelliteDefinition = {
   orbitalPeriodDays: 11.4,
   color: '#cfd8e3',
   note: 'A hypothetical second moon, much smaller and much closer than ours.',
-}
-
-const MOON_INCLINATIONS: Record<string, number> = {
-  phobos: 1.1,
-  deimos: 1.8,
-  io: 0.4,
-  europa: 0.9,
-  ganymede: 0.6,
-  callisto: 1.2,
-  titan: 0.6,
-  titania: 0.9,
-  triton: 8,
 }
 
 interface PlanetProps {
@@ -165,10 +161,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
     // --- Position on the (slightly elliptical) orbit ----------------------
     const days = clock.daysSinceJ2000
-    const orbitState = orbitalState(body, days)
-    const distance = scaleDistanceKm(orbitState.distanceKm, scaleMode, customScale)
-    const scene = toSceneXZ(distance, orbitState.angleRad)
-    orbit.position.set(scene.x, 0, scene.z)
+    const ecliptic = orbitalPositionKm(body, days)
+    const scene = sceneFromEclipticKm(ecliptic.x, ecliptic.y, ecliptic.z, scaleMode, customScale)
+    orbit.position.set(scene.x, scene.y, scene.z)
 
     // --- Axial rotation ---------------------------------------------------
     if (spinRef.current && !spinFrozen && body.rotationPeriodHours !== 0) {
@@ -299,7 +294,6 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             quality={quality}
             bodyId={satellite.id === 'moon' ? 'moon' : undefined}
             nameOverride={satellite.id === 'guest-moon' ? satellite.name : undefined}
-            inclinationDeg={MOON_INCLINATIONS[satellite.id] ?? 0}
           />
         ))}
       </group>
