@@ -150,6 +150,10 @@ export function visualRadiusOf(id: FocusTargetId, mode: ScaleMode, custom: Custo
   const body = BODY_BY_ID[id]
   if (!body) return 1
   if (body.kind === 'belt') return 14
+  // A comet's nucleus is only a few kilometres across, but the thing worth
+  // flying to see is the coma and the tails, which are far larger. Framing on
+  // the nucleus alone would put the camera right on top of it.
+  if (body.kind === 'comet') return 0.5
   return bodyRadius(body, mode, custom)
 }
 
