@@ -186,7 +186,7 @@ const initialState: SimulationState = {
   showNebula: true,
   showOrbitFlow: false,
 
-  scaleMode: 'educational',
+  scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
 
   cinematic: { active: false, paused: false, stageIndex: 0 },

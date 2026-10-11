@@ -180,7 +180,7 @@ export function PlanetPanel() {
 
           <p className="mt-3 text-[0.66rem] leading-relaxed text-mist/75">
             Numbers are rounded real values from NASA and IAU data and are approximate because the planets never stop
-            moving. The 3D picture uses an educational scale, so sizes and distances are not to scale.
+            moving. The 3D picture keeps the real orbit spacing but compresses planet sizes so they stay visible.
             {discoveries.length > 0 ? ` Discoveries so far: ${discoveries.length}.` : ''}
           </p>
         </Sheet>

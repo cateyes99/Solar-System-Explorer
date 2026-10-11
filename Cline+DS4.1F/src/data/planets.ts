@@ -59,6 +59,12 @@ export const MERCURY: CelestialBody = {
   // JPL/Standish J2000 element set: inclined 7.00°, node 48.33°.
   orbitalInclinationDeg: 7.00498,
   longitudeOfAscendingNodeDeg: 48.33077,
+  // Secular rates (per Julian century) from the same JPL/Standish table.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: 0.00001906,
+  inclinationRateDegPerCentury: -0.00594749,
+  ascendingNodeRateDegPerCentury: -0.12534081,
+  longitudeOfPeriapsisRateDegPerCentury: 0.16047689,
   axialTiltDeg: 0.03,
   moons: 0,
   temperatureC: 167,
@@ -93,6 +99,12 @@ export const VENUS: CelestialBody = {
   meanLongitudeJ2000Deg: 181.98,
   orbitalInclinationDeg: 3.39468,
   longitudeOfAscendingNodeDeg: 76.67984,
+  // Secular rates (per Julian century), JPL/Standish.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00004107,
+  inclinationRateDegPerCentury: -0.0007889,
+  ascendingNodeRateDegPerCentury: -0.27769418,
+  longitudeOfPeriapsisRateDegPerCentury: 0.00268329,
   axialTiltDeg: 177.36,
   moons: 0,
   temperatureC: 464,
@@ -128,6 +140,13 @@ export const EARTH: CelestialBody = {
   // The ecliptic is defined by Earth's orbit, so its inclination is ~0.
   orbitalInclinationDeg: 0,
   longitudeOfAscendingNodeDeg: 0,
+  // Secular rates (per Julian century), JPL/Standish. Earth's node is undefined
+  // (its orbit defines the ecliptic), so only the shape and perihelion drift.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00003804,
+  inclinationRateDegPerCentury: -0.01294668,
+  ascendingNodeRateDegPerCentury: 0,
+  longitudeOfPeriapsisRateDegPerCentury: 0.32327364,
   axialTiltDeg: 23.44,
   moons: 1,
   temperatureC: 15,
@@ -155,6 +174,12 @@ export const MARS: CelestialBody = {
   diameterKm: 6_779,
   distanceFromSunKm: 227_920_000,
   orbitalPeriodDays: 686.98,
+  // Secular rates (per Julian century), JPL/Standish.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00001847,
+  inclinationRateDegPerCentury: -0.00813131,
+  ascendingNodeRateDegPerCentury: -0.29257343,
+  longitudeOfPeriapsisRateDegPerCentury: 0.44441088,
   rotationPeriodHours: 24.623,
   semiMajorAxisKm: 227_920_000,
   orbitalEccentricity: 0.0934,
@@ -196,6 +221,12 @@ export const JUPITER: CelestialBody = {
   meanLongitudeJ2000Deg: 34.35,
   orbitalInclinationDeg: 1.3044,
   longitudeOfAscendingNodeDeg: 100.47391,
+  // Secular rates (per Julian century), JPL/Standish.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00000013,
+  inclinationRateDegPerCentury: -0.00165335,
+  ascendingNodeRateDegPerCentury: 0.00051097,
+  longitudeOfPeriapsisRateDegPerCentury: 0.00111588,
   axialTiltDeg: 3.13,
   moons: 95,
   temperatureC: -110,
@@ -229,6 +260,12 @@ export const SATURN: CelestialBody = {
   meanLongitudeJ2000Deg: 50.08,
   orbitalInclinationDeg: 2.48599,
   longitudeOfAscendingNodeDeg: 113.66242,
+  // Secular rates (per Julian century), JPL/Standish.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00050991,
+  inclinationRateDegPerCentury: 0.00193609,
+  ascendingNodeRateDegPerCentury: -0.41897216,
+  longitudeOfPeriapsisRateDegPerCentury: 0.57747988,
   axialTiltDeg: 26.73,
   moons: 146,
   temperatureC: -140,
@@ -257,6 +294,12 @@ export const URANUS: CelestialBody = {
   distanceFromSunKm: 2_872_460_000,
   orbitalPeriodDays: 30_685.4,
   rotationPeriodHours: -17.24,
+  // Secular rates (per Julian century), JPL/Standish.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00004397,
+  inclinationRateDegPerCentury: -0.00242939,
+  ascendingNodeRateDegPerCentury: 0.04240589,
+  longitudeOfPeriapsisRateDegPerCentury: 0.40805281,
   semiMajorAxisKm: 2_872_460_000,
   orbitalEccentricity: 0.0457,
   longitudeOfPeriapsisDeg: 170.96,
@@ -285,6 +328,12 @@ export const URANUS: CelestialBody = {
 export const NEPTUNE: CelestialBody = {
   id: 'neptune',
   name: 'Neptune',
+  // Secular rates (per Julian century), JPL/Standish.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: -0.00005108,
+  inclinationRateDegPerCentury: -0.00035372,
+  ascendingNodeRateDegPerCentury: -0.01049821,
+  longitudeOfPeriapsisRateDegPerCentury: 0.3256389,
   kind: 'planet',
   type: 'Ice giant',
   diameterKm: 49_244,
@@ -341,6 +390,13 @@ export const PLUTO: CelestialBody = {
   meanLongitudeJ2000Deg: 238.93,
   orbitalInclinationDeg: 17.14001,
   longitudeOfAscendingNodeDeg: 110.30394,
+  // Secular rates (per Julian century), JPL/Standish. Pluto's fitted rates are
+  // almost all zero; only its node drifts measurably.
+  semiMajorAxisRateKmPerCentury: 0,
+  eccentricityRatePerCentury: 0,
+  inclinationRateDegPerCentury: 0,
+  ascendingNodeRateDegPerCentury: -0.01262724,
+  longitudeOfPeriapsisRateDegPerCentury: 0,
   axialTiltDeg: 122.53,
   moons: 5,
   // Mean surface temperature: 44 K. New Horizons measured -240 °C in the coldest
@@ -584,7 +640,10 @@ export function getBody(id: string): CelestialBody | undefined {
  * The orbital elements are real: each moon's inclination is measured against the
  * ecliptic, and because most large moons circle their planet's equator, that
  * inclination follows the planet's own tilt — which is why Titan's path leans and
- * Titania's stands almost upright. Eccentricities are the measured values.
+ * Titania's stands almost upright. Eccentricities, arguments of periapsis and the
+ * J2000 mean anomalies are the measured values from the JPL Solar System Dynamics
+ * "Planetary Satellite Mean Elements" tables (epoch 2000-01-01.5 TDB), so every
+ * moon starts the simulation where it really stood at the start of the year 2000.
  */
 export const SATELLITES: SatelliteDefinition[] = [
   {
@@ -596,6 +655,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     orbitalPeriodDays: 0.319,
     orbitalEccentricity: 0.0151,
     orbitalInclinationDeg: 25.19,
+    argumentOfPeriapsisDeg: 216.3,
+    meanAnomalyJ2000Deg: 189.7,
     color: '#9b8f86',
     note: 'Races around Mars three times a day.',
   },
@@ -608,6 +669,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     orbitalPeriodDays: 1.263,
     orbitalEccentricity: 0.00033,
     orbitalInclinationDeg: 25.19,
+    argumentOfPeriapsisDeg: 0,
+    meanAnomalyJ2000Deg: 205,
     color: '#a89b90',
     note: 'Tiny and lumpy, only 12 km across.',
   },
@@ -618,6 +681,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 3_643,
     orbitalRadiusKm: 421_700,
     orbitalPeriodDays: 1.769,
+    argumentOfPeriapsisDeg: 49.1,
+    meanAnomalyJ2000Deg: 330.9,
     orbitalEccentricity: 0.0041,
     orbitalInclinationDeg: 3.13,
     color: '#e8dc7f',
@@ -630,6 +695,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     diameterKm: 3_122,
     orbitalRadiusKm: 671_034,
     orbitalPeriodDays: 3.551,
+    argumentOfPeriapsisDeg: 45,
+    meanAnomalyJ2000Deg: 345.4,
     orbitalEccentricity: 0.009,
     orbitalInclinationDeg: 3.13,
     color: '#dcd3c2',
@@ -640,6 +707,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     name: 'Ganymede',
     parentId: 'jupiter',
     diameterKm: 5_268,
+    argumentOfPeriapsisDeg: 198.3,
+    meanAnomalyJ2000Deg: 324.8,
     orbitalRadiusKm: 1_070_412,
     orbitalPeriodDays: 7.155,
     orbitalEccentricity: 0.0013,
@@ -656,6 +725,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     orbitalPeriodDays: 16.689,
     orbitalEccentricity: 0.0074,
     orbitalInclinationDeg: 3.13,
+    argumentOfPeriapsisDeg: 43.8,
+    meanAnomalyJ2000Deg: 87.4,
     color: '#8d8378',
     note: 'The most cratered object we know of.',
   },
@@ -668,6 +739,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     orbitalPeriodDays: 15.945,
     orbitalEccentricity: 0.0288,
     orbitalInclinationDeg: 26.73,
+    argumentOfPeriapsisDeg: 78.3,
+    meanAnomalyJ2000Deg: 11.7,
     color: '#e0a049',
     note: 'Has lakes and rivers of liquid methane.',
   },
@@ -679,6 +752,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     orbitalRadiusKm: 435_910,
     orbitalPeriodDays: 8.706,
     // Uranus is tipped 97.8°, so its moons circle it almost pole-to-pole.
+    argumentOfPeriapsisDeg: 184,
+    meanAnomalyJ2000Deg: 68.1,
     orbitalEccentricity: 0.0011,
     orbitalInclinationDeg: 97.77,
     color: '#b6b2ad',
@@ -690,6 +765,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     parentId: 'neptune',
     diameterKm: 2_707,
     orbitalRadiusKm: 354_759,
+    argumentOfPeriapsisDeg: 0,
+    meanAnomalyJ2000Deg: 63,
     orbitalPeriodDays: 5.877,
     // Triton is a captured world: its orbit runs backwards, inclined ~130°.
     orbitalEccentricity: 0.000016,
@@ -703,6 +780,8 @@ export const SATELLITES: SatelliteDefinition[] = [
     parentId: 'pluto',
     diameterKm: 1_212,
     orbitalRadiusKm: 19_591,
+    argumentOfPeriapsisDeg: 0,
+    meanAnomalyJ2000Deg: 304.1,
     orbitalPeriodDays: 6.387,
     // Charon orbits in Pluto's tilted equatorial plane (~113° to the ecliptic).
     orbitalEccentricity: 0.0002,

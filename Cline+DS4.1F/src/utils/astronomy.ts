@@ -63,6 +63,14 @@ function reduceAngle(angle: number): number {
  *
  * `CelestialBody` stores the longitude of perihelion (ϖ = Ω + ω) and the mean
  * longitude (L = ϖ + M₀) instead, so this derives ω and M₀ from those.
+ *
+ * When the body carries JPL/Standish secular rates, the elements are advanced
+ * from J2000 to the requested date first. That is what keeps the real shape,
+ * tilt and orientation of every orbit for centuries: without it the elements
+ * would be frozen at the year 2000 and the drawn path would slowly part company
+ * with the true one. The mean anomaly is *not* advanced here — it already marches
+ * at the sidereal rate implied by `orbitalPeriodDays`, which equals the published
+ * L̇ − ϖ̇ to the precision of the data.
  */
 interface Elements {
   a: number
@@ -73,13 +81,21 @@ interface Elements {
   meanAnomaly0: number
 }
 
-function elementsOf(body: CelestialBody): Elements {
+/** Julian centuries since J2000.0 (36,525 days). */
+const DAYS_PER_CENTURY = 36_525
+
+function elementsOf(body: CelestialBody, days: number): Elements {
+  const centuries = days / DAYS_PER_CENTURY
+  const periapsisDeg =
+    body.longitudeOfPeriapsisDeg + (body.longitudeOfPeriapsisRateDegPerCentury ?? 0) * centuries
+  const ascendingDeg =
+    body.longitudeOfAscendingNodeDeg + (body.ascendingNodeRateDegPerCentury ?? 0) * centuries
   return {
-    a: body.semiMajorAxisKm,
-    e: body.orbitalEccentricity,
-    i: body.orbitalInclinationDeg * DEG,
-    ascending: body.longitudeOfAscendingNodeDeg * DEG,
-    argPeriapsis: (body.longitudeOfPeriapsisDeg - body.longitudeOfAscendingNodeDeg) * DEG,
+    a: body.semiMajorAxisKm + (body.semiMajorAxisRateKmPerCentury ?? 0) * centuries,
+    e: body.orbitalEccentricity + (body.eccentricityRatePerCentury ?? 0) * centuries,
+    i: (body.orbitalInclinationDeg + (body.inclinationRateDegPerCentury ?? 0) * centuries) * DEG,
+    ascending: ascendingDeg * DEG,
+    argPeriapsis: (periapsisDeg - ascendingDeg) * DEG,
     meanAnomaly0: (body.meanLongitudeJ2000Deg - body.longitudeOfPeriapsisDeg) * DEG,
   }
 }
@@ -127,16 +143,22 @@ function positionFromEccentric(elements: Elements, eccentric: number): Vec3 {
  * the other planets, and sends Halley round the Sun the wrong way.
  */
 export function orbitalPositionKm(body: CelestialBody, days: number): Vec3 {
-  const elements = elementsOf(body)
+  const elements = elementsOf(body, days)
   if (elements.a <= 0 || body.orbitalPeriodDays <= 0) return { x: 0, y: 0, z: 0 }
   const meanAnomaly = reduceAngle(elements.meanAnomaly0 + (Math.PI * 2 * days) / body.orbitalPeriodDays)
   const eccentric = eccentricAnomaly(meanAnomaly, elements.e)
   return positionFromEccentric(elements, eccentric)
 }
 
-/** Samples the whole orbit (km, ecliptic frame) so the real path can be drawn. */
-export function orbitPathKm(body: CelestialBody, samples = 256): Float64Array {
-  const elements = elementsOf(body)
+/**
+ * Samples the whole orbit (km, ecliptic frame) so the real path can be drawn.
+ *
+ * `days` is the date the path is drawn for: the secular rates are applied there,
+ * so the ellipse on screen is the one the body is actually travelling along at
+ * the simulated date rather than the J2000 one.
+ */
+export function orbitPathKm(body: CelestialBody, samples = 256, days = 0): Float64Array {
+  const elements = elementsOf(body, days)
   const out = new Float64Array(samples * 3)
   for (let k = 0; k < samples; k += 1) {
     const point = positionFromEccentric(elements, (k / samples) * Math.PI * 2)
