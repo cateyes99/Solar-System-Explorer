@@ -54,6 +54,22 @@ export interface CelestialBody {
   orbitalInclinationDeg: number
   /** Longitude of the ascending node (degrees, J2000). */
   longitudeOfAscendingNodeDeg: number
+  /**
+   * Secular rates of change of the orbital elements, per Julian century, from
+   * JPL's "Keplerian Elements for Approximate Positions of the Major Planets"
+   * (E. M. Standish). When present, the elements are advanced from J2000 to the
+   * simulated date, so the orbit keeps its real shape, tilt and orientation for
+   * centuries instead of slowly drifting away from the true path.
+   *
+   * The mean longitude's own rate is not stored: the mean anomaly already
+   * advances at the sidereal rate implied by `orbitalPeriodDays`, which equals
+   * the published L̇ − ϖ̇ to the precision of the data.
+   */
+  semiMajorAxisRateKmPerCentury?: number
+  eccentricityRatePerCentury?: number
+  inclinationRateDegPerCentury?: number
+  ascendingNodeRateDegPerCentury?: number
+  longitudeOfPeriapsisRateDegPerCentury?: number
   axialTiltDeg: number
   /** Number of confirmed natural satellites (rounded, approximate). */
   moons: number

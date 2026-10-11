@@ -55,9 +55,9 @@ export function Header() {
             Solar System Explorer
           </h1>
           <p className="text-[0.62rem] uppercase tracking-[0.12em] text-mist/85 sm:text-[0.68rem] sm:tracking-[0.18em]">
-            <span className="sm:hidden">Not to scale · real data</span>
+            <span className="sm:hidden">Real spacing · real data</span>
             <span className="hidden sm:inline">
-              Sizes &amp; distances are not to scale · real astronomy data
+              Real orbit spacing · planet sizes compressed · real astronomy data
             </span>
           </p>
         </div>

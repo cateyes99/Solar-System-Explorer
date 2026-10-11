@@ -7,7 +7,7 @@ import { BODY_VISUALS } from '../../data/visuals'
 import { MOON, satellitesOf } from '../../data/planets'
 import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
-import { bodyRadius, sceneFromEclipticKm } from '../../utils/scale'
+import { bodyRadius, orbitRadiusFor, sceneFromEclipticKm } from '../../utils/scale'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
@@ -80,6 +80,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const visuals = BODY_VISUALS[body.id]
   const sizeMultiplier = whatIfId === 'earth-jupiter-size' && body.id === 'earth' ? 11 : 1
   const radius = bodyRadius(body, scaleMode, customScale) * sizeMultiplier
+  /**
+   * The planet's own distance from the Sun, in scene units. Only the real-spacing
+   * view needs it: there the planets are drawn far smaller than their orbits, so
+   * it is handed to the moons to keep each family inside its own lane.
+   */
+  const orbitRadius = orbitRadiusFor(body, scaleMode, customScale)
   const spinFrozen = whatIfId === 'no-rotation' && body.id === 'earth'
   /**
    * Polar flattening, straight from the IAU figure for the body. It is applied to
@@ -291,6 +297,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             satellite={satellite}
             parentId={body.id}
             parentRadius={radius}
+            parentOrbitRadius={scaleMode === 'distances' ? orbitRadius : undefined}
             quality={quality}
             bodyId={satellite.id === 'moon' ? 'moon' : undefined}
             nameOverride={satellite.id === 'guest-moon' ? satellite.name : undefined}

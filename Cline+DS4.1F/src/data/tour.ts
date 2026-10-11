@@ -12,7 +12,7 @@ export const TOUR_STAGES: TourStage[] = [
     targetId: null,
     distanceScale: 0,
     duration: 7,
-    apply: { scaleMode: 'educational', daysPerSecond: 1 },
+    apply: { scaleMode: 'distances', daysPerSecond: 1 },
   },
   {
     id: 'the-sun',
