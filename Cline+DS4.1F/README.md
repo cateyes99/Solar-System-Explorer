@@ -6,9 +6,11 @@ textured with **real, NASA-derived map data** (Blue Marble for Earth, MESSENGER 
 Cassini for Saturn and its rings, and so on), shipped inside the app so nothing is fetched while
 it runs.
 
-> **Not to scale — on purpose.** The app uses a clearly explained *Educational Scale* so that
-> children can see the planets, watch them orbit and still learn the real numbers. Every figure in
-> the information panels is rounded, real astronomy from NASA and IAU reference values.
+> **Real spacing, honest sizes.** The app opens in **Real Distances** mode, where the planets sit at
+> their true relative distances from the Sun — Mercury huddles close, Neptune stands alone in the
+> dark — while planet sizes are compressed just enough to stay visible and clickable. Three other
+> scale modes are one click away, and every figure in the information panels is rounded, real
+> astronomy from NASA and IAU reference values.
 
 ---
 
@@ -102,11 +104,12 @@ name and a 44 px touch target on phones.
 - **Reduce Motion** (in the header or in settings) shortens camera flights, calms the visual
   effects and speeds up the tour. The operating-system `prefers-reduced-motion` preference is
   honoured automatically, and animation is disabled entirely in that mode.
-- High-contrast text on glass panels, and an unmissable note that the view is not to scale.
+- High-contrast text on glass panels, and an unmissable note that planet sizes are compressed while the
+  orbit spacing is real.
 
 ---
 
-## The Educational Scale
+## The Scale
 
 A physically exact Solar System cannot be taught on a screen: to keep Earth visible the Sun would
 have to be a hundred times wider, and to keep that Sun on screen Neptune would fall off the edge of
@@ -114,9 +117,9 @@ the world. So the picture is deliberately designed, and the UI says so out loud.
 
 | Mode | What is true | What is compressed |
 | --- | --- | --- |
+| **Real Distances** *(default)* | Orbit spacing, exactly (linear in AU) | Planet sizes |
 | **Educational Scale** | The order of the planets, the shape and direction of their orbits | Planet sizes and orbit spacing |
 | **Relative Size** | Planet sizes, exactly, relative to each other | Orbit spacing; the Sun is drawn smaller than reality |
-| **Distances Emphasized** | Orbit spacing, exactly (linear in AU) | Planet sizes |
 | **Custom** | Whatever you choose with the three sliders | Everything else |
 
 The real numbers are always available in the planet panels, so the simplified picture never replaces
@@ -127,14 +130,18 @@ the science.
 - **Real:** diameters, masses, mean distances, orbital and rotation periods, axial tilts, surface
   gravities, temperatures, moon counts, light travel times, and the full set of orbital elements —
   eccentricity, inclination to the ecliptic, longitude of the ascending node, periapsis longitude and
-  mean longitude at epoch J2000 — for the planets, Pluto, Halley's Comet and the moons.
+  mean longitude at epoch J2000 — for the planets, Pluto, Halley's Comet and the moons. The planets
+  and Pluto also carry the JPL/Standish **secular rates** (per Julian century) for eccentricity,
+  inclination, node and periapsis, so their orbits keep their true shape and orientation for
+  centuries instead of being frozen at the year 2000.
 - **Approximated:** positions come from those mean elements, with Kepler's equation solved exactly for
   the ellipse and the perifocal point rotated into space by the real inclination and node. That is
   accurate enough to show which planet is where on a given date — and it produces visibly elliptical
   orbits that are correctly tilted (Mercury's 7°, Pluto's 17°, Halley's retrograde 162°), the speed-up
   at perihelion, and comets that always travel the same way round — but it is not a full VSOP87
-  ephemeris, so it will not match a planetarium to the arc-minute. A moon's place along its path is
-  representative unless the data carries its J2000 mean anomaly.
+  ephemeris, so it will not match a planetarium to the arc-minute. Every moon's place along its path
+  comes from its measured J2000 mean anomaly (JPL Solar System Dynamics mean elements), so the moons
+  start where they really stood on 1 January 2000.
 - **Simplified on purpose:** the scale (above), moon sizes, the compression of moon orbital radii so a
   family fits beside its planet, the lighting falloff (the Sun's light does not fade with distance, so
   distant planets stay readable) and the spacecraft, which is a friendly arcade model rather than a

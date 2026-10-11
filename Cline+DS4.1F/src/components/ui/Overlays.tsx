@@ -143,8 +143,8 @@ export function HelpPanel() {
 
             <p className="mt-3 text-[0.66rem] leading-relaxed text-mist/75">
               Everything here also works with touch, and every control has a keyboard shortcut and a screen-reader label.
-              Planet facts are real astronomy with rounded numbers; the 3D picture uses an educational scale so that sizes
-              and distances stay visible.
+              Planet facts are real astronomy with rounded numbers; the 3D picture keeps the real orbit spacing but
+              compresses planet sizes so they stay visible.
             </p>
           </motion.div>
         </motion.div>

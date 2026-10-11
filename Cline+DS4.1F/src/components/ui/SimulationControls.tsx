@@ -14,9 +14,9 @@ import { audio } from '../../utils/audio'
  * phones and tablets this same content appears inside the settings sheet.
  */
 const SCALE_LABELS: Record<ScaleMode, string> = {
+  distances: 'Real Distances',
   educational: 'Educational Scale',
   relativeSize: 'Relative Size',
-  distances: 'Distances Emphasized',
   custom: 'Custom',
 }
 
@@ -58,7 +58,7 @@ export function SimulationControlsContent() {
   return (
     <div className="space-y-4">
       <section>
-        <SectionTitle hint="not to scale">Visual scale</SectionTitle>
+        <SectionTitle hint="real spacing, compressed sizes">Visual scale</SectionTitle>
         <div className="flex flex-wrap gap-1.5">
           {SCALE_MODE_ORDER.map((mode) => (
             <button

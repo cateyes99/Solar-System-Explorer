@@ -21,16 +21,21 @@ import { LOW_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE } from './geometry'
  * information panel.
  *
  * Their paths are real Keplerian orbits, though: each one carries its measured
- * inclination, node and eccentricity, so Titan leans over with Saturn's spin,
- * Titania stands almost upright beside tipped-over Uranus, and Triton circles
- * Neptune the wrong way. Most large moons have no published mean anomaly in the
- * app's data, so their place on the path is seeded from their name — the shape
- * and tilt are measured, the starting angle is only representative.
+ * inclination, node, eccentricity, argument of periapsis and J2000 mean anomaly,
+ * so Titan leans over with Saturn's spin, Titania stands almost upright beside
+ * tipped-over Uranus, Triton circles Neptune the wrong way, and every moon starts
+ * the simulation at the place it really occupied on 1 January 2000.
  */
 interface MoonProps {
   satellite: SatelliteDefinition
   parentId: BodyId
   parentRadius: number
+  /**
+   * The parent's own distance from the Sun, in scene units. Supplied only by the
+   * real-spacing view, where it caps the moon's orbit so a family cannot spill
+   * into the next planet's lane.
+   */
+  parentOrbitRadius?: number
   quality: QualityLevel
   /** Set for our Moon, so the camera can focus on it and the panel can open. */
   bodyId?: FocusTargetId
@@ -44,6 +49,7 @@ export function Moon({
   satellite,
   parentId,
   parentRadius,
+  parentOrbitRadius,
   quality,
   bodyId,
   nameOverride,
@@ -74,7 +80,7 @@ export function Moon({
    */
   const orbit = useMemo<SatelliteOrbit>(
     () => ({
-      semiMajor: satelliteOrbitRadius(satellite, parentRadius),
+      semiMajor: satelliteOrbitRadius(satellite, parentRadius, parentOrbitRadius),
       eccentricity: satellite.orbitalEccentricity ?? 0,
       inclinationDeg: satellite.orbitalInclinationDeg ?? 0,
       ascendingNodeDeg: satellite.longitudeOfAscendingNodeDeg ?? 0,
@@ -82,7 +88,7 @@ export function Moon({
       meanAnomaly0Deg: satellite.meanAnomalyJ2000Deg ?? phase * (180 / Math.PI),
       periodDays,
     }),
-    [satellite, parentRadius, periodDays, phase],
+    [satellite, parentRadius, parentOrbitRadius, periodDays, phase],
   )
 
   const orbitGeometry = useMemo(() => {
