@@ -4,25 +4,35 @@ import { NEPTUNE, EARTH, BODY_BY_ID } from '../data/planets'
 import { clamp } from './random'
 
 /**
- * The "Educational Scale".
+ * The scale.
  *
  * A physically exact Solar System cannot be taught on a screen: to keep Earth
  * visible the Sun would have to be 100× wider, and to keep it on screen Neptune
  * would fall off the edge of the world. So we use a deliberately designed,
  * clearly explained scale with three presets (plus a custom mode).
  *
- *  - `educational`  : compressed sizes and compressed orbits (default).
+ *  - `distances`    : orbit spacing is the real spacing (linear in AU) — the
+ *                     default, because it is the honest picture of where the
+ *                     planets actually are. Planet sizes are compressed so the
+ *                     worlds stay visible and clickable.
+ *  - `educational`  : compressed sizes and compressed orbits, for learning the
+ *                     order of the planets in one tidy view.
  *  - `relativeSize` : planet sizes are true relative to each other, so children
  *                     can see how small Mercury really is next to Jupiter.
- *  - `distances`    : orbit spacing is true relative spacing (linear in AU),
- *                     which is what the real Solar System looks like — crowded
- *                     in the middle and almost empty outside.
  *  - `custom`       : the child controls the compression themselves.
  */
 
 export const EARTH_DIAMETER_KM = 12_742
 const MAX_AU = NEPTUNE.semiMajorAxisKm / AU_KM
 const MIN_PLANET_RADIUS = 0.16
+
+/**
+ * Scene units per astronomical unit in the real-spacing layout. Neptune's orbit
+ * lands at ~86 units, so the whole system keeps the framing it always had while
+ * the inner planets crowd in exactly as they do in reality (Mercury at 1.1 units,
+ * Earth at 2.9, Jupiter at 14.9).
+ */
+const AU_TO_UNITS = 2.86
 
 export const DEFAULT_CUSTOM_SCALE: CustomScale = {
   sizeExponent: 0.42,
@@ -36,6 +46,11 @@ export function sunRadiusFor(mode: ScaleMode, custom: CustomScale): number {
       // The Sun is really 109 Earths wide. We draw it a little smaller so the
       // true planet sizes stay visible, and the UI says so out loud.
       return 4.6
+    case 'distances':
+      // With the real spacing, Mercury sits only 1.1 units out, so the Sun has
+      // to shrink to a fraction of its usual size or it would swallow the inner
+      // planets. It is still the biggest thing in the scene by a wide margin.
+      return 0.4
     case 'custom':
       return clamp(custom.sunRadius, 1.6, 9)
     default:
@@ -60,6 +75,13 @@ export function bodyRadius(body: CelestialBody, mode: ScaleMode, custom: CustomS
   if (mode === 'relativeSize') {
     // True relative sizes: Earth = 0.34 units, Jupiter ≈ 3.73 units.
     return 0.34 * ratio
+  }
+
+  if (mode === 'distances') {
+    // Real spacing leaves the inner planets only ~0.7 units apart, so the sizes
+    // are compressed harder than in the educational view: big enough to see and
+    // click, small enough that Venus and Earth never overlap.
+    return Math.max(0.12, 0.34 * Math.pow(ratio, 0.42))
   }
 
   const exponent = mode === 'custom' ? clamp(custom.sizeExponent, 0.15, 1) : 0.42
@@ -90,7 +112,9 @@ export function orbitRadiusFor(body: CelestialBody, mode: ScaleMode, custom: Cus
   const au = body.semiMajorAxisKm / AU_KM
 
   if (mode === 'distances') {
-    return 12 + 74 * (au / MAX_AU)
+    // True relative spacing: linear in AU, so the inner planets crowd the Sun
+    // and the giants sit alone in the dark, exactly as they really do.
+    return AU_TO_UNITS * au
   }
 
   const compressed = 9 + 66 * Math.pow(au / MAX_AU, 0.55)
@@ -100,14 +124,44 @@ export function orbitRadiusFor(body: CelestialBody, mode: ScaleMode, custom: Cus
   return compressed
 }
 
-/** Visual radius of a moon's orbit around its parent, in scene units. */
-export function satelliteOrbitRadius(satellite: SatelliteDefinition, parentRadius: number): number {
+/**
+ * Visual radius of a moon's orbit around its parent, in scene units.
+ *
+ * The real moon-to-planet distance ratio is preserved as far as the scene can
+ * show it: a moon is placed at its true multiple of the planet's radius, so
+ * Phobos really does hug Mars and Callisto really does stand well off Jupiter.
+ * A floor keeps the closest moons clear of the planet's own disc, and a gentle
+ * compression of the largest ratios keeps a whole family on screen.
+ *
+ * `parentOrbitRadius` is the parent's own distance from the Sun, and is only
+ * supplied by the real-spacing view. There the planets are drawn far smaller
+ * than their orbits, so an unclamped ratio would fling Callisto past Saturn and
+ * the Moon across Venus's lane. The family is squeezed through a saturating
+ * curve rather than a hard cap, so the moons keep their true order — Io still
+ * sits inside Europa, Europa inside Ganymede — while the outermost stays inside
+ * its own lane.
+ */
+export function satelliteOrbitRadius(
+  satellite: SatelliteDefinition,
+  parentRadius: number,
+  parentOrbitRadius?: number,
+): number {
   const parentRadiusKm = (PARENT_DIAMETER_KM[satellite.parentId] ?? EARTH.diameterKm) / 2
   const ratio = satellite.orbitalRadiusKm / parentRadiusKm
-  return parentRadius * (1.7 + 0.8 * Math.pow(Math.max(ratio, 1), 0.5))
+  const raw = parentRadius * (1.7 + 0.8 * Math.pow(Math.max(ratio, 1), 0.5))
+  if (parentOrbitRadius === undefined) return raw
+  const cap = parentOrbitRadius * 0.22
+  // Monotonic and asymptotic to `cap`: order is preserved, nothing escapes.
+  return cap * (1 - Math.exp(-raw / cap))
 }
 
-/** Visual radius of a moon, in scene units. */
+/**
+ * Visual radius of a moon, in scene units.
+ *
+ * The moon's true size relative to its planet is kept (Ganymede is bigger than
+ * Mercury, our Moon is a quarter of Earth), with a floor so the smallest moons
+ * remain visible dots rather than vanishing.
+ */
 export function satelliteRadius(satellite: SatelliteDefinition, parentRadius: number): number {
   const parentDiameterKm = PARENT_DIAMETER_KM[satellite.parentId] ?? EARTH.diameterKm
   const ratio = satellite.diameterKm / parentDiameterKm
@@ -181,10 +235,17 @@ export const SCALE_MODE_INFO: Record<
   ScaleMode,
   { title: string; description: string; caveat: string }
 > = {
+  distances: {
+    title: 'Real Distances',
+    description:
+      'The default view: the gaps between the orbits are the real distances, so the inner planets crowd around the Sun while the outer giants sit alone in the dark — exactly as they do in space.',
+    caveat:
+      'Orbit spacing is true to the real distances. Planet sizes are compressed so they stay visible and clickable.',
+  },
   educational: {
     title: 'Educational Scale',
     description:
-      'Planet sizes and the gaps between orbits are gently squeezed so everything fits into one beautiful view. Perfect for learning the order of the planets.',
+      'Planet sizes and the gaps between orbits are gently squeezed so everything fits into one tidy view. Perfect for learning the order of the planets.',
     caveat: 'Sizes and distances are both compressed — this view is not to scale.',
   },
   relativeSize: {
@@ -194,13 +255,6 @@ export const SCALE_MODE_INFO: Record<
     caveat:
       'Planet sizes are true relative to each other. Orbits are compressed and the Sun is drawn smaller than reality.',
   },
-  distances: {
-    title: 'Distances Emphasized',
-    description:
-      'Orbit spacing now matches the real distances. Notice how the inner planets crowd around the Sun while the outer giants sit alone in the dark.',
-    caveat:
-      'Orbit spacing is true to the real distances. Planet sizes are compressed so they stay visible.',
-  },
   custom: {
     title: 'Custom Scale',
     description:
@@ -209,4 +263,4 @@ export const SCALE_MODE_INFO: Record<
   },
 }
 
-export const SCALE_MODE_ORDER: ScaleMode[] = ['educational', 'relativeSize', 'distances', 'custom']
+export const SCALE_MODE_ORDER: ScaleMode[] = ['distances', 'educational', 'relativeSize', 'custom']

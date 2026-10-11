@@ -61,7 +61,7 @@ export const LESSONS: Lesson[] = [
         text: 'The gap between Mars and Jupiter is especially huge — that is where the asteroid belt circles the Sun.',
       },
       {
-        text: 'Switch to “Distances Emphasized” to see the real spacing. Then imagine a spacecraft: it would need about 12 years to reach Neptune.',
+        text: 'The scene already shows the real spacing. Switch to “Educational Scale” to squeeze everything together, then back to “Real Distances” to see how empty space really is. Then imagine a spacecraft: it would need about 12 years to reach Neptune.',
         highlight: 'Neptune is about 30 times farther from the Sun than Earth is.',
       },
     ],
