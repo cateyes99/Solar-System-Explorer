@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
   BufferGeometry,
@@ -15,6 +15,7 @@ import {
 import type { CelestialBody, CustomScale, ScaleMode } from '../../types'
 import { orbitPathKm } from '../../utils/astronomy'
 import { bodyRadius, sceneFromEclipticKm } from '../../utils/scale'
+import { clock } from '../../utils/simulationClock'
 import { useSimulationStore } from '../../store/simulationStore'
 import { getBodyWorldPosition } from '../../utils/bodyRegistry'
 import { smoothstep } from '../../utils/random'
@@ -27,20 +28,27 @@ import { WIDE_VIEW_FADE_IN_RADII, WIDE_VIEW_FADE_OUT_RADII } from './constants'
  * inclination and node, so Mercury and Pluto weave above and below the rest and
  * Halley's Comet rounds the Sun the wrong way.
  *
+ * The path is drawn for the simulated date, so the secular drift of the elements
+ * is reflected in the ellipse on screen. Rebuilding it every frame would be
+ * wasteful for a change that is invisible over a human lifetime, so it is only
+ * rebuilt when the simulated date crosses into a new century.
+ *
  * When a lesson or the cinematic tour asks for it, small arrows flow along the
  * path to show the direction of travel — "gravity keeps the planets moving".
  */
 
 const ORBIT_SAMPLES = 256
 const FLOW_ARROWS = 16
+const DAYS_PER_CENTURY = 36_525
 
 function buildOrbitPositions(
   body: CelestialBody,
   mode: ScaleMode,
   custom: CustomScale,
   sampleCount: number,
+  days: number,
 ): Float32Array {
-  const samples = orbitPathKm(body, sampleCount)
+  const samples = orbitPathKm(body, sampleCount, days)
   const positions = new Float32Array(sampleCount * 3)
   for (let i = 0; i < sampleCount; i += 1) {
     const point = sceneFromEclipticKm(
@@ -74,17 +82,23 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
   /** Visual radius in scene units: the approach fade is measured in planet radii. */
   const radius = useMemo(() => bodyRadius(body, scaleMode, customScale), [body, scaleMode, customScale])
 
+  // The century the path is currently drawn for. It only changes when the
+  // simulated date crosses a century boundary, which is when the secular drift
+  // of the elements becomes worth redrawing.
+  const centuryRef = useRef(Math.floor(clock.daysSinceJ2000 / DAYS_PER_CENTURY))
+  const [epochCentury, setEpochCentury] = useState(centuryRef.current)
+
   // Cheap machines get fewer ellipse segments and fewer direction arrows.
   const sampleCount = quality === 'low' ? 128 : ORBIT_SAMPLES
   const arrowCount = quality === 'high' ? FLOW_ARROWS : 10
 
   const geometry = useMemo(() => {
-    const positions = buildOrbitPositions(body, scaleMode, customScale, sampleCount)
+    const positions = buildOrbitPositions(body, scaleMode, customScale, sampleCount, epochCentury * DAYS_PER_CENTURY)
     const buffer = new BufferGeometry()
     buffer.setAttribute('position', new Float32BufferAttribute(positions, 3))
     buffer.computeBoundingSphere()
     return buffer
-  }, [body, scaleMode, customScale, sampleCount])
+  }, [body, scaleMode, customScale, sampleCount, epochCentury])
 
   const line = useMemo(() => {
     const material = new LineBasicMaterial({
@@ -115,6 +129,14 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
   useEffect(() => () => arrowGeometry.dispose(), [arrowGeometry])
 
   useFrame((state, delta) => {
+    // Redraw the path only when the simulated date has crossed into a new
+    // century: the secular drift is far too slow to see frame to frame.
+    const century = Math.floor(clock.daysSinceJ2000 / DAYS_PER_CENTURY)
+    if (century !== centuryRef.current) {
+      centuryRef.current = century
+      setEpochCentury(century)
+    }
+
     // Orbits belonging to the selected planet glow a little brighter.
     const store = useSimulationStore.getState()
     const emphasised = store.selectedId === body.id || store.hoveredId === body.id
