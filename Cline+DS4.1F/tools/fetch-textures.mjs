@@ -38,7 +38,17 @@ const FILES = [
   { file: '2k_saturn_ring_alpha.png', body: 'Saturn rings', note: 'Ring optical depth with alpha (C, B, Cassini, A, F)' },
   { file: '2k_uranus.jpg', body: 'Uranus', note: 'Voyager 2 featureless methane-blue disc' },
   { file: '2k_neptune.jpg', body: 'Neptune', note: 'Voyager 2 disc with the Great Dark Spot' },
-  { file: '2k_pluto.jpg', body: 'Pluto', note: 'New Horizons encounter mosaic (heart-shaped Tombaugh Regio)' },
+  {
+    file: '2k_pluto.jpg',
+    body: 'Pluto',
+    note: 'NASA New Horizons global colour mosaic (public domain); far south filled in',
+    // New Horizons swept past so fast that it never imaged Pluto's far south, so
+    // the raw encounter mosaic (Wikimedia Commons, “Pluto color mapmosaic.jpg”)
+    // carries a black southern band. The shipped map has that band filled in to
+    // make a complete globe — so this script must never overwrite it with the
+    // raw file. Marked `skip` for that reason.
+    skip: true,
+  },
   { file: '2k_stars_milky_way.jpg', body: 'Milky Way', note: 'ESO panoramic background, unwrapped as a sky sphere' },
 ]
 
@@ -71,6 +81,12 @@ mkdirSync(OUTPUT_DIR, { recursive: true })
 
 const report = []
 for (const entry of FILES) {
+  // A composited map (Pluto) is left exactly as it ships: re-downloading it would
+  // bring back the un-imaged band the shipped file works around.
+  if (entry.skip) {
+    report.push({ ...entry, status: `${describe(entry.file)} (composited, kept)`, ok: true })
+    continue
+  }
   const path = join(OUTPUT_DIR, entry.file)
   try {
     const bytes = await download(entry.file)
@@ -94,6 +110,10 @@ writeFileSync(
     '- Derived from public-domain NASA / JPL / USGS imagery (Blue Marble, MESSENGER,',
     '  Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).',
     '- Format: equirectangular (2:1) colour maps, plus one alpha ring strip.',
+    '- Pluto’s map is the public-domain NASA / JHUAPL / SwRI New Horizons global',
+    '  colour mosaic, with the southern band New Horizons never imaged filled in to',
+    '  complete the globe. It is composited rather than downloaded, so the fetch',
+    '  script leaves it untouched.',
     '',
     '| File | Body | Provenance |',
     '| --- | --- | --- |',
