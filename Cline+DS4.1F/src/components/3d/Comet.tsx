@@ -193,6 +193,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
 
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
   const setHovered = useSimulationStore((state) => state.setHovered)
@@ -287,8 +288,15 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     const group = groupRef.current
     if (!group) return
     const days = clock.daysSinceJ2000
-    const ecliptic = orbitalPositionKm(body, days)
-    const scene = sceneFromEclipticKm(ecliptic.x, ecliptic.y, ecliptic.z, scaleMode, customScale)
+    const ecliptic = orbitalPositionKm(body, days, orbitModel === 'realistic')
+    const scene = sceneFromEclipticKm(
+      ecliptic.x,
+      ecliptic.y,
+      ecliptic.z,
+      scaleMode,
+      customScale,
+      orbitModel,
+    )
     group.position.set(scene.x, scene.y, scene.z)
     // +Z then points at the Sun, so the tails (built along -Z) trail behind.
     group.lookAt(0, 0, 0)
@@ -315,8 +323,15 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     // The plasma tail follows the solar wind and points dead anti-sunward, but
     // the heavier dust keeps some of the comet's own sideways motion, so its tail
     // lags behind and the two tails visibly split apart.
-    const aheadState = orbitalPositionKm(body, days + 0.1)
-    const ahead = sceneFromEclipticKm(aheadState.x, aheadState.y, aheadState.z, scaleMode, customScale)
+    const aheadState = orbitalPositionKm(body, days + 0.1, orbitModel === 'realistic')
+    const ahead = sceneFromEclipticKm(
+      aheadState.x,
+      aheadState.y,
+      aheadState.z,
+      scaleMode,
+      customScale,
+      orbitModel,
+    )
     motionTmp.current.set(ahead.x - scene.x, ahead.y - scene.y, ahead.z - scene.z)
     if (motionTmp.current.lengthSq() > 1e-8) {
       inverseQuaternion.current.copy(group.quaternion).invert()

@@ -26,11 +26,12 @@ export function AsteroidBelt({ quality, reducedMotion }: AsteroidBeltProps) {
   const anchorRef = useRef<Object3D>(null)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
   const setHovered = useSimulationStore((state) => state.setHovered)
 
-  const [innerRadius, outerRadius] = asteroidBeltRadii(scaleMode, customScale)
+  const [innerRadius, outerRadius] = asteroidBeltRadii(scaleMode, customScale, orbitModel)
   const count = quality === 'high' ? 1800 : quality === 'medium' ? 1100 : 520
 
   const { geometry, material, matrices } = useMemo(() => {

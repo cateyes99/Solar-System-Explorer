@@ -65,6 +65,7 @@ export function CameraController() {
   const followTargetId = useSimulationStore((state) => state.followTargetId)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
   const reducedMotion = useSimulationStore((state) => state.reducedMotion)
 
   const { camera } = useThree()
@@ -81,7 +82,7 @@ export function CameraController() {
     if (targetId) {
       const worldPosition = getBodyWorldPosition(targetId, tmp.current)
       if (worldPosition) {
-        const radius = visualRadiusOf(targetId, scaleMode, customScale)
+        const radius = visualRadiusOf(targetId, scaleMode, customScale, orbitModel)
         const direction = camera.position.clone().sub(worldPosition)
         if (direction.lengthSq() < 1e-6) direction.set(0.62, 0.42, 0.72)
         direction.normalize()
@@ -108,7 +109,7 @@ export function CameraController() {
       elapsed: 0,
       duration,
     }
-  }, [requestId, camera, scaleMode, customScale, reducedMotion, cameraRequest])
+  }, [requestId, camera, scaleMode, customScale, orbitModel, reducedMotion, cameraRequest])
 
   // Re-aim the follow tracker whenever the followed body changes.
   useEffect(() => {

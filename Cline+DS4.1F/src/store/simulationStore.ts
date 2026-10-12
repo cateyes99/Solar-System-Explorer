@@ -6,6 +6,7 @@ import type {
   CustomScale,
   FocusTargetId,
   LessonId,
+  OrbitModel,
   QualityLevel,
   ScaleMode,
   WhatIfId,
@@ -66,6 +67,9 @@ export interface SimulationState {
   scaleMode: ScaleMode
   customScale: CustomScale
 
+  /* Orbits */
+  orbitModel: OrbitModel
+
   /* Modes */
   cinematic: CinematicState
   ui: UiState
@@ -120,6 +124,9 @@ export interface SimulationActions {
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
+
+  setOrbitModel: (model: OrbitModel) => void
+  toggleOrbitModel: () => void
 
   startTour: () => void
   pauseTour: () => void
@@ -188,6 +195,8 @@ const initialState: SimulationState = {
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
+
+  orbitModel: 'realistic',
 
   cinematic: { active: false, paused: false, stageIndex: 0 },
   ui: {
@@ -299,6 +308,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setCustomScale: (patch) => set((state) => ({ customScale: { ...state.customScale, ...patch } })),
+
+  setOrbitModel: (model) => {
+    audio.play('click')
+    set({ orbitModel: model })
+  },
+
+  toggleOrbitModel: () => {
+    audio.play('click')
+    set((state) => ({ orbitModel: state.orbitModel === 'realistic' ? 'educational' : 'realistic' }))
+  },
 
   startTour: () => {
     audio.play('whoosh')
