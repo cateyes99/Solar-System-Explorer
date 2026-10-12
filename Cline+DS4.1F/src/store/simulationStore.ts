@@ -67,6 +67,12 @@ export interface SimulationState {
    * 1 = full strength. Only Earth has this control, so no other body reads it.
    */
   earthAtmosphereOpacity: number
+  /**
+   * How solid Earth's cloud deck is: 0 = no clouds (fully transparent), 1 = the
+   * full cloud layer. Matches the atmosphere slider's direction, so 0% always
+   * means “none” on both. Only Earth has clouds, so only Earth reads it.
+   */
+  earthCloudOpacity: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -127,6 +133,7 @@ export interface SimulationActions {
   toggleNebula: () => void
   setShowOrbitFlow: (visible: boolean) => void
   setEarthAtmosphereOpacity: (value: number) => void
+  setEarthCloudOpacity: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -202,6 +209,9 @@ const initialState: SimulationState = {
   // `atmosphereOpacityFromSlider`. 0.45 is a gentle rim that still lets the whole
   // surface read, with plenty of range to thin it further or fill it out.
   earthAtmosphereOpacity: 0.45,
+  // Half the full cloud deck by default, so the continents and oceans read
+  // clearly through the clouds instead of being hidden behind them.
+  earthCloudOpacity: 0.5,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -314,6 +324,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthAtmosphereOpacity: (value) =>
     set({ earthAtmosphereOpacity: Math.max(0, Math.min(1, value)) }),
+
+  setEarthCloudOpacity: (value) =>
+    set({ earthCloudOpacity: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')

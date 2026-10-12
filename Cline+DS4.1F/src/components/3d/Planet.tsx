@@ -82,6 +82,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   // Earth's slider is a 0…1 haze level; the shader wants an opacity multiplier
   // (see utils/atmosphere.ts). Every other world keeps the full base atmosphere.
   const atmosphereOpacity = body.id === 'earth' ? atmosphereOpacityFromSlider(rawAtmosphere) : 1
+  // Earth's clouds have their own opacity slider (0 = no clouds, 1 = full deck).
+  // No other world has a cloud layer, so the selector stays 1 for them and they
+  // never re-render on a drag.
+  const cloudOpacitySetting = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthCloudOpacity : 1,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -89,6 +95,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const showToast = useSimulationStore((state) => state.showToast)
 
   const visuals = BODY_VISUALS[body.id]
+  // The cloud deck is scaled by the panel's opacity slider: 0% clears the clouds
+  // away entirely, 100% leaves the full shipped deck.
+  const cloudOpacity = (visuals.clouds?.opacity ?? 1) * cloudOpacitySetting
   const sizeMultiplier = whatIfId === 'earth-jupiter-size' && body.id === 'earth' ? 11 : 1
   const radius = bodyRadius(body, scaleMode, customScale, orbitModel) * sizeMultiplier
   /**
@@ -197,6 +206,10 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
         cloudsRef.current.rotation.y = spinRef.current.rotation.y * visuals.clouds.speed
       }
     }
+
+    // The "Cloud opacity" slider retunes the deck live: the material is
+    // reused, so this is a single property write per frame.
+    if (cloudsMaterial) cloudsMaterial.opacity = cloudOpacity
 
     // --- Level of detail --------------------------------------------------
     // Reading state directly keeps hover and selection from re-rendering React.
