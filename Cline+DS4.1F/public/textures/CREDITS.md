@@ -7,6 +7,10 @@ These images are **not** hand-drawn: they are real planetary map data.
 - Derived from public-domain NASA / JPL / USGS imagery (Blue Marble, MESSENGER,
   Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).
 - Format: equirectangular (2:1) colour maps, plus one alpha ring strip.
+- Pluto’s map is the public-domain NASA / JHUAPL / SwRI New Horizons global
+  colour mosaic, with the southern band New Horizons never imaged filled in to
+  complete the globe. It is composited rather than downloaded, so the fetch
+  script leaves it untouched.
 
 | File | Body | Provenance |
 | --- | --- | --- |
@@ -23,7 +27,7 @@ These images are **not** hand-drawn: they are real planetary map data.
 | `2k_saturn_ring_alpha.png` | Saturn rings | Ring optical depth with alpha (C, B, Cassini, A, F) |
 | `2k_uranus.jpg` | Uranus | Voyager 2 featureless methane-blue disc |
 | `2k_neptune.jpg` | Neptune | Voyager 2 disc with the Great Dark Spot |
-| `2k_pluto.jpg` | Pluto | New Horizons encounter mosaic (heart-shaped Tombaugh Regio) |
+| `2k_pluto.jpg` | Pluto | NASA New Horizons global colour mosaic (public domain); far south filled in |
 | `2k_stars_milky_way.jpg` | Milky Way | ESO panoramic background, unwrapped as a sky sphere |
 
 ## Maps the app works out for itself
