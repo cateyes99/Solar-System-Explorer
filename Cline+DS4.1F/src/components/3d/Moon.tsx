@@ -63,6 +63,7 @@ export function Moon({
   const focusBody = useSimulationStore((state) => state.focusBody)
   const showToast = useSimulationStore((state) => state.showToast)
   const showOrbits = useSimulationStore((state) => state.showOrbits)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
 
   const visualRadius = satelliteRadius(satellite, parentRadius)
   const periodDays = periodOverrideDays ?? satellite.orbitalPeriodDays
@@ -77,18 +78,30 @@ export function Moon({
    * The moon's real orbit: measured eccentricity, inclination and node, with its
    * semi-major axis compressed to the scene's moon-orbit radius. When the data
    * has a J2000 mean anomaly it is used; otherwise the seeded phase stands in.
+   *
+   * The educational model drops the measured node and starting angle, leaving
+   * the moons evenly spread around their planets — the tidier picture the scene
+   * showed before the real elements were added.
    */
   const orbit = useMemo<SatelliteOrbit>(
     () => ({
-      semiMajor: satelliteOrbitRadius(satellite, parentRadius, parentOrbitRadius),
+      semiMajor: satelliteOrbitRadius(
+        satellite,
+        parentRadius,
+        orbitModel === 'realistic' ? parentOrbitRadius : undefined,
+      ),
       eccentricity: satellite.orbitalEccentricity ?? 0,
       inclinationDeg: satellite.orbitalInclinationDeg ?? 0,
-      ascendingNodeDeg: satellite.longitudeOfAscendingNodeDeg ?? 0,
+      ascendingNodeDeg:
+        orbitModel === 'realistic' ? (satellite.longitudeOfAscendingNodeDeg ?? 0) : 0,
       argumentOfPeriapsisDeg: satellite.argumentOfPeriapsisDeg ?? 0,
-      meanAnomaly0Deg: satellite.meanAnomalyJ2000Deg ?? phase * (180 / Math.PI),
+      meanAnomaly0Deg:
+        orbitModel === 'realistic'
+          ? (satellite.meanAnomalyJ2000Deg ?? phase * (180 / Math.PI))
+          : phase * (180 / Math.PI),
       periodDays,
     }),
-    [satellite, parentRadius, parentOrbitRadius, periodDays, phase],
+    [satellite, parentRadius, parentOrbitRadius, periodDays, phase, orbitModel],
   )
 
   const orbitGeometry = useMemo(() => {

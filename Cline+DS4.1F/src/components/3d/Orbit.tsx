@@ -12,7 +12,7 @@ import {
   Object3D,
   Vector3,
 } from 'three'
-import type { CelestialBody, CustomScale, ScaleMode } from '../../types'
+import type { CelestialBody, CustomScale, OrbitModel, ScaleMode } from '../../types'
 import { orbitPathKm } from '../../utils/astronomy'
 import { bodyRadius, sceneFromEclipticKm } from '../../utils/scale'
 import { clock } from '../../utils/simulationClock'
@@ -47,8 +47,9 @@ function buildOrbitPositions(
   custom: CustomScale,
   sampleCount: number,
   days: number,
+  model: OrbitModel,
 ): Float32Array {
-  const samples = orbitPathKm(body, sampleCount, days)
+  const samples = orbitPathKm(body, sampleCount, days, model === 'realistic')
   const positions = new Float32Array(sampleCount * 3)
   for (let i = 0; i < sampleCount; i += 1) {
     const point = sceneFromEclipticKm(
@@ -57,6 +58,7 @@ function buildOrbitPositions(
       samples[i * 3 + 2],
       mode,
       custom,
+      model,
     )
     positions[i * 3] = point.x
     positions[i * 3 + 1] = point.y
@@ -74,13 +76,17 @@ interface OrbitProps {
 export function Orbit({ body, showFlow, quality }: OrbitProps) {
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
   const arrowsRef = useRef<InstancedMesh>(null)
   const opacity = useRef(0.24)
   /** Scratch for this body's position, so the fade allocates nothing per frame. */
   const ownPosition = useRef(new Vector3())
   const accent = useMemo(() => new Color(BODY_VISUALS[body.id]?.accent ?? '#8ab4ff'), [body.id])
   /** Visual radius in scene units: the approach fade is measured in planet radii. */
-  const radius = useMemo(() => bodyRadius(body, scaleMode, customScale), [body, scaleMode, customScale])
+  const radius = useMemo(
+    () => bodyRadius(body, scaleMode, customScale, orbitModel),
+    [body, scaleMode, customScale, orbitModel],
+  )
 
   // The century the path is currently drawn for. It only changes when the
   // simulated date crosses a century boundary, which is when the secular drift
@@ -93,12 +99,19 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
   const arrowCount = quality === 'high' ? FLOW_ARROWS : 10
 
   const geometry = useMemo(() => {
-    const positions = buildOrbitPositions(body, scaleMode, customScale, sampleCount, epochCentury * DAYS_PER_CENTURY)
+    const positions = buildOrbitPositions(
+      body,
+      scaleMode,
+      customScale,
+      sampleCount,
+      epochCentury * DAYS_PER_CENTURY,
+      orbitModel,
+    )
     const buffer = new BufferGeometry()
     buffer.setAttribute('position', new Float32BufferAttribute(positions, 3))
     buffer.computeBoundingSphere()
     return buffer
-  }, [body, scaleMode, customScale, sampleCount, epochCentury])
+  }, [body, scaleMode, customScale, sampleCount, epochCentury, orbitModel])
 
   const line = useMemo(() => {
     const material = new LineBasicMaterial({
@@ -130,11 +143,14 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
 
   useFrame((state, delta) => {
     // Redraw the path only when the simulated date has crossed into a new
-    // century: the secular drift is far too slow to see frame to frame.
-    const century = Math.floor(clock.daysSinceJ2000 / DAYS_PER_CENTURY)
-    if (century !== centuryRef.current) {
-      centuryRef.current = century
-      setEpochCentury(century)
+    // century: the secular drift is far too slow to see frame to frame. The
+    // educational model is frozen at J2000, so it never needs redrawing.
+    if (orbitModel === 'realistic') {
+      const century = Math.floor(clock.daysSinceJ2000 / DAYS_PER_CENTURY)
+      if (century !== centuryRef.current) {
+        centuryRef.current = century
+        setEpochCentury(century)
+      }
     }
 
     // Orbits belonging to the selected planet glow a little brighter.

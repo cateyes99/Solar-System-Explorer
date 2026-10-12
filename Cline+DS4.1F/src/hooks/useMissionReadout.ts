@@ -13,14 +13,17 @@ import { useSimulationStore } from '../store/simulationStore'
 export function useMissionReadout(intervalMs = 200): MissionReadout {
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
-  const [readout, setReadout] = useState<MissionReadout>(() => spacecraft.readout(kmPerUnit(scaleMode, customScale)))
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
+  const [readout, setReadout] = useState<MissionReadout>(() =>
+    spacecraft.readout(kmPerUnit(scaleMode, customScale, orbitModel)),
+  )
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      setReadout(spacecraft.readout(kmPerUnit(scaleMode, customScale)))
+      setReadout(spacecraft.readout(kmPerUnit(scaleMode, customScale, orbitModel)))
     }, intervalMs)
     return () => window.clearInterval(id)
-  }, [intervalMs, scaleMode, customScale])
+  }, [intervalMs, scaleMode, customScale, orbitModel])
 
   return readout
 }

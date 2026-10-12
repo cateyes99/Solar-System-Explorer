@@ -6,6 +6,7 @@ import {
   BulbIcon,
   HelpIcon,
   MotionIcon,
+  OrbitIcon,
   QuestionIcon,
   RocketIcon,
   SettingsIcon,
@@ -40,6 +41,9 @@ export function Header() {
   const openSettings = useSimulationStore((state) => state.openSettings)
   const settingsOpen = useSimulationStore((state) => state.ui.settingsOpen)
   const toggleHelp = useSimulationStore((state) => state.toggleHelp)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
+  const toggleOrbitModel = useSimulationStore((state) => state.toggleOrbitModel)
+  const realisticOrbits = orbitModel === 'realistic'
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-start justify-between gap-2 bg-gradient-to-b from-void/92 via-void/55 to-transparent px-3 pb-4 pt-3 sm:px-5 sm:pb-6">
@@ -55,9 +59,13 @@ export function Header() {
             Solar System Explorer
           </h1>
           <p className="text-[0.62rem] uppercase tracking-[0.12em] text-mist/85 sm:text-[0.68rem] sm:tracking-[0.18em]">
-            <span className="sm:hidden">Real spacing · real data</span>
+            <span className="sm:hidden">
+              {realisticOrbits ? 'Real spacing · real data' : 'Educational layout'}
+            </span>
             <span className="hidden sm:inline">
-              Real orbit spacing · planet sizes compressed · real astronomy data
+              {realisticOrbits
+                ? 'Real orbit spacing · planet sizes compressed · real astronomy data'
+                : 'Educational layout · sizes and distances both compressed'}
             </span>
           </p>
         </div>
@@ -98,6 +106,28 @@ export function Header() {
 
         <ToolbarButton compact variant="ghost" icon={<BulbIcon />} onClick={teachMeSomething}>
           Teach Me Something!
+        </ToolbarButton>
+
+        {/*
+          Switches between the two orbit models. The label names the view that is
+          on screen right now — "More Realistic Orbits" for the real JPL elements,
+          "Educational Scale Orbits" for the tidier classic layout — so a glance
+          at the toolbar always tells you which Solar System you are looking at.
+        */}
+        <ToolbarButton
+          compact
+          variant={realisticOrbits ? 'primary' : 'ghost'}
+          active={realisticOrbits}
+          icon={<OrbitIcon />}
+          onClick={() => toggleOrbitModel()}
+          aria-pressed={realisticOrbits}
+          title={
+            realisticOrbits
+              ? 'Showing the real JPL orbits. Click to switch to the educational layout.'
+              : 'Showing the educational layout. Click to switch to the real JPL orbits.'
+          }
+        >
+          {realisticOrbits ? 'More Realistic Orbits' : 'Educational Scale Orbits'}
         </ToolbarButton>
 
         <div className="mx-1 hidden h-8 w-px bg-white/12 sm:block" aria-hidden="true" />

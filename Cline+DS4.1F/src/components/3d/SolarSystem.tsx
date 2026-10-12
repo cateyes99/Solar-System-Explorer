@@ -34,9 +34,10 @@ export function SolarSystem({ quality }: SolarSystemProps) {
   const showOrbitFlow = useSimulationStore((state) => state.showOrbitFlow)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
   const whatIfId = useSimulationStore((state) => state.whatIfId)
 
-  const sunRadius = sunRadiusFor(scaleMode, customScale)
+  const sunRadius = sunRadiusFor(scaleMode, customScale, orbitModel)
 
   return (
     <>

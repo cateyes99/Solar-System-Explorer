@@ -24,12 +24,13 @@ export function MissionControl() {
   const showToast = useSimulationStore((state) => state.showToast)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
   const readout = useMissionReadout()
 
   const destination = TRAVEL_DESTINATIONS.find((entry) => entry.id === destinationId)
   const statusLabel =
     readout.status === 'arrived' ? 'Arrived — look around!' : readout.status === 'cruising' ? 'Cruising' : 'Idle'
-  const kilometresPerUnit = kmPerUnit(scaleMode, customScale)
+  const kilometresPerUnit = kmPerUnit(scaleMode, customScale, orbitModel)
 
   return (
     <AnimatePresence>
