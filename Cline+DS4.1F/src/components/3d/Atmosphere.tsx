@@ -72,7 +72,10 @@ export function Atmosphere({ radius, visuals, opacity = 1, sunPosition }: Atmosp
       blending: AdditiveBlending,
       depthWrite: false,
     })
-  }, [visuals.color, visuals.intensity, visuals.power, sunPosition, opacity])
+    // `opacity` is intentionally not a dependency: the per-frame update below
+    // writes it into the uniform, so dragging the Earth slider retunes the haze
+    // without rebuilding a shader material on every step.
+  }, [visuals.color, visuals.intensity, visuals.power, sunPosition])
 
   const hazeMaterial = useMemo(() => {
     if (!visuals.hazeColor) return null
@@ -90,7 +93,7 @@ export function Atmosphere({ radius, visuals, opacity = 1, sunPosition }: Atmosp
       blending: AdditiveBlending,
       depthWrite: false,
     })
-  }, [visuals.hazeColor, visuals.hazeIntensity, visuals.power, sunPosition, opacity])
+  }, [visuals.hazeColor, visuals.hazeIntensity, visuals.power, sunPosition])
 
   // The Sun barely moves, but keeping the uniform fresh costs nothing and keeps
   // the terminator correct in every scale mode.
