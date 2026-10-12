@@ -84,8 +84,16 @@ interface Elements {
 /** Julian centuries since J2000.0 (36,525 days). */
 const DAYS_PER_CENTURY = 36_525
 
-function elementsOf(body: CelestialBody, days: number): Elements {
-  const centuries = days / DAYS_PER_CENTURY
+/**
+ * Builds the elements for a body.
+ *
+ * `advance` selects the orbit model. When true (the default, "realistic") the
+ * JPL/Standish secular rates are applied so the orbit is the true one for the
+ * simulated date. When false ("educational") the elements stay frozen at J2000,
+ * which is the tidier, easier-to-read version of the same orbit.
+ */
+function elementsOf(body: CelestialBody, days: number, advance = true): Elements {
+  const centuries = advance ? days / DAYS_PER_CENTURY : 0
   const periapsisDeg =
     body.longitudeOfPeriapsisDeg + (body.longitudeOfPeriapsisRateDegPerCentury ?? 0) * centuries
   const ascendingDeg =
@@ -142,8 +150,8 @@ function positionFromEccentric(elements: Elements, eccentric: number): Vec3 {
  * off the ecliptic. That is what makes Mercury and Pluto weave above and below
  * the other planets, and sends Halley round the Sun the wrong way.
  */
-export function orbitalPositionKm(body: CelestialBody, days: number): Vec3 {
-  const elements = elementsOf(body, days)
+export function orbitalPositionKm(body: CelestialBody, days: number, advance = true): Vec3 {
+  const elements = elementsOf(body, days, advance)
   if (elements.a <= 0 || body.orbitalPeriodDays <= 0) return { x: 0, y: 0, z: 0 }
   const meanAnomaly = reduceAngle(elements.meanAnomaly0 + (Math.PI * 2 * days) / body.orbitalPeriodDays)
   const eccentric = eccentricAnomaly(meanAnomaly, elements.e)
@@ -155,10 +163,11 @@ export function orbitalPositionKm(body: CelestialBody, days: number): Vec3 {
  *
  * `days` is the date the path is drawn for: the secular rates are applied there,
  * so the ellipse on screen is the one the body is actually travelling along at
- * the simulated date rather than the J2000 one.
+ * the simulated date rather than the J2000 one. Pass `advance = false` to draw
+ * the frozen J2000 ellipse instead.
  */
-export function orbitPathKm(body: CelestialBody, samples = 256, days = 0): Float64Array {
-  const elements = elementsOf(body, days)
+export function orbitPathKm(body: CelestialBody, samples = 256, days = 0, advance = true): Float64Array {
+  const elements = elementsOf(body, days, advance)
   const out = new Float64Array(samples * 3)
   for (let k = 0; k < samples; k += 1) {
     const point = positionFromEccentric(elements, (k / samples) * Math.PI * 2)
