@@ -11,7 +11,7 @@ import {
   formatTemperature,
 } from '../../utils/format'
 import { getDistanceFromSun } from '../../utils/bodyRegistry'
-import { Chip, SectionTitle, Sheet, Stat, ToolbarButton } from './primitives'
+import { Chip, SectionTitle, Sheet, SliderRow, Stat, ToolbarButton } from './primitives'
 import { CloseIcon, OrbitIcon, RocketIcon } from './icons'
 
 /**
@@ -29,6 +29,8 @@ export function PlanetPanel() {
   const openEducation = useSimulationStore((state) => state.openEducation)
   const registerDiscovery = useSimulationStore((state) => state.registerDiscovery)
   const discoveries = useSimulationStore((state) => state.discoveries)
+  const earthAtmosphereOpacity = useSimulationStore((state) => state.earthAtmosphereOpacity)
+  const setEarthAtmosphereOpacity = useSimulationStore((state) => state.setEarthAtmosphereOpacity)
 
   const body = selectedId ? BODY_BY_ID[selectedId] : undefined
   const open = Boolean(body)
@@ -61,6 +63,24 @@ export function PlanetPanel() {
           </div>
 
           <p className="mt-3 text-sm leading-relaxed text-parchment/95">{body.description}</p>
+
+          {body.id === 'earth' ? (
+            <div className="mt-4">
+              <SectionTitle hint="0% = no haze">Earth’s atmosphere</SectionTitle>
+              <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+                <SliderRow
+                  label="Atmosphere haze"
+                  value={earthAtmosphereOpacity}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthAtmosphereOpacity}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint="How heavily the blue air hides the surface. Slide to 0% to study the bare continents and oceans, or up to 100% for the full glowing limb."
+                />
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 grid grid-cols-2 gap-2">
             {body.diameterKm > 0 ? <Stat label="Diameter" value={formatKmExact(body.diameterKm)} /> : null}

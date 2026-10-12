@@ -62,6 +62,11 @@ export interface SimulationState {
   showAsteroidBelt: boolean
   showNebula: boolean
   showOrbitFlow: boolean
+  /**
+   * How strongly Earth's atmosphere is drawn: 0 = invisible (bare surface),
+   * 1 = full strength. Only Earth has this control, so no other body reads it.
+   */
+  earthAtmosphereOpacity: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -121,6 +126,7 @@ export interface SimulationActions {
   toggleAsteroidBelt: () => void
   toggleNebula: () => void
   setShowOrbitFlow: (visible: boolean) => void
+  setEarthAtmosphereOpacity: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -192,6 +198,10 @@ const initialState: SimulationState = {
   showAsteroidBelt: true,
   showNebula: true,
   showOrbitFlow: false,
+  // The slider is a 0…1 haze level, mapped onto the shader's opacity range by
+  // `atmosphereOpacityFromSlider`. 0.45 is a gentle rim that still lets the whole
+  // surface read, with plenty of range to thin it further or fill it out.
+  earthAtmosphereOpacity: 0.45,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -301,6 +311,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   toggleAsteroidBelt: () => set((state) => ({ showAsteroidBelt: !state.showAsteroidBelt })),
   toggleNebula: () => set((state) => ({ showNebula: !state.showNebula })),
   setShowOrbitFlow: (visible) => set({ showOrbitFlow: visible }),
+
+  setEarthAtmosphereOpacity: (value) =>
+    set({ earthAtmosphereOpacity: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')

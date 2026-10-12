@@ -12,6 +12,7 @@ import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
 import { smoothstep } from '../../utils/random'
+import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
 import { HIGH_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE, LOW_DETAIL_SPHERE, createRingGeometry } from './geometry'
 import { Atmosphere } from './Atmosphere'
 import { NightLights } from './NightLights'
@@ -72,6 +73,15 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const whatIfId = useSimulationStore((state) => state.whatIfId)
+  // Only Earth's atmosphere is adjustable. Every other world keeps the full haze
+  // and — because the selector returns a constant 1 for them — never re-renders
+  // when the Earth slider moves.
+  const rawAtmosphere = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthAtmosphereOpacity : 1,
+  )
+  // Earth's slider is a 0…1 haze level; the shader wants an opacity multiplier
+  // (see utils/atmosphere.ts). Every other world keeps the full base atmosphere.
+  const atmosphereOpacity = body.id === 'earth' ? atmosphereOpacityFromSlider(rawAtmosphere) : 1
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -276,7 +286,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             automatically when the body shrinks to a distant dot. */}
         <group ref={detailRef} scale={flattenScale}>
           {visuals.atmosphere ? (
-            <Atmosphere radius={radius} visuals={visuals.atmosphere} sunPosition={SUN_POSITION} />
+            <Atmosphere
+              radius={radius}
+              visuals={visuals.atmosphere}
+              sunPosition={SUN_POSITION}
+              opacity={atmosphereOpacity}
+            />
           ) : null}
           {visuals.nightLights ? (
             <NightLights radius={radius} visuals={visuals.nightLights} sunPosition={SUN_POSITION} />
