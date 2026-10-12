@@ -31,6 +31,8 @@ export function PlanetPanel() {
   const discoveries = useSimulationStore((state) => state.discoveries)
   const earthAtmosphereOpacity = useSimulationStore((state) => state.earthAtmosphereOpacity)
   const setEarthAtmosphereOpacity = useSimulationStore((state) => state.setEarthAtmosphereOpacity)
+  const earthCloudOpacity = useSimulationStore((state) => state.earthCloudOpacity)
+  const setEarthCloudOpacity = useSimulationStore((state) => state.setEarthCloudOpacity)
 
   const body = selectedId ? BODY_BY_ID[selectedId] : undefined
   const open = Boolean(body)
@@ -77,6 +79,24 @@ export function PlanetPanel() {
                   onChange={setEarthAtmosphereOpacity}
                   format={(value) => `${Math.round(value * 100)}%`}
                   hint="How heavily the blue air hides the surface. Slide to 0% to study the bare continents and oceans, or up to 100% for the full glowing limb."
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {body.id === 'earth' ? (
+            <div className="mt-4">
+              <SectionTitle hint="0% = no clouds">Earth’s clouds</SectionTitle>
+              <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+                <SliderRow
+                  label="Cloud opacity"
+                  value={earthCloudOpacity}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthCloudOpacity}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint="How solid the white cloud deck is. Slide to 0% to clear the clouds and study the whole surface, or up to 100% for the full cloud cover."
                 />
               </div>
             </div>
