@@ -15,6 +15,7 @@ import { smoothstep } from '../../utils/random'
 import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
 import { HIGH_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE, LOW_DETAIL_SPHERE, createRingGeometry } from './geometry'
 import { Atmosphere } from './Atmosphere'
+import { Clouds } from './Clouds'
 import { NightLights } from './NightLights'
 import { Rings } from './Rings'
 import { Moon } from './Moon'
@@ -64,7 +65,6 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const orbitRef = useRef<Group>(null)
   const tiltRef = useRef<Group>(null)
   const spinRef = useRef<Group>(null)
-  const cloudsRef = useRef<Mesh>(null)
   const detailRef = useRef<Group>(null)
   const focusRingRef = useRef<Mesh>(null)
   const focusRingMaterialRef = useRef<MeshBasicMaterial>(null)
@@ -108,6 +108,16 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const orbitRadius = orbitRadiusFor(body, scaleMode, customScale, orbitModel)
   const spinFrozen = whatIfId === 'no-rotation' && body.id === 'earth'
   /**
+   * The cloud deck turns through this much *more* than the planet does each
+   * simulated day, so it visibly slips eastward over the surface. It is a
+   * multiple of the planet's own spin rate, so it stays in step with the clock
+   * (and stops when the planet is held still).
+   */
+  const cloudRelativeSpinPerDay =
+    spinFrozen || body.rotationPeriodHours === 0 || !visuals.clouds
+      ? 0
+      : ((Math.PI * 2 * 24) / body.rotationPeriodHours) * visuals.clouds.speed
+  /**
    * Polar flattening, straight from the IAU figure for the body. It is applied to
    * the planet's own spin group, so the squash happens along the rotation axis:
    * Jupiter (6.5%) and Saturn (9.8%) stop being spheres and read as the fast
@@ -136,30 +146,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     })
   }, [visuals])
 
-  const cloudsMaterial = useMemo(() => {
-    if (!visuals.clouds) return null
-    // The shipped cloud map is a photographic black-and-white layer with no alpha
-    // channel: white where the sky is cloudy, black where it is clear. Feeding it
-    // in as the alpha map (three reads its green channel) turns that coverage into
-    // clouds, instead of painting a grey veil over the whole planet.
-    return new MeshStandardMaterial({
-      alphaMap: getTexture(visuals.clouds.textureId),
-      transparent: true,
-      opacity: visuals.clouds.opacity,
-      depthWrite: false,
-      roughness: 0.9,
-      metalness: 0,
-      color: visuals.clouds.color,
-    })
-  }, [visuals.clouds])
-
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)
     return createRingGeometry(outer * 0.965, outer)
   }, [radius, visuals.focusRingScale])
 
   useEffect(() => () => surfaceMaterial.dispose(), [surfaceMaterial])
-  useEffect(() => () => cloudsMaterial?.dispose(), [cloudsMaterial])
   useEffect(() => () => focusRingGeometry.dispose(), [focusRingGeometry])
 
   // The camera controller and the HUD look planets up by id.
@@ -202,14 +194,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     if (spinRef.current && !spinFrozen && body.rotationPeriodHours !== 0) {
       const frameDays = clock.lastFrameDays
       spinRef.current.rotation.y += (frameDays * 24 / body.rotationPeriodHours) * Math.PI * 2
-      if (cloudsRef.current && visuals.clouds) {
-        cloudsRef.current.rotation.y = spinRef.current.rotation.y * visuals.clouds.speed
-      }
     }
-
-    // The "Cloud opacity" slider retunes the deck live: the material is
-    // reused, so this is a single property write per frame.
-    if (cloudsMaterial) cloudsMaterial.opacity = cloudOpacity
 
     // --- Level of detail --------------------------------------------------
     // Reading state directly keeps hover and selection from re-rendering React.
@@ -287,8 +272,16 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             }}
           />
 
-          {cloudsMaterial ? (
-            <mesh ref={cloudsRef} geometry={sphereGeometry} material={cloudsMaterial} scale={radius * 1.012} />
+          {visuals.clouds ? (
+            <Clouds
+              geometry={sphereGeometry}
+              radius={radius}
+              visuals={visuals.clouds}
+              sunPosition={SUN_POSITION}
+              opacity={cloudOpacity}
+              relativeSpinPerDay={cloudRelativeSpinPerDay}
+              reducedMotion={reducedMotion}
+            />
           ) : null}
         </group>
 
