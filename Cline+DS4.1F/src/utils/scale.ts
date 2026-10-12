@@ -1,4 +1,12 @@
-import type { BodyId, CelestialBody, CustomScale, FocusTargetId, ScaleMode, SatelliteDefinition } from '../types'
+import type {
+  BodyId,
+  CelestialBody,
+  CustomScale,
+  FocusTargetId,
+  OrbitModel,
+  ScaleMode,
+  SatelliteDefinition,
+} from '../types'
 import { AU_KM } from './astronomy'
 import { NEPTUNE, EARTH, BODY_BY_ID } from '../data/planets'
 import { clamp } from './random'
@@ -40,7 +48,15 @@ export const DEFAULT_CUSTOM_SCALE: CustomScale = {
   sunRadius: 3.4,
 }
 
-export function sunRadiusFor(mode: ScaleMode, custom: CustomScale): number {
+export function sunRadiusFor(
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): number {
+  // The educational orbit set is the pre-24adbf8 layout in full, so it keeps
+  // the classic, larger Sun whatever the scale preset happens to be.
+  if (model === 'educational') return 3.4
+
   switch (mode) {
     case 'relativeSize':
       // The Sun is really 109 Earths wide. We draw it a little smaller so the
@@ -59,17 +75,28 @@ export function sunRadiusFor(mode: ScaleMode, custom: CustomScale): number {
 }
 
 /** Visual radius of a planet or moon, in scene units. */
-export function bodyRadius(body: CelestialBody, mode: ScaleMode, custom: CustomScale): number {
-  if (body.id === 'sun') return sunRadiusFor(mode, custom)
+export function bodyRadius(
+  body: CelestialBody,
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): number {
+  if (body.id === 'sun') return sunRadiusFor(mode, custom, model)
 
   const ratio = body.diameterKm / EARTH_DIAMETER_KM
 
   if (body.kind === 'moon') {
     const parentId = body.parentId ?? 'earth'
-    const parentRadius = radiusOfId(parentId, mode, custom)
+    const parentRadius = radiusOfId(parentId, mode, custom, model)
     // Moon sizes are exaggerated so they do not vanish, but the family order
     // (our Moon smaller than Mercury, Ganymede bigger than Mercury) is preserved.
     return Math.max(0.05, parentRadius * Math.pow(ratio / 0.2727, 0.55) * 0.36)
+  }
+
+  // The educational orbit set is the pre-24adbf8 layout in full: the classic
+  // compressed planet sizes, whatever the scale preset happens to be.
+  if (model === 'educational') {
+    return Math.max(MIN_PLANET_RADIUS, 0.62 * Math.pow(ratio, 0.42))
   }
 
   if (mode === 'relativeSize') {
@@ -101,15 +128,33 @@ const PARENT_DIAMETER_KM: Record<string, number> = {
   pluto: 2_377,
 }
 
-function radiusOfId(id: BodyId, mode: ScaleMode, custom: CustomScale): number {
+function radiusOfId(
+  id: BodyId,
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): number {
   const diameter = PARENT_DIAMETER_KM[id] ?? EARTH.diameterKm
-  return bodyRadius({ ...EARTH, id, diameterKm: diameter }, mode, custom)
+  return bodyRadius({ ...EARTH, id, diameterKm: diameter }, mode, custom, model)
 }
 
 /** Visual orbital radius (distance from the Sun) in scene units. */
-export function orbitRadiusFor(body: CelestialBody, mode: ScaleMode, custom: CustomScale): number {
+export function orbitRadiusFor(
+  body: CelestialBody,
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): number {
   if (body.kind === 'star') return 0
   const au = body.semiMajorAxisKm / AU_KM
+
+  // The educational orbit set is the pre-24adbf8 layout in full: the compressed
+  // spacing that squeezes every orbit into one tidy view. It is a complete,
+  // independent orbit set, not the real one rescaled, so it ignores the scale
+  // preset entirely.
+  if (model === 'educational') {
+    return 9 + 66 * Math.pow(au / MAX_AU, 0.55)
+  }
 
   if (mode === 'distances') {
     // True relative spacing: linear in AU, so the inner planets crowd the Sun
@@ -169,9 +214,13 @@ export function satelliteRadius(satellite: SatelliteDefinition, parentRadius: nu
 }
 
 /** Radius of the asteroid belt in scene units (2.2 – 3.3 AU). */
-export function asteroidBeltRadii(mode: ScaleMode, custom: CustomScale): [number, number] {
-  const inner = orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: 2.2 * AU_KM }, mode, custom)
-  const outer = orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: 3.3 * AU_KM }, mode, custom)
+export function asteroidBeltRadii(
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): [number, number] {
+  const inner = orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: 2.2 * AU_KM }, mode, custom, model)
+  const outer = orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: 3.3 * AU_KM }, mode, custom, model)
   return [inner, outer]
 }
 
@@ -179,8 +228,8 @@ export function asteroidBeltRadii(mode: ScaleMode, custom: CustomScale): [number
  * Kilometres per scene unit, measured at Neptune's orbit. Used to translate
  * spacecraft speed and distance read-outs into human units.
  */
-export function kmPerUnit(mode: ScaleMode, custom: CustomScale): number {
-  const neptuneOrbit = orbitRadiusFor(NEPTUNE, mode, custom)
+export function kmPerUnit(mode: ScaleMode, custom: CustomScale, model: OrbitModel = 'realistic'): number {
+  const neptuneOrbit = orbitRadiusFor(NEPTUNE, mode, custom, model)
   return NEPTUNE.semiMajorAxisKm / Math.max(neptuneOrbit, 1)
 }
 
@@ -189,9 +238,14 @@ export function kmPerUnit(mode: ScaleMode, custom: CustomScale): number {
  * layout. Used for elliptical orbits, where the real distance changes as the
  * planet travels around the Sun.
  */
-export function scaleDistanceKm(km: number, mode: ScaleMode, custom: CustomScale): number {
+export function scaleDistanceKm(
+  km: number,
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): number {
   if (km <= 0) return 0
-  return orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: km }, mode, custom)
+  return orbitRadiusFor({ ...NEPTUNE, semiMajorAxisKm: km }, mode, custom, model)
 }
 
 /**
@@ -208,17 +262,23 @@ export function sceneFromEclipticKm(
   zKm: number,
   mode: ScaleMode,
   custom: CustomScale,
+  model: OrbitModel = 'realistic',
 ): { x: number; y: number; z: number } {
   const distance = Math.hypot(xKm, yKm, zKm)
-  const factor = distance > 0 ? scaleDistanceKm(distance, mode, custom) / distance : 0
+  const factor = distance > 0 ? scaleDistanceKm(distance, mode, custom, model) / distance : 0
   return { x: xKm * factor, y: zKm * factor, z: -yKm * factor }
 }
 
 /** Visual radius for any focusable object, used to frame the camera nicely. */
-export function visualRadiusOf(id: FocusTargetId, mode: ScaleMode, custom: CustomScale): number {
+export function visualRadiusOf(
+  id: FocusTargetId,
+  mode: ScaleMode,
+  custom: CustomScale,
+  model: OrbitModel = 'realistic',
+): number {
   if (id === 'spacecraft') return 0.6
   if (id === 'belt') {
-    const [inner, outer] = asteroidBeltRadii(mode, custom)
+    const [inner, outer] = asteroidBeltRadii(mode, custom, model)
     return Math.max(6, (outer - inner) * 0.75)
   }
   const body = BODY_BY_ID[id]
@@ -228,7 +288,7 @@ export function visualRadiusOf(id: FocusTargetId, mode: ScaleMode, custom: Custo
   // flying to see is the coma and the tails, which are far larger. Framing on
   // the nucleus alone would put the camera right on top of it.
   if (body.kind === 'comet') return 0.5
-  return bodyRadius(body, mode, custom)
+  return bodyRadius(body, mode, custom, model)
 }
 
 export const SCALE_MODE_INFO: Record<

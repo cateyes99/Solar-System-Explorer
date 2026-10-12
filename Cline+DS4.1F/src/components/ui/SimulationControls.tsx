@@ -23,6 +23,8 @@ const SCALE_LABELS: Record<ScaleMode, string> = {
 export function SimulationControlsContent() {
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const setScaleMode = useSimulationStore((state) => state.setScaleMode)
+  const orbitModel = useSimulationStore((state) => state.orbitModel)
+  const setOrbitModel = useSimulationStore((state) => state.setOrbitModel)
   const customScale = useSimulationStore((state) => state.customScale)
   const setCustomScale = useSimulationStore((state) => state.setCustomScale)
   const showOrbits = useSimulationStore((state) => state.showOrbits)
@@ -46,6 +48,14 @@ export function SimulationControlsContent() {
 
   const info = SCALE_MODE_INFO[scaleMode]
   const focusId: FocusTargetId = selectedId ?? 'sun'
+  /**
+   * The educational orbit set is a complete, independent layout, so while it is
+   * active the scale presets have nothing to say: the picker shows the
+   * educational preset and the others are switched off rather than pretending
+   * to reshape orbits they no longer control.
+   */
+  const educationalOrbits = orbitModel === 'educational'
+  const activeScaleMode: ScaleMode = educationalOrbits ? 'educational' : scaleMode
 
   const surpriseMe = (): void => {
     const pick = BODIES[Math.floor(Math.random() * BODIES.length)].id
@@ -58,16 +68,21 @@ export function SimulationControlsContent() {
   return (
     <div className="space-y-4">
       <section>
-        <SectionTitle hint="real spacing, compressed sizes">Visual scale</SectionTitle>
+        <SectionTitle
+          hint={educationalOrbits ? 'compressed sizes and orbits' : 'real spacing, compressed sizes'}
+        >
+          Visual scale
+        </SectionTitle>
         <div className="flex flex-wrap gap-1.5">
           {SCALE_MODE_ORDER.map((mode) => (
             <button
               key={mode}
               type="button"
-              aria-pressed={scaleMode === mode}
+              aria-pressed={activeScaleMode === mode}
+              disabled={educationalOrbits}
               onClick={() => setScaleMode(mode)}
-              className={`min-h-[2.5rem] rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                scaleMode === mode
+              className={`min-h-[2.5rem] rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                activeScaleMode === mode
                   ? 'border-ice/60 bg-ice/20 text-parchment'
                   : 'border-white/12 bg-white/4 text-mist hover:text-parchment'
               }`}
@@ -76,10 +91,24 @@ export function SimulationControlsContent() {
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-mist/90">{info.description}</p>
-        <p className="mt-1 text-[0.68rem] leading-relaxed text-solar/90">{info.caveat}</p>
+        <p className="mt-2 text-xs leading-relaxed text-mist/90">
+          {educationalOrbits ? SCALE_MODE_INFO.educational.description : info.description}
+        </p>
+        <p className="mt-1 text-[0.68rem] leading-relaxed text-solar/90">
+          {educationalOrbits ? SCALE_MODE_INFO.educational.caveat : info.caveat}
+        </p>
 
-        {scaleMode === 'custom' ? (
+        {educationalOrbits ? (
+          <button
+            type="button"
+            onClick={() => setOrbitModel('realistic')}
+            className="mt-2 min-h-[2.5rem] w-full rounded-lg border border-ice/40 bg-ice/12 px-2.5 py-1.5 text-xs font-medium text-parchment transition-colors hover:bg-ice/20"
+          >
+            Switch to the real JPL orbits
+          </button>
+        ) : null}
+
+        {!educationalOrbits && scaleMode === 'custom' ? (
           <div className="mt-2 space-y-1 rounded-xl border border-white/8 bg-white/4 p-1">
             <SliderRow
               label="Planet size compression"

@@ -122,6 +122,19 @@ export interface SatelliteDefinition {
 
 export type ScaleMode = 'educational' | 'relativeSize' | 'distances' | 'custom'
 
+/**
+ * Which set of orbital elements the scene draws.
+ *
+ *  - `realistic`   : the JPL/Standish elements advanced to the simulated date by
+ *                    their secular rates, with the measured J2000 mean anomalies
+ *                    and ascending nodes for the moons. This is the true Solar
+ *                    System — the real shapes, tilts, orientations and positions.
+ *  - `educational` : the same orbits frozen at J2000, with the moons' starting
+ *                    angles seeded from their names instead of measured. Tidier
+ *                    and easier to read, but no longer the real thing.
+ */
+export type OrbitModel = 'realistic' | 'educational'
+
 export type QualityLevel = 'low' | 'medium' | 'high'
 
 export interface CustomScale {
