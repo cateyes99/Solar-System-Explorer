@@ -102,32 +102,31 @@ const fragmentShader = /* glsl */ `
     vec3 dir = normalize(vWorldNormal);
     vec3 ldir = normalize(vLocalDir);
 
-    // Wind: advect the sculpting field across the deck. A single 3D offset, so
-    // the motion is a coherent drift with no latitude shear — nothing can stretch
-    // the map into streaks. At 100% on the dynamics slider this runs at the full
-    // rate below; the slider scales the elapsed time the wind has run for.
+    // Wind-advected sample point. The *features* are drawn from this field, so as
+    // the wind carries the sample point through the noise the cloud shapes drift
+    // across the deck and morph and fray as they go — they are never pinned to a
+    // painted texture.
     vec3 p = ldir * uScale + vec3(uTime * 0.75, uTime * 0.24, -uTime * 0.58);
 
-    // Base shape (cloud bodies) and detail (the carving tool). Remapping the
-    // shape against the detail keeps the dense cores while fraying the margins
-    // into puffs and wisps.
+    // Base shape (cloud bodies) plus a finer octave that frays the edges, then a
+    // soft threshold — the threshold is what turns a smooth field into distinct
+    // cumulus-style masses rather than an even veil.
     float shape = fbm3(p);
-    float detail = fbm3(p * 3.4 + 11.7);
-    float mask = clamp(remap(shape, detail * 0.62, 1.0, 0.0, 1.0), 0.0, 1.0);
-    mask = smoothstep(0.05, 0.78, mask);
+    float detail = fbm3(p * 3.6 + 9.3);
+    float clouds = smoothstep(0.40, 0.60, shape + (detail - 0.5) * 0.28);
 
-    // The real cloud map is the coverage: dense wherever Earth was actually
-    // cloudy, so the geography stays honest.
-    float weather = texture2D(uMap, vUv).g;
+    // Coverage: the real cloud map is a *soft gate* on where cloud is more or
+    // less likely — read blurred, so its rigid texture never shows through and
+    // the animated features stay the star.
+    float gate = 0.6 + 0.5 * smoothstep(0.08, 0.52, texture2D(uMap, vUv, 3.0).g);
 
-    // The drifting mask condenses and evaporates that coverage and frays its
-    // edges into puffs. Crucially the map itself is never displaced, so the layer
-    // flows and breathes instead of rippling.
-    float density = weather * (0.35 + 0.95 * mask);
+    // Cloud density: the advected features, softly gated by the real weather.
+    float density = clamp(clouds * gate, 0.0, 1.0);
 
     // At 0% dynamics the sculpting collapses and we are left with the plain,
     // untouched cloud map — frozen, but still turning with the deck.
-    float cover = mix(weather, density, smoothstep(0.0, 0.2, uDynamics));
+    float weather = texture2D(uMap, vUv).g;
+    float cover = mix(weather, density, smoothstep(0.0, 0.25, uDynamics));
 
     // Sunlight: bright on the day side, all but gone at night.
     vec3 sunDirection = normalize(uSunPosition - vWorldPosition);
@@ -180,7 +179,7 @@ export function Clouds({
           uOpacity: { value: opacity },
           uTime: { value: 0 },
           uDynamics: { value: dynamics },
-          uScale: { value: 3.4 },
+          uScale: { value: 2.7 },
         },
         transparent: true,
         depthWrite: false,
