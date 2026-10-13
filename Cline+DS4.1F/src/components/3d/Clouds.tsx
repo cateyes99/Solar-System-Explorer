@@ -108,25 +108,21 @@ const fragmentShader = /* glsl */ `
     // painted texture.
     vec3 p = ldir * uScale + vec3(uTime * 0.75, uTime * 0.24, -uTime * 0.58);
 
-    // Base shape (cloud bodies) plus a finer octave that frays the edges, then a
-    // soft threshold — the threshold is what turns a smooth field into distinct
-    // cumulus-style masses rather than an even veil.
+    // The cloud features themselves are fully procedural: a base shape plus a
+    // finer octave, soft-thresholded into distinct cumulus-like masses. Once the
+    // static map has faded out (see below) this is all that remains.
     float shape = fbm3(p);
     float detail = fbm3(p * 3.6 + 9.3);
     float clouds = smoothstep(0.40, 0.60, shape + (detail - 0.5) * 0.28);
 
-    // Coverage: the real cloud map is a *soft gate* on where cloud is more or
-    // less likely — read blurred, so its rigid texture never shows through and
-    // the animated features stay the star.
-    float gate = 0.6 + 0.5 * smoothstep(0.08, 0.52, texture2D(uMap, vUv, 3.0).g);
-
-    // Cloud density: the advected features, softly gated by the real weather.
-    float density = clamp(clouds * gate, 0.0, 1.0);
-
-    // At 0% dynamics the sculpting collapses and we are left with the plain,
-    // untouched cloud map — frozen, but still turning with the deck.
+    // The real cloud map only has a say at the very bottom of the slider. Its
+    // contribution is crossfaded away *completely* by 15%, after which the deck is
+    // purely procedural. Leaving any of it in shows up as rigid "chunks" of the
+    // old map drifting through the animated clouds, because the map's own
+    // features never move.
+    float mapBlend = smoothstep(0.0, 0.15, uDynamics);
     float weather = texture2D(uMap, vUv).g;
-    float cover = mix(weather, density, smoothstep(0.0, 0.25, uDynamics));
+    float cover = mix(weather, clouds, mapBlend);
 
     // Sunlight: bright on the day side, all but gone at night.
     vec3 sunDirection = normalize(uSunPosition - vWorldPosition);
