@@ -33,6 +33,8 @@ export function PlanetPanel() {
   const setEarthAtmosphereOpacity = useSimulationStore((state) => state.setEarthAtmosphereOpacity)
   const earthCloudOpacity = useSimulationStore((state) => state.earthCloudOpacity)
   const setEarthCloudOpacity = useSimulationStore((state) => state.setEarthCloudOpacity)
+  const earthCloudDynamics = useSimulationStore((state) => state.earthCloudDynamics)
+  const setEarthCloudDynamics = useSimulationStore((state) => state.setEarthCloudDynamics)
 
   const body = selectedId ? BODY_BY_ID[selectedId] : undefined
   const open = Boolean(body)
@@ -97,6 +99,16 @@ export function PlanetPanel() {
                   onChange={setEarthCloudOpacity}
                   format={(value) => `${Math.round(value * 100)}%`}
                   hint="How solid the white cloud deck is. Slide to 0% to clear the clouds and study the whole surface, or up to 100% for the full cloud cover."
+                />
+                <SliderRow
+                  label="Cloud dynamics"
+                  value={earthCloudDynamics}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthCloudDynamics}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint="How much the cloud shapes swirl and re-form. 0% freezes them mid-drift (the deck still slips across the surface); 100% is the liveliest."
                 />
               </div>
             </div>

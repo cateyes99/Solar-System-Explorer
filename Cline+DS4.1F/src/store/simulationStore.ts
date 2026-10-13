@@ -73,6 +73,12 @@ export interface SimulationState {
    * means “none” on both. Only Earth has clouds, so only Earth reads it.
    */
   earthCloudOpacity: number
+  /**
+   * How lively the cloud *shapes* are: 0 = frozen mid-drift, 1 = the full swirl
+   * and morph. The deck's faster-than-surface rotation is always on, so it keeps
+   * slipping over the ground even at 0. Only Earth has clouds.
+   */
+  earthCloudDynamics: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -134,6 +140,7 @@ export interface SimulationActions {
   setShowOrbitFlow: (visible: boolean) => void
   setEarthAtmosphereOpacity: (value: number) => void
   setEarthCloudOpacity: (value: number) => void
+  setEarthCloudDynamics: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -212,6 +219,10 @@ const initialState: SimulationState = {
   // Half the full cloud deck by default, so the continents and oceans read
   // clearly through the clouds instead of being hidden behind them.
   earthCloudOpacity: 0.5,
+  // The full swirl-and-morph is a touch brisk for a permanent default, so start
+  // at half; the slider goes up to the original liveliness and down to a frozen
+  // (but still drifting) deck.
+  earthCloudDynamics: 0.5,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -327,6 +338,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthCloudOpacity: (value) =>
     set({ earthCloudOpacity: Math.max(0, Math.min(1, value)) }),
+
+  setEarthCloudDynamics: (value) =>
+    set({ earthCloudDynamics: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')
