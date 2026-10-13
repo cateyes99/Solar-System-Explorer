@@ -7,31 +7,40 @@ import { clock } from '../../utils/simulationClock'
 import { getTexture } from '../../utils/textures'
 
 /**
- * Earth's cloud deck — a living layer, not a painted shell.
+ * Earth's cloud deck.
  *
- * Two motions are kept deliberately separate:
+ * The density model follows the real-time cloudscape pipeline (Schneider &
+ * Vos, "The Real-Time Volumetric Cloudscapes of Horizon: Zero Dawn", GPU Pro 7),
+ * adapted from a volume to the planet's cloud shell:
  *
- *  - **The deck turns faster than the ground.** The mesh is a child of the spin
- *    group, and it is given its own extra rotation, so the clouds visibly slip
- *    eastward over the surface (see `relativeSpinPerDay`).
- *  - **The shapes themselves evolve.** The coverage is displaced by a two-level
- *    fractal-Brownian-motion domain warp — an fBm offsetting an fBm offsetting
- *    the sample — evaluated along the sphere's own direction. That is the classic
- *    recipe for eddies, filaments and fronts rather than a field of soft blobs,
- *    and because it is a solid 3D field it is continuous everywhere: no seam, no
- *    poles, and nothing global for the eye to lock onto.
+ *  1. **Weather / coverage** — the real cloud map says *where* systems may live.
+ *     It is applied as an erosion, so no cloud can appear where the map is clear.
+ *  2. **Base shape** — a low-frequency fBm forms the cloud bodies.
+ *  3. **Detail** — a higher-frequency fBm is *remapped* against the base to carve
+ *     it (the "carving clay" step). Remapping, rather than multiplying, keeps the
+ *     dense cores while fraying the edges into puffs and wisps — which is exactly
+ *     what stops the result reading as a smooth water ripple.
+ *  4. **Wind** — the noise field is advected along the wind so the detail streams
+ *     across the deck instead of sitting still.
  *
- * The warp is a pure, bounded displacement, and the sample point is advected
- * along a slowly curving path so it keeps meeting fresh noise. Nothing
- * accumulates, so the deck can never smear into the long "combed" streaks a
- * shearing offset would produce, however long it runs.
+ * Two motions are kept deliberately separate, and the layer is a child of the
+ * spin group so it always turns with the planet:
+ *
+ *  - **The deck turns faster than the ground** (see `relativeSpinPerDay`).
+ *  - **The shapes themselves evolve**, driven by the advected noise and gated by
+ *    the "Cloud dynamics" slider: at 0 the density collapses back to the plain
+ *    cloud map (frozen, but still drifting), at 1 it is fully sculpted.
  */
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorldNormal;
+  varying vec3 vLocalDir;
   varying vec3 vWorldPosition;
   void main() {
     vUv = uv;
+    // Object-space direction: fixed to the deck, so the weather pattern turns
+    // with the clouds (and its latitude axis is the planet's spin axis).
+    vLocalDir = normalize(position);
     vec4 worldPosition = modelMatrix * vec4(position, 1.0);
     vWorldPosition = worldPosition.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
@@ -45,16 +54,16 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uSunPosition;
   uniform float uOpacity;
   uniform float uTime;
-  uniform float uMorph;
+  uniform float uDynamics;
   uniform float uScale;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
+  varying vec3 vLocalDir;
   varying vec3 vWorldPosition;
 
-  // 3D value noise, sampled along the sphere's own direction. Being a solid 3D
-  // field it is continuous everywhere — no seam at longitude 0, nothing pinched
-  // at the poles — which is exactly where 2D equirectangular noise gives itself
-  // away.
+  // 3D value noise, sampled along the deck's own direction: a solid field, so it
+  // is continuous everywhere — no seam at longitude 0, nothing pinched at the
+  // poles.
   float hash13(vec3 p) {
     p = fract(p * 0.1031);
     p += dot(p, p.zyx + 31.32);
@@ -71,8 +80,7 @@ const fragmentShader = /* glsl */ `
           mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), u.x), u.y),
       u.z);
   }
-  // Fractal Brownian motion: three octaves, each rotated so the noise lattice
-  // cannot line up and read as a grid, then normalised back to 0…1.
+  // Three octaves, each rotated so the noise lattice cannot line up.
   float fbm3(vec3 p) {
     const mat3 rot = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
     float sum = 0.0;
@@ -84,27 +92,42 @@ const fragmentShader = /* glsl */ `
     }
     return sum / 0.875;
   }
+  // Remap value from [low1, high1] to [low2, high2] — the erosion primitive the
+  // cloudscape pipeline is built on.
+  float remap(float value, float low1, float high1, float low2, float high2) {
+    return low2 + (value - low1) / max(high1 - low1, 0.0001) * (high2 - low2);
+  }
 
   void main() {
     vec3 dir = normalize(vWorldNormal);
+    vec3 ldir = normalize(vLocalDir);
 
-    // Advection: walk the sample point through the field along a slowly curving
-    // path, so it keeps meeting fresh noise and the motion never loops.
-    vec3 drift = vec3(sin(uTime * 0.033) * 1.1, cos(uTime * 0.024) * 1.1, uTime * 0.05);
-    vec3 p = dir * uScale + drift;
+    // Wind: advect the sculpting field across the deck. A single 3D offset, so
+    // the motion is a coherent drift with no latitude shear — nothing can stretch
+    // the map into streaks. At 100% on the dynamics slider this runs at the full
+    // rate below; the slider scales the elapsed time the wind has run for.
+    vec3 p = ldir * uScale + vec3(uTime * 0.75, uTime * 0.24, -uTime * 0.58);
 
-    // Domain warping: an fBm that offsets an fBm that offsets the sample. The two
-    // levels are what turn a soft noise field into eddies, filaments and fronts —
-    // and because the displacement is bounded and local, it never shears the map
-    // into streaks.
-    vec3 q = vec3(fbm3(p), fbm3(p + vec3(5.1, 1.7, 9.3)), 0.0);
-    vec2 r = vec2(
-      fbm3(p + 3.4 * q + vec3(1.3, 8.7, 2.1)),
-      fbm3(p + 3.4 * q + vec3(7.9, 2.2, 6.4))
-    );
+    // Base shape (cloud bodies) and detail (the carving tool). Remapping the
+    // shape against the detail keeps the dense cores while fraying the margins
+    // into puffs and wisps.
+    float shape = fbm3(p);
+    float detail = fbm3(p * 3.4 + 11.7);
+    float mask = clamp(remap(shape, detail * 0.62, 1.0, 0.0, 1.0), 0.0, 1.0);
+    mask = smoothstep(0.05, 0.78, mask);
 
-    vec2 uv = vUv + (r - 0.5) * uMorph;
-    float cover = texture2D(uMap, uv).g;
+    // The real cloud map is the coverage: dense wherever Earth was actually
+    // cloudy, so the geography stays honest.
+    float weather = texture2D(uMap, vUv).g;
+
+    // The drifting mask condenses and evaporates that coverage and frays its
+    // edges into puffs. Crucially the map itself is never displaced, so the layer
+    // flows and breathes instead of rippling.
+    float density = weather * (0.35 + 0.95 * mask);
+
+    // At 0% dynamics the sculpting collapses and we are left with the plain,
+    // untouched cloud map — frozen, but still turning with the deck.
+    float cover = mix(weather, density, smoothstep(0.0, 0.2, uDynamics));
 
     // Sunlight: bright on the day side, all but gone at night.
     vec3 sunDirection = normalize(uSunPosition - vWorldPosition);
@@ -115,9 +138,6 @@ const fragmentShader = /* glsl */ `
     gl_FragColor = vec4(color, alpha);
   }
 `
-
-/** How far the coverage is displaced at full “Cloud dynamics”, in UV units. */
-const MORPH_AMOUNT = 0.16
 
 interface CloudsProps {
   geometry: BufferGeometry
@@ -131,7 +151,7 @@ interface CloudsProps {
    * of the planet's own spin. Positive = the clouds drift ahead of the surface.
    */
   relativeSpinPerDay: number
-  /** 0…1 “Cloud dynamics” from the Earth panel: scales the shape evolution only. */
+  /** 0…1 “Cloud dynamics”: scales the shape evolution only. */
   dynamics: number
   reducedMotion: boolean
 }
@@ -159,8 +179,8 @@ export function Clouds({
           uSunPosition: { value: sunPosition.clone() },
           uOpacity: { value: opacity },
           uTime: { value: 0 },
-          uMorph: { value: MORPH_AMOUNT },
-          uScale: { value: 4.5 },
+          uDynamics: { value: dynamics },
+          uScale: { value: 3.4 },
         },
         transparent: true,
         depthWrite: false,
@@ -171,7 +191,7 @@ export function Clouds({
   useEffect(() => () => material.dispose(), [material])
 
   // The shape-evolution clock runs in real seconds, so the clouds keep breathing
-  // at a steady, visible pace even when the simulation is paused. It freezes for
+  // at a steady, visible pace even when the simulation is paused; it freezes for
   // anyone who asked for reduced motion. The relative spin, by contrast, is tied
   // to the simulation clock so it stays in step with the turning planet.
   const elapsed = useRef(0)
@@ -179,13 +199,12 @@ export function Clouds({
   useFrame((_, delta) => {
     // The slider scales ONLY the shape evolution. The deck's own faster-than-
     // surface rotation is left alone, so at 0% the clouds still slip across the
-    // ground — their shapes are simply frozen (and the warp collapses to nothing,
-    // which restores the plain, untouched cloud map of the original layer).
+    // ground while their density is frozen.
     if (!reducedMotion) elapsed.current += delta * dynamics
     spun.current += relativeSpinPerDay * clock.lastFrameDays
     if (meshRef.current) meshRef.current.rotation.y = spun.current
     material.uniforms.uTime.value = elapsed.current
-    material.uniforms.uMorph.value = MORPH_AMOUNT * dynamics
+    material.uniforms.uDynamics.value = dynamics
     material.uniforms.uOpacity.value = opacity
     material.uniforms.uSunPosition.value.copy(sunPosition)
   })
