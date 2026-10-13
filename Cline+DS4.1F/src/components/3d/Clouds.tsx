@@ -14,14 +14,17 @@ import { getTexture } from '../../utils/textures'
  *  - **The deck turns faster than the ground.** The mesh is a child of the spin
  *    group, and it is given its own extra rotation, so the clouds visibly slip
  *    eastward over the surface (see `relativeSpinPerDay`).
- *  - **The shapes themselves evolve.** The shader warps the coverage through a
- *    pair of noise fields sampled *on the sphere*, so every eddy is local and
- *    uncorrelated: no seam, no poles, and no global pattern for the eye to lock
- *    onto. The fields drift over time, so fronts curl and re-form.
+ *  - **The shapes themselves evolve.** The coverage is displaced by a two-level
+ *    fractal-Brownian-motion domain warp — an fBm offsetting an fBm offsetting
+ *    the sample — evaluated along the sphere's own direction. That is the classic
+ *    recipe for eddies, filaments and fronts rather than a field of soft blobs,
+ *    and because it is a solid 3D field it is continuous everywhere: no seam, no
+ *    poles, and nothing global for the eye to lock onto.
  *
- * The warp is a pure displacement — it never accumulates — which is what stops
- * the deck from smearing into the long "combed" streaks a shearing offset would
- * produce given enough time.
+ * The warp is a pure, bounded displacement, and the sample point is advected
+ * along a slowly curving path so it keeps meeting fresh noise. Nothing
+ * accumulates, so the deck can never smear into the long "combed" streaks a
+ * shearing offset would produce, however long it runs.
  */
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -48,8 +51,10 @@ const fragmentShader = /* glsl */ `
   varying vec3 vWorldNormal;
   varying vec3 vWorldPosition;
 
-  // 3D value noise. Sampling it along the sphere's own direction keeps the field
-  // continuous everywhere — no seam at longitude 0, nothing pinched at the poles.
+  // 3D value noise, sampled along the sphere's own direction. Being a solid 3D
+  // field it is continuous everywhere — no seam at longitude 0, nothing pinched
+  // at the poles — which is exactly where 2D equirectangular noise gives itself
+  // away.
   float hash13(vec3 p) {
     p = fract(p * 0.1031);
     p += dot(p, p.zyx + 31.32);
@@ -66,24 +71,39 @@ const fragmentShader = /* glsl */ `
           mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), u.x), u.y),
       u.z);
   }
-  // Two octaves: the fine octave breaks up the blobby grid of a single one, so
-  // the eddies read as weather rather than as a lattice.
+  // Fractal Brownian motion: three octaves, each rotated so the noise lattice
+  // cannot line up and read as a grid, then normalised back to 0…1.
   float fbm3(vec3 p) {
-    return 0.62 * noise3(p) + 0.38 * noise3(p * 2.03 + 19.1);
+    const mat3 rot = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
+    float sum = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 3; i++) {
+      sum += amp * noise3(p);
+      p = rot * p * 2.02;
+      amp *= 0.5;
+    }
+    return sum / 0.875;
   }
 
   void main() {
     vec3 dir = normalize(vWorldNormal);
-    vec3 base = dir * uScale;
 
-    // Two independent warp fields drifting in different directions: the vector
-    // displacement is never aligned, so no single cyclone can dominate.
-    vec2 warp = vec2(
-      fbm3(base + vec3(0.0, 0.0, uTime * 0.12)),
-      fbm3(base + vec3(9.3, 4.1, -uTime * 0.10))
-    ) - 0.5;
+    // Advection: walk the sample point through the field along a slowly curving
+    // path, so it keeps meeting fresh noise and the motion never loops.
+    vec3 drift = vec3(sin(uTime * 0.033) * 1.1, cos(uTime * 0.024) * 1.1, uTime * 0.05);
+    vec3 p = dir * uScale + drift;
 
-    vec2 uv = vUv + warp * uMorph;
+    // Domain warping: an fBm that offsets an fBm that offsets the sample. The two
+    // levels are what turn a soft noise field into eddies, filaments and fronts —
+    // and because the displacement is bounded and local, it never shears the map
+    // into streaks.
+    vec3 q = vec3(fbm3(p), fbm3(p + vec3(5.1, 1.7, 9.3)), 0.0);
+    vec2 r = vec2(
+      fbm3(p + 3.4 * q + vec3(1.3, 8.7, 2.1)),
+      fbm3(p + 3.4 * q + vec3(7.9, 2.2, 6.4))
+    );
+
+    vec2 uv = vUv + (r - 0.5) * uMorph;
     float cover = texture2D(uMap, uv).g;
 
     // Sunlight: bright on the day side, all but gone at night.
@@ -97,7 +117,7 @@ const fragmentShader = /* glsl */ `
 `
 
 /** How far the coverage is displaced at full “Cloud dynamics”, in UV units. */
-const MORPH_AMOUNT = 0.055
+const MORPH_AMOUNT = 0.16
 
 interface CloudsProps {
   geometry: BufferGeometry
@@ -140,7 +160,7 @@ export function Clouds({
           uOpacity: { value: opacity },
           uTime: { value: 0 },
           uMorph: { value: MORPH_AMOUNT },
-          uScale: { value: 5.0 },
+          uScale: { value: 4.5 },
         },
         transparent: true,
         depthWrite: false,
