@@ -59,7 +59,9 @@ export function formatDaysPerSecond(daysPerSecond: number): string {
     return `${years.toFixed(years >= 10 ? 0 : 1)} years / second`
   }
   if (daysPerSecond >= 1) return `${daysPerSecond} day${daysPerSecond === 1 ? '' : 's'} / second`
-  return `${(daysPerSecond * 24).toFixed(1)} hours / second`
+  const hours = daysPerSecond * 24
+  if (hours >= 1) return `${hours.toFixed(1)} hours / second`
+  return `${Math.round(hours * 60)} minutes / second`
 }
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {

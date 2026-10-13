@@ -1,5 +1,5 @@
 import { useSimulationStore, simulationDaysPerSecond } from '../../store/simulationStore'
-import { TIME_SPEEDS } from '../../data/missions'
+import { DEFAULT_SPEED_INDEX, TIME_SPEEDS } from '../../data/missions'
 import { useSimulationTime } from '../../hooks/useSimulationTime'
 import { formatDaysPerSecond, formatSimDate, formatSpeedMultiplier } from '../../utils/format'
 import { IconButton, ToolbarButton } from './primitives'
@@ -25,7 +25,7 @@ export function TimeControls() {
   const daysPerSecond = useSimulationStore((state) => simulationDaysPerSecond(state))
   const { date } = useSimulationTime()
 
-  const speed = TIME_SPEEDS[speedIndex] ?? TIME_SPEEDS[1]
+  const speed = TIME_SPEEDS[speedIndex] ?? TIME_SPEEDS[DEFAULT_SPEED_INDEX]
   const isoDate = date.toISOString().slice(0, 10)
 
   return (

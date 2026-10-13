@@ -57,7 +57,8 @@ export function useKeyboardControls(): void {
         case 'Digit3':
         case 'Digit4':
         case 'Digit5':
-        case 'Digit6': {
+        case 'Digit6':
+        case 'Digit7': {
           const index = Number(event.code.replace('Digit', '')) - 1
           if (TIME_SPEEDS[index]) store.setSpeedIndex(index)
           break
