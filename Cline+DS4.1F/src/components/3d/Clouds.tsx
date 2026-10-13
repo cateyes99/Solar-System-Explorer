@@ -96,6 +96,9 @@ const fragmentShader = /* glsl */ `
   }
 `
 
+/** How far the coverage is displaced at full “Cloud dynamics”, in UV units. */
+const MORPH_AMOUNT = 0.055
+
 interface CloudsProps {
   geometry: BufferGeometry
   radius: number
@@ -108,6 +111,8 @@ interface CloudsProps {
    * of the planet's own spin. Positive = the clouds drift ahead of the surface.
    */
   relativeSpinPerDay: number
+  /** 0…1 “Cloud dynamics” from the Earth panel: scales the shape evolution only. */
+  dynamics: number
   reducedMotion: boolean
 }
 
@@ -118,6 +123,7 @@ export function Clouds({
   sunPosition,
   opacity,
   relativeSpinPerDay,
+  dynamics,
   reducedMotion,
 }: CloudsProps) {
   const meshRef = useRef<Mesh>(null)
@@ -133,7 +139,7 @@ export function Clouds({
           uSunPosition: { value: sunPosition.clone() },
           uOpacity: { value: opacity },
           uTime: { value: 0 },
-          uMorph: { value: 0.055 },
+          uMorph: { value: MORPH_AMOUNT },
           uScale: { value: 5.0 },
         },
         transparent: true,
@@ -151,10 +157,15 @@ export function Clouds({
   const elapsed = useRef(0)
   const spun = useRef(0)
   useFrame((_, delta) => {
-    if (!reducedMotion) elapsed.current += delta
+    // The slider scales ONLY the shape evolution. The deck's own faster-than-
+    // surface rotation is left alone, so at 0% the clouds still slip across the
+    // ground — their shapes are simply frozen (and the warp collapses to nothing,
+    // which restores the plain, untouched cloud map of the original layer).
+    if (!reducedMotion) elapsed.current += delta * dynamics
     spun.current += relativeSpinPerDay * clock.lastFrameDays
     if (meshRef.current) meshRef.current.rotation.y = spun.current
     material.uniforms.uTime.value = elapsed.current
+    material.uniforms.uMorph.value = MORPH_AMOUNT * dynamics
     material.uniforms.uOpacity.value = opacity
     material.uniforms.uSunPosition.value.copy(sunPosition)
   })
