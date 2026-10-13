@@ -13,7 +13,7 @@ import type {
 } from '../types'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
 import { FACTS, pickFact } from '../data/facts'
-import { findClosestSpeed, TIME_SPEEDS } from '../data/missions'
+import { findClosestSpeed, DEFAULT_SPEED_INDEX, TIME_SPEEDS } from '../data/missions'
 import { audio } from '../utils/audio'
 import { clock } from '../utils/simulationClock'
 
@@ -197,7 +197,7 @@ const prefersReducedMotion = (): boolean => {
 
 const initialState: SimulationState = {
   paused: false,
-  speedIndex: 1,
+  speedIndex: DEFAULT_SPEED_INDEX,
   direction: 1,
 
   selectedId: null,
@@ -289,7 +289,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   resetToToday: () => {
     clock.resetToNow()
-    set({ direction: 1, speedIndex: 1 })
+    set({ direction: 1, speedIndex: DEFAULT_SPEED_INDEX })
   },
 
   setSimulationDate: (timeMs) => {
@@ -537,7 +537,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
 /** Current simulation speed in days per second, including direction. */
 export function simulationDaysPerSecond(state: SimulationState): number {
-  const speed = TIME_SPEEDS[state.speedIndex] ?? TIME_SPEEDS[1]
+  const speed = TIME_SPEEDS[state.speedIndex] ?? TIME_SPEEDS[DEFAULT_SPEED_INDEX]
   return speed.daysPerSecond * state.direction
 }
 

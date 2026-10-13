@@ -92,8 +92,15 @@ export const TRAVEL_DESTINATIONS: TravelDestination[] = [
   },
 ]
 
-/** Simulation speeds, from a slow drift to a whole year per second. */
+/**
+ * Simulation speeds, from a very slow drift to ten years a second.
+ *
+ * The first entry is the slowest the clock can run: 0.01 days per real second,
+ * about fourteen simulated minutes — gentle enough to watch a single rotation or
+ * a moon creep across the sky.
+ */
 export const TIME_SPEEDS: TimeSpeedOption[] = [
+  { id: 'very-slow', label: 'Very Slow', shortLabel: '0.01 d/s', daysPerSecond: 0.01 },
   { id: 'slow', label: 'Slow', shortLabel: '0.1 d/s', daysPerSecond: 0.1 },
   { id: 'normal', label: 'Normal', shortLabel: '1 d/s', daysPerSecond: 1 },
   { id: 'fast', label: 'Fast', shortLabel: '1 wk/s', daysPerSecond: 7 },
@@ -101,6 +108,12 @@ export const TIME_SPEEDS: TimeSpeedOption[] = [
   { id: 'year', label: 'A Year a Second', shortLabel: '1 yr/s', daysPerSecond: 365 },
   { id: 'hyper', label: 'Hyperdrive', shortLabel: '10 yr/s', daysPerSecond: 3_650 },
 ]
+
+/** The speed the app starts on and returns to with “Today” — “Normal”. */
+export const DEFAULT_SPEED_INDEX = Math.max(
+  0,
+  TIME_SPEEDS.findIndex((speed) => speed.id === 'normal'),
+)
 
 export function findClosestSpeed(daysPerSecond: number): number {
   let bestIndex = 0
