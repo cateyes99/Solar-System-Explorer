@@ -56,6 +56,7 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uDynamics;
   uniform float uScale;
+  uniform float uUvOffset;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
   varying vec3 vLocalDir;
@@ -121,7 +122,9 @@ const fragmentShader = /* glsl */ `
     // old map drifting through the animated clouds, because the map's own
     // features never move.
     float mapBlend = smoothstep(0.0, 0.15, uDynamics);
-    float weather = texture2D(uMap, vUv).g;
+    // Raw ShaderMaterial: texture.offset is not applied for us, so the surface's
+    // longitude shift is added here to keep the cloud map in register.
+    float weather = texture2D(uMap, vUv + vec2(uUvOffset, 0.0)).g;
     float cover = mix(weather, clouds, mapBlend);
 
     // Sunlight: bright on the day side, all but gone at night.
@@ -149,6 +152,8 @@ interface CloudsProps {
   /** 0…1 “Cloud dynamics”: scales the shape evolution only. */
   dynamics: number
   reducedMotion: boolean
+  /** Longitude shift applied to the surface, in UV turns (matches the day map). */
+  uvOffsetU?: number
 }
 
 export function Clouds({
@@ -160,6 +165,7 @@ export function Clouds({
   relativeSpinPerDay,
   dynamics,
   reducedMotion,
+  uvOffsetU = 0,
 }: CloudsProps) {
   const meshRef = useRef<Mesh>(null)
 
@@ -176,11 +182,12 @@ export function Clouds({
           uTime: { value: 0 },
           uDynamics: { value: dynamics },
           uScale: { value: 2.7 },
+          uUvOffset: { value: uvOffsetU },
         },
         transparent: true,
         depthWrite: false,
       }),
-    [visuals.textureId, visuals.color, sunPosition],
+    [visuals.textureId, visuals.color, sunPosition, uvOffsetU],
   )
 
   useEffect(() => () => material.dispose(), [material])

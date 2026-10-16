@@ -134,16 +134,13 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
   const surfaceMaterial = useMemo(() => {
     const texture = getTexture(visuals.textureId)
-    // The surface is aligned by shifting its maps in longitude, so *every* layer
-    // that is painted on the surface has to carry the same shift. The albedo,
-    // the ocean-roughness map, the cloud deck and the city lights are separate
-    // textures, and a layer left un-shifted lands on the wrong side of the
-    // planet — which is how the night lights used to show up as a ghost map of
-    // the continents out over the ocean.
+    // The surface is aligned by shifting its maps in longitude. The albedo and
+    // the ocean-roughness map are read by the standard material, which applies a
+    // texture's `offset` for us. The cloud deck and the city lights are custom
+    // shaders that sample their maps directly, so they cannot use `offset` — they
+    // are handed the same shift as a uniform instead (see `uvOffsetU` below).
     texture.offset.x = visuals.textureOffsetU
     if (visuals.roughnessMapId) getTexture(visuals.roughnessMapId).offset.x = visuals.textureOffsetU
-    if (visuals.clouds) getTexture(visuals.clouds.textureId).offset.x = visuals.textureOffsetU
-    if (visuals.nightLights) getTexture(visuals.nightLights.textureId).offset.x = visuals.textureOffsetU
     return new MeshStandardMaterial({
       map: texture,
       // Real maps double as relief: a darker texel sits lower than a bright one.
@@ -301,6 +298,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               relativeSpinPerDay={cloudRelativeSpinPerDay}
               dynamics={cloudDynamics}
               reducedMotion={reducedMotion}
+              uvOffsetU={visuals.textureOffsetU}
             />
           ) : null}
         </group>
@@ -321,7 +319,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
           ) : null}
           {visuals.nightLights ? (
             <group ref={nightSpinRef}>
-              <NightLights radius={radius} visuals={visuals.nightLights} sunPosition={SUN_POSITION} />
+              <NightLights
+                radius={radius}
+                visuals={visuals.nightLights}
+                sunPosition={SUN_POSITION}
+                uvOffsetU={visuals.textureOffsetU}
+              />
             </group>
           ) : null}
         </group>
