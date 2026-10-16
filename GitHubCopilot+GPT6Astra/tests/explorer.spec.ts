@@ -122,6 +122,50 @@ test.describe('multilingual support', () => {
   })
 })
 
+test('Earth cloud opacity slider controls the rendered clouds on desktop and mobile', async ({ page }) => {
+  test.setTimeout(120000)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 60000 })
+  await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
+  const slider = page.getByRole('slider', { name: 'Cloud opacity' })
+  const cloudState = () => page.evaluate(async () => {
+    const resources = performance.getEntriesByType('resource').map(entry => entry.name)
+    const fiberPath = resources.find(name => new URL(name).pathname.endsWith('/@react-three_fiber.js'))!
+    const { _roots } = await import(fiberPath)
+    const canvas = document.querySelector<HTMLCanvasElement>('.scene canvas')!
+    const { scene } = _roots.get(canvas).store.getState()
+    const clouds = scene.getObjectByName('earth-clouds')
+    return { opacity: clouds.material.opacity as number, visible: clouds.visible as boolean }
+  })
+  await expect(slider).toHaveValue('50')
+  await expect(slider).toHaveAttribute('step', '1')
+  await expect.poll(cloudState).toEqual({ opacity: .55, visible: true })
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await page.setViewportSize({ width, height })
+    await expect(slider).toBeVisible()
+    await expect(page.locator('.scene canvas')).toHaveAttribute('data-camera-moving', 'false')
+    for (const value of [0, 50, 100]) {
+      await slider.fill(String(value))
+      await expect(slider).toHaveAttribute('aria-valuetext', `${value}%`)
+      await expect.poll(cloudState).toEqual({ opacity: .55 * value / 50, visible: value > 0 })
+      await page.screenshot({ path: `test-results/earth-cloud-opacity-${width}-${value}.png` })
+    }
+    await slider.fill('36')
+    await slider.press('ArrowRight')
+    await expect(slider).toHaveValue('37')
+    await expect.poll(async () => (await cloudState()).opacity).toBeCloseTo(.407)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.getByRole('button', { name: 'Mars 04', exact: true }).click()
+  await expect(slider).toHaveCount(0)
+  await page.getByRole('button', { name: 'Earth 03', exact: true }).click()
+  await expect(slider).toHaveValue('37')
+  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('zh-CN')
+  await expect(page.getByRole('slider', { name: '云层不透明度' })).toHaveValue('37')
+})
+
 test('Earth cloud shapes evolve independently of rotation and respect motion controls', async ({ page }) => {
   test.setTimeout(90000)
   const errors: string[] = []
