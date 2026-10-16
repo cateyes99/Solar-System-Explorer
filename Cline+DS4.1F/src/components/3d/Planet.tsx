@@ -65,6 +65,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const orbitRef = useRef<Group>(null)
   const tiltRef = useRef<Group>(null)
   const spinRef = useRef<Group>(null)
+  const nightSpinRef = useRef<Group>(null)
   const detailRef = useRef<Group>(null)
   const focusRingRef = useRef<Mesh>(null)
   const focusRingMaterialRef = useRef<MeshBasicMaterial>(null)
@@ -133,7 +134,16 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
   const surfaceMaterial = useMemo(() => {
     const texture = getTexture(visuals.textureId)
+    // The surface is aligned by shifting its maps in longitude, so *every* layer
+    // that is painted on the surface has to carry the same shift. The albedo,
+    // the ocean-roughness map, the cloud deck and the city lights are separate
+    // textures, and a layer left un-shifted lands on the wrong side of the
+    // planet — which is how the night lights used to show up as a ghost map of
+    // the continents out over the ocean.
     texture.offset.x = visuals.textureOffsetU
+    if (visuals.roughnessMapId) getTexture(visuals.roughnessMapId).offset.x = visuals.textureOffsetU
+    if (visuals.clouds) getTexture(visuals.clouds.textureId).offset.x = visuals.textureOffsetU
+    if (visuals.nightLights) getTexture(visuals.nightLights.textureId).offset.x = visuals.textureOffsetU
     return new MeshStandardMaterial({
       map: texture,
       // Real maps double as relief: a darker texel sits lower than a bright one.
@@ -197,6 +207,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     if (spinRef.current && !spinFrozen && body.rotationPeriodHours !== 0) {
       const frameDays = clock.lastFrameDays
       spinRef.current.rotation.y += (frameDays * 24 / body.rotationPeriodHours) * Math.PI * 2
+    }
+    // City lights are painted on the ground, so they have to turn with it. They
+    // live outside the spin group (so they can share the level-of-detail fade
+    // with the atmosphere), so their own wrapper is kept in lockstep here.
+    if (nightSpinRef.current && spinRef.current) {
+      nightSpinRef.current.rotation.y = spinRef.current.rotation.y
     }
 
     // --- Level of detail --------------------------------------------------
@@ -304,7 +320,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             />
           ) : null}
           {visuals.nightLights ? (
-            <NightLights radius={radius} visuals={visuals.nightLights} sunPosition={SUN_POSITION} />
+            <group ref={nightSpinRef}>
+              <NightLights radius={radius} visuals={visuals.nightLights} sunPosition={SUN_POSITION} />
+            </group>
           ) : null}
         </group>
       </group>
