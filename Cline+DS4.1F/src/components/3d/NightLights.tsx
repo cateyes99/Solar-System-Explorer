@@ -32,14 +32,18 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uColor;
   uniform float uIntensity;
   uniform float uOpacity;
+  uniform float uUvOffset;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
   varying vec3 vWorldPosition;
 
   void main() {
-    vec3 sunDirection = normalize(uSunPosition - vWorldPosition);
-    float night = smoothstep(0.16, -0.14, dot(normalize(vWorldNormal), sunDirection));
-    vec3 texel = texture2D(uMap, vUv).rgb;
+    float night = smoothstep(0.16, -0.14, dot(normalize(vWorldNormal), normalize(uSunPosition - vWorldPosition)));
+    // A raw ShaderMaterial does not apply texture.offset, so the surface's
+    // longitude shift has to be applied here by hand. The day map gets it from
+    // its texture matrix; this layer must match it exactly or the city lights
+    // land on the wrong side of the planet.
+    vec3 texel = texture2D(uMap, vUv + vec2(uUvOffset, 0.0)).rgb;
     vec3 color = texel * uColor * uIntensity * night * uOpacity;
     float alpha = clamp(max(color.r, max(color.g, color.b)), 0.0, 1.0);
     gl_FragColor = vec4(color, alpha);
@@ -51,9 +55,17 @@ interface NightLightsProps {
   visuals: NightLightsVisuals
   sunPosition: Vector3
   opacity?: number
+  /** Longitude shift applied to the surface, in UV turns (matches the day map). */
+  uvOffsetU?: number
 }
 
-export function NightLights({ radius, visuals, sunPosition, opacity = 1 }: NightLightsProps) {
+export function NightLights({
+  radius,
+  visuals,
+  sunPosition,
+  opacity = 1,
+  uvOffsetU = 0,
+}: NightLightsProps) {
   const meshRef = useRef<Mesh>(null)
 
   const material = useMemo(
@@ -67,12 +79,13 @@ export function NightLights({ radius, visuals, sunPosition, opacity = 1 }: Night
           uColor: { value: new Color(visuals.color) },
           uIntensity: { value: visuals.intensity },
           uOpacity: { value: opacity },
+          uUvOffset: { value: uvOffsetU },
         },
         transparent: true,
         blending: AdditiveBlending,
         depthWrite: false,
       }),
-    [visuals.color, visuals.intensity, visuals.textureId, sunPosition, opacity],
+    [visuals.color, visuals.intensity, visuals.textureId, sunPosition, opacity, uvOffsetU],
   )
 
   useFrame(() => {
