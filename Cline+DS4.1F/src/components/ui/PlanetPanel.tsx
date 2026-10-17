@@ -35,6 +35,8 @@ export function PlanetPanel() {
   const setEarthCloudOpacity = useSimulationStore((state) => state.setEarthCloudOpacity)
   const earthCloudDynamics = useSimulationStore((state) => state.earthCloudDynamics)
   const setEarthCloudDynamics = useSimulationStore((state) => state.setEarthCloudDynamics)
+  const earthCloudCoverage = useSimulationStore((state) => state.earthCloudCoverage)
+  const setEarthCloudCoverage = useSimulationStore((state) => state.setEarthCloudCoverage)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
 
@@ -117,8 +119,18 @@ export function PlanetPanel() {
 
           {body.id === 'earth' ? (
             <div className="mt-4">
-              <SectionTitle hint="0% = no clouds">Earth’s clouds</SectionTitle>
+              <SectionTitle hint="0% = clear skies">Earth’s clouds</SectionTitle>
               <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+                <SliderRow
+                  label="Cloud coverage"
+                  value={earthCloudCoverage}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthCloudCoverage}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint="How much of the sky the clouds fill. 0% leaves a few scattered wisps, 50% is a balanced mix of clear and cloudy regions, and 100% closes in toward a near-continuous sheet."
+                />
                 <SliderRow
                   label="Cloud opacity"
                   value={earthCloudOpacity}

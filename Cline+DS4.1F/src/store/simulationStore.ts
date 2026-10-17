@@ -82,6 +82,11 @@ export interface SimulationState {
    * slipping over the ground even at 0. Only Earth has clouds.
    */
   earthCloudDynamics: number
+  /**
+   * How much of the sky the cloud deck fills: 0 = a few scattered wisps, 1 = a
+   * near-continuous sheet. Only Earth has clouds, so only Earth reads it.
+   */
+  earthCloudCoverage: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -144,6 +149,7 @@ export interface SimulationActions {
   setEarthAtmosphereOpacity: (value: number) => void
   setEarthCloudOpacity: (value: number) => void
   setEarthCloudDynamics: (value: number) => void
+  setEarthCloudCoverage: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -228,6 +234,8 @@ const initialState: SimulationState = {
   // at half; the slider goes up to the original liveliness and down to a frozen
   // (but still drifting) deck.
   earthCloudDynamics: 0.5,
+  // Half the sky filled by default: a balanced mix of clear and cloudy regions.
+  earthCloudCoverage: 0.5,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -348,6 +356,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthCloudDynamics: (value) =>
     set({ earthCloudDynamics: Math.max(0, Math.min(1, value)) }),
+
+  setEarthCloudCoverage: (value) =>
+    set({ earthCloudCoverage: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')
