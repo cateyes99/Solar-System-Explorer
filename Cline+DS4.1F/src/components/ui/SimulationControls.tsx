@@ -2,7 +2,7 @@ import { BODIES } from '../../data/planets'
 import { SCALE_MODE_INFO, SCALE_MODE_ORDER } from '../../utils/scale'
 import { useSimulationStore } from '../../store/simulationStore'
 import type { FocusTargetId, ScaleMode } from '../../types'
-import { Chip, Panel, SectionTitle, SliderRow, ToggleRow, ToolbarButton } from './primitives'
+import { Chip, CollapsibleSidePanel, PanelCollapseButton, SectionTitle, SliderRow, ToggleRow, ToolbarButton } from './primitives'
 import { LayersIcon, OrbitIcon, SparkleIcon, TagIcon } from './icons'
 import { audio } from '../../utils/audio'
 
@@ -227,20 +227,41 @@ export function SimulationControls() {
   // While the cinematic tour is running the narration card owns the top-left
   // corner, so the panel steps down instead of being tucked underneath it.
   const cinematicActive = useSimulationStore((state) => state.cinematic.active)
+  const collapsed = useSimulationStore((state) => state.ui.leftPanelCollapsed)
+  const toggleLeftPanel = useSimulationStore((state) => state.toggleLeftPanel)
 
   return (
-    <Panel
-      as="aside"
+    <CollapsibleSidePanel
+      side="left"
       label="Scale, layers and camera controls"
-      className={`pointer-events-auto fixed bottom-44 left-4 hidden w-[19rem] overflow-y-auto p-4 transition-[top] duration-500 md:block lg:w-[20.5rem] ${
+      collapsedLabel="Controls"
+      collapsed={collapsed}
+      onToggle={toggleLeftPanel}
+      expandedWidthClass="w-[19rem] lg:w-[20.5rem]"
+      collapsedWidthClass="w-12"
+      bodyClassName="p-4"
+      className={`bottom-44 left-4 hidden md:block ${
         cinematicActive ? 'top-[20rem]' : 'top-24'
       }`}
     >
-      <SimulationControlsContent />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="sse-label-text">Controls</p>
+          <p className="mt-0.5 text-xs text-mist/80">Scale, layers and camera</p>
+        </div>
+        <PanelCollapseButton
+          side="left"
+          label="Collapse the controls panel"
+          onToggle={toggleLeftPanel}
+        />
+      </div>
+      <div className="mt-4">
+        <SimulationControlsContent />
+      </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Chip tone="ice">WebGL · react-three-fiber</Chip>
         <Chip tone="violet">Procedural textures</Chip>
       </div>
-    </Panel>
+    </CollapsibleSidePanel>
   )
 }

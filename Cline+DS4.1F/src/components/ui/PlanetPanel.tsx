@@ -11,7 +11,7 @@ import {
   formatTemperature,
 } from '../../utils/format'
 import { getDistanceFromSun } from '../../utils/bodyRegistry'
-import { Chip, SectionTitle, Sheet, SliderRow, Stat, ToolbarButton } from './primitives'
+import { Chip, CollapsibleSidePanel, PanelCollapseButton, SectionTitle, SliderRow, Stat, ToolbarButton } from './primitives'
 import { CloseIcon, OrbitIcon, RocketIcon } from './icons'
 
 /**
@@ -35,6 +35,8 @@ export function PlanetPanel() {
   const setEarthCloudOpacity = useSimulationStore((state) => state.setEarthCloudOpacity)
   const earthCloudDynamics = useSimulationStore((state) => state.earthCloudDynamics)
   const setEarthCloudDynamics = useSimulationStore((state) => state.setEarthCloudDynamics)
+  const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
+  const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
 
   const body = selectedId ? BODY_BY_ID[selectedId] : undefined
   const open = Boolean(body)
@@ -45,7 +47,23 @@ export function PlanetPanel() {
   return (
     <AnimatePresence>
       {open && body ? (
-        <Sheet key={body.id} label={`${body.name} information`}>
+        <CollapsibleSidePanel
+          key={body.id}
+          role="dialog"
+          side="right"
+          label={`${body.name} information`}
+          collapsedLabel={body.name}
+          collapsed={rightCollapsed}
+          onToggle={toggleRightPanel}
+          expandedWidthClass="sm:w-[24rem]"
+          collapsedWidthClass="sm:w-12"
+          bodyClassName="p-4"
+          className="inset-x-2 bottom-48 max-h-[52vh] sm:inset-x-auto sm:right-4 sm:top-20 sm:bottom-44 sm:max-h-none"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 18 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="sse-label-text" style={{ color: accent }}>
@@ -54,16 +72,27 @@ export function PlanetPanel() {
               <h2 className="sse-text-shadow mt-1 text-xl font-semibold text-parchment">{body.name}</h2>
               <p className="mt-0.5 text-sm italic text-mist/90">{body.tagline}</p>
             </div>
-            <button
-              type="button"
-              aria-label={`Close the ${body.name} information panel`}
-              onClick={() => selectBody(null)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:text-parchment"
-            >
-              <span aria-hidden="true">
-                <CloseIcon />
+            <div className="flex shrink-0 items-center gap-1.5">
+              {/* Collapsing only makes sense for the desktop right-hand drawer;
+                  on phones this panel is a full-width bottom sheet. */}
+              <span className="hidden sm:inline-flex">
+                <PanelCollapseButton
+                  side="right"
+                  label="Collapse the information panel"
+                  onToggle={toggleRightPanel}
+                />
               </span>
-            </button>
+              <button
+                type="button"
+                aria-label={`Close the ${body.name} information panel`}
+                onClick={() => selectBody(null)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:text-parchment"
+              >
+                <span aria-hidden="true">
+                  <CloseIcon />
+                </span>
+              </button>
+            </div>
           </div>
 
           <p className="mt-3 text-sm leading-relaxed text-parchment/95">{body.description}</p>
@@ -235,7 +264,7 @@ export function PlanetPanel() {
             moving. The 3D picture keeps the real orbit spacing but compresses planet sizes so they stay visible.
             {discoveries.length > 0 ? ` Discoveries so far: ${discoveries.length}.` : ''}
           </p>
-        </Sheet>
+        </CollapsibleSidePanel>
       ) : null}
     </AnimatePresence>
   )

@@ -33,6 +33,9 @@ interface UiState {
   factCardOpen: boolean
   welcomeVisible: boolean
   helpOpen: boolean
+  /** The left (controls) and right (information) side panels fold away independently. */
+  leftPanelCollapsed: boolean
+  rightPanelCollapsed: boolean
 }
 
 interface CinematicState {
@@ -179,6 +182,8 @@ export interface SimulationActions {
   dismissWelcome: () => void
   toggleHelp: (open?: boolean) => void
   openSettings: (open?: boolean) => void
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
 
   setWebglSupported: (supported: boolean) => void
   setAssetsProgress: (progress: number, label: string) => void
@@ -238,6 +243,8 @@ const initialState: SimulationState = {
     factCardOpen: false,
     welcomeVisible: true,
     helpOpen: false,
+    leftPanelCollapsed: false,
+    rightPanelCollapsed: false,
   },
   whatIfId: null,
 
@@ -375,6 +382,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         factCardOpen: false,
         welcomeVisible: false,
         helpOpen: false,
+        leftPanelCollapsed: false,
+        rightPanelCollapsed: false,
       },
     })
   },
@@ -529,6 +538,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         factCardOpen: false,
       },
     })),
+
+  toggleLeftPanel: () =>
+    set((state) => ({ ui: { ...state.ui, leftPanelCollapsed: !state.ui.leftPanelCollapsed } })),
+
+  toggleRightPanel: () =>
+    set((state) => ({ ui: { ...state.ui, rightPanelCollapsed: !state.ui.rightPanelCollapsed } })),
 
   setWebglSupported: (webglSupported) => set({ webglSupported }),
   setAssetsProgress: (assetsProgress, assetsLabel) => set({ assetsProgress, assetsLabel }),

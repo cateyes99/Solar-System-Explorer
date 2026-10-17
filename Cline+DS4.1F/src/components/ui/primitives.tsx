@@ -1,5 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { motion } from 'framer-motion'
+import type { MotionProps } from 'framer-motion'
+import { ChevronIcon } from './icons'
 
 /**
  * Small, reusable interface pieces.
@@ -8,22 +10,6 @@ import { motion } from 'framer-motion'
  * mouse and a thumb (a 44px minimum touch target), and styled with the shared
  * glass-panel tokens so panels stay consistent.
  */
-
-interface PanelProps {
-  children: ReactNode
-  className?: string
-  as?: 'section' | 'aside' | 'div'
-  label?: string
-}
-
-export function Panel({ children, className = '', as = 'section', label }: PanelProps) {
-  const Component = as
-  return (
-    <Component aria-label={label} className={`sse-panel ${className}`}>
-      {children}
-    </Component>
-  )
-}
 
 interface SectionTitleProps {
   children: ReactNode
@@ -245,6 +231,120 @@ export function Sheet({ children, position = 'right', label, className = '' }: S
       className={`sse-panel sse-scroll pointer-events-auto fixed z-30 overflow-y-auto p-4 ${positionClasses} ${className}`}
     >
       {children}
+    </motion.aside>
+  )
+}
+
+interface PanelCollapseButtonProps {
+  side: 'left' | 'right'
+  label: string
+  onToggle: () => void
+  className?: string
+}
+
+/**
+ * The chevron that folds an expanded side panel away. It points toward the edge
+ * the panel is anchored to, so "collapse" reads as "slide that way".
+ */
+export function PanelCollapseButton({
+  side,
+  label,
+  onToggle,
+  className = '',
+}: PanelCollapseButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={label}
+      title={label}
+      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:bg-white/12 hover:text-parchment ${className}`}
+    >
+      <span aria-hidden="true">
+        <ChevronIcon size={16} direction={side} />
+      </span>
+    </button>
+  )
+}
+
+type CollapsibleSidePanelProps = {
+  children: ReactNode
+  /** Which screen edge the panel is anchored to. */
+  side: 'left' | 'right'
+  /** Accessible name for the panel. */
+  label: string
+  /** Short text shown on the collapsed bar. */
+  collapsedLabel: string
+  collapsed: boolean
+  onToggle: () => void
+  /** Fixed-position classes (top/bottom/left/right, visibility). Width is handled here. */
+  className?: string
+  /** Width classes while expanded, e.g. `w-[19rem] lg:w-[20.5rem]`. */
+  expandedWidthClass: string
+  /** Width classes while collapsed. Defaults to a narrow bar. */
+  collapsedWidthClass?: string
+  /** Padding etc. for the scrollable content area (not applied to the collapsed bar). */
+  bodyClassName?: string
+  /** ARIA role: a plain side region, or a dialog for information panels. */
+  role?: 'complementary' | 'dialog'
+} & MotionProps
+
+/**
+ * A floating glass panel anchored to a screen edge that can be folded away.
+ *
+ * Expanded, it behaves like the old `Panel`/`Sheet`: a fixed, scrollable card.
+ * Collapsed, it shrinks to a narrow vertical bar — itself a button — hugging the
+ * edge. The width is animated with a plain CSS transition, so the browser's own
+ * reduced-motion rules apply for free. On phones these panels are full-width
+ * bottom sheets, so the collapsed bar is suppressed there and the panel simply
+ * stays expanded.
+ */
+export function CollapsibleSidePanel({
+  children,
+  side,
+  label,
+  collapsedLabel,
+  collapsed,
+  onToggle,
+  className = '',
+  expandedWidthClass,
+  collapsedWidthClass = 'w-12',
+  bodyClassName = '',
+  role = 'complementary',
+  ...motionProps
+}: CollapsibleSidePanelProps) {
+  // On the collapsed bar the chevron points away from the edge — toward the
+  // middle of the screen — so it reads as "pull the panel back out".
+  const expandDirection = side === 'left' ? 'right' : 'left'
+  return (
+    <motion.aside
+      role={role}
+      aria-label={label}
+      {...motionProps}
+      className={`sse-panel sse-scroll pointer-events-auto fixed z-30 overflow-x-hidden overflow-y-auto transition-[width,top] duration-300 ease-out ${
+        collapsed ? collapsedWidthClass : expandedWidthClass
+      } ${className}`}
+    >
+      {/* Kept mounted while collapsed (just hidden from `sm` up) so panel state,
+          scroll position and the collapse toggle all survive a fold. */}
+      <div className={`${collapsed ? 'sm:hidden' : ''} ${bodyClassName}`}>{children}</div>
+
+      {collapsed ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={`Expand ${label}`}
+          title={`Expand ${label}`}
+          className="hidden h-full w-full flex-col items-center justify-center gap-3 px-1 text-mist transition-colors hover:bg-white/6 hover:text-parchment sm:flex"
+        >
+          <span aria-hidden="true">
+            <ChevronIcon size={16} direction={expandDirection} />
+          </span>
+          <span className="whitespace-nowrap text-[0.66rem] uppercase tracking-[0.24em] [writing-mode:vertical-rl]">
+            {collapsedLabel}
+          </span>
+        </button>
+      ) : null}
     </motion.aside>
   )
 }
