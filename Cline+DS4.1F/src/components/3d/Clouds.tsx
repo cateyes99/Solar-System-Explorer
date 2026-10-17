@@ -52,6 +52,7 @@ const fragmentShader = /* glsl */ `
   uniform sampler2D uMap;
   uniform vec3 uColor;
   uniform vec3 uSunPosition;
+  uniform vec3 uObjectSunDir;
   uniform float uOpacity;
   uniform float uTime;
   uniform float uDynamics;
@@ -127,12 +128,52 @@ const fragmentShader = /* glsl */ `
     float weather = texture2D(uMap, vUv + vec2(uUvOffset, 0.0)).g;
     float cover = mix(weather, clouds, mapBlend);
 
-    // Sunlight: bright on the day side, all but gone at night.
+    // --- Colour -----------------------------------------------------------
+    // A cloud top is never a flat white. Four things shape its tone, and all of
+    // them travel with the deck, so the tint keeps evolving as the shapes move:
+    //
+    //  - **Self-shadowing.** Reading the density a short way up-sun gives every
+    //    mass a lit face and a shaded face instead of one flat tone.
+    //  - **Optical depth.** Dense cores scatter nearly all the sunlight and read
+    //    white; thin edges and wisps let the blue of the sky through and lean
+    //    cool.
+    //  - **The sun's angle.** Light raking across the deck near the terminator
+    //    has crossed more air and warms toward sunrise orange, while the night
+    //    side falls back to a cool ambient blue.
+    //  - **The air mass.** A slow, large-scale field drifts subtly different hues
+    //    between neighbouring systems.
     vec3 sunDirection = normalize(uSunPosition - vWorldPosition);
-    float lit = smoothstep(-0.25, 0.4, dot(dir, sunDirection));
+    float sunDot = dot(dir, sunDirection);
+    float lit = smoothstep(-0.25, 0.4, sunDot);
+    // Peaks on the terminator, where the light rakes across the cloud tops.
+    float twilight = exp(-(sunDot * sunDot) / 0.05);
 
     float alpha = cover * uOpacity * (0.12 + 0.88 * lit);
-    vec3 color = uColor * (0.22 + 0.78 * lit);
+
+    // The density a short step toward the sun: where it is thicker, this point
+    // lies in the cloud's shadow. Following the sun keeps the shading correct as
+    // the planet turns.
+    float upSun = fbm3(p + uObjectSunDir * 0.34);
+    float shade = mix(1.0, 0.7, smoothstep(0.36, 0.62, upSun));
+
+    // Regional hue: a slow field that drifts with the weather, so a big
+    // formation is tinted unevenly instead of reading as one flat white mass.
+    float region = fbm3(ldir * (uScale * 0.32) + vec3(uTime * 0.10, uTime * 0.04, -uTime * 0.07) + 19.0);
+    region = smoothstep(0.32, 0.72, region);
+
+    // Dense, sunlit cloud is a warm white; thin or hazy cloud leans cool.
+    vec3 warmTint = vec3(1.0, 0.978, 0.94);
+    vec3 coolTint = vec3(0.88, 0.925, 1.0);
+    vec3 tint = mix(warmTint, coolTint, clamp(region * 0.7 + (1.0 - cover) * 0.4, 0.0, 1.0));
+    tint = mix(tint, vec3(1.0, 0.86, 0.7), twilight * 0.4); // sunrise / sunset warmth
+
+    // Held near 1 so the warm/cool tint survives instead of clipping to white.
+    float body = mix(0.84, 1.06, cover) * shade;
+
+    vec3 color = uColor * tint * body * (0.24 + 0.76 * lit);
+    // Night side: a little scattered sky light keeps the deck from going black.
+    color += uColor * vec3(0.3, 0.38, 0.55) * (1.0 - lit) * (0.3 + 0.7 * cover);
+
     gl_FragColor = vec4(color, alpha);
   }
 `
@@ -178,6 +219,7 @@ export function Clouds({
           uMap: { value: getTexture(visuals.textureId) },
           uColor: { value: new Color(visuals.color) },
           uSunPosition: { value: sunPosition.clone() },
+          uObjectSunDir: { value: new Vector3(0, 1, 0) },
           uOpacity: { value: opacity },
           uTime: { value: 0 },
           uDynamics: { value: dynamics },
@@ -198,6 +240,7 @@ export function Clouds({
   // to the simulation clock so it stays in step with the turning planet.
   const elapsed = useRef(0)
   const spun = useRef(0)
+  const sunLocal = useRef(new Vector3())
   useFrame((_, delta) => {
     // The slider scales ONLY the shape evolution. The deck's own faster-than-
     // surface rotation is left alone, so at 0% the clouds still slip across the
@@ -209,6 +252,13 @@ export function Clouds({
     material.uniforms.uDynamics.value = dynamics
     material.uniforms.uOpacity.value = opacity
     material.uniforms.uSunPosition.value.copy(sunPosition)
+    // The sun's direction in the deck's own space, so the shader can march a
+    // step "up-sun" through the density field for self-shadowing.
+    if (meshRef.current) {
+      sunLocal.current.copy(sunPosition)
+      meshRef.current.worldToLocal(sunLocal.current)
+      material.uniforms.uObjectSunDir.value.copy(sunLocal.current).normalize()
+    }
   })
 
   return <mesh ref={meshRef} geometry={geometry} material={material} scale={radius * 1.012} />
