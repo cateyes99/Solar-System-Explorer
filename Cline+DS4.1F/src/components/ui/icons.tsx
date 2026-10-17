@@ -60,6 +60,21 @@ export function ForwardIcon({ size = 18, className = '' }: IconProps) {
   )
 }
 
+export function ChevronIcon({
+  size = 18,
+  className = '',
+  direction = 'left',
+}: IconProps & { direction?: 'left' | 'right' }) {
+  return (
+    <svg
+      {...base(size, className)}
+      style={direction === 'right' ? { transform: 'rotate(180deg)' } : undefined}
+    >
+      <path d="M14.5 6 9 12l5.5 6" />
+    </svg>
+  )
+}
+
 export function SunIcon({ size = 18, className = '' }: IconProps) {
   return (
     <svg {...base(size, className)}>
