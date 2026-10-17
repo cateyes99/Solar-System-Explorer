@@ -58,6 +58,7 @@ const fragmentShader = /* glsl */ `
   uniform float uDynamics;
   uniform float uScale;
   uniform float uUvOffset;
+  uniform float uCoverage;
   varying vec2 vUv;
   varying vec3 vWorldNormal;
   varying vec3 vLocalDir;
@@ -104,18 +105,27 @@ const fragmentShader = /* glsl */ `
     vec3 dir = normalize(vWorldNormal);
     vec3 ldir = normalize(vLocalDir);
 
+    // The coverage slider is one dial on how much of the sky the deck fills: a
+    // high threshold lets only the strongest updrafts condense into scattered
+    // wisps, a low one lets the whole field fill in. The erosion is relaxed as
+    // coverage grows so the masses merge into a sheet instead of fraying apart,
+    // and the blobs swell a little so dense skies overlap.
+    float threshold = mix(0.6, 0.22, uCoverage);
+    float erosion = mix(0.42, 0.14, uCoverage);
+    float deckScale = uScale * mix(1.14, 0.88, uCoverage);
+
     // Wind-advected sample point. The *features* are drawn from this field, so as
     // the wind carries the sample point through the noise the cloud shapes drift
     // across the deck and morph and fray as they go — they are never pinned to a
     // painted texture.
-    vec3 p = ldir * uScale + vec3(uTime * 0.75, uTime * 0.24, -uTime * 0.58);
+    vec3 p = ldir * deckScale + vec3(uTime * 0.75, uTime * 0.24, -uTime * 0.58);
 
     // The cloud features themselves are fully procedural: a base shape plus a
     // finer octave, soft-thresholded into distinct cumulus-like masses. Once the
     // static map has faded out (see below) this is all that remains.
     float shape = fbm3(p);
     float detail = fbm3(p * 3.6 + 9.3);
-    float clouds = smoothstep(0.40, 0.60, shape + (detail - 0.5) * 0.28);
+    float clouds = smoothstep(threshold, threshold + 0.2, shape + (detail - 0.5) * erosion);
 
     // The real cloud map only has a say at the very bottom of the slider. Its
     // contribution is crossfaded away *completely* by 15%, after which the deck is
@@ -192,6 +202,8 @@ interface CloudsProps {
   relativeSpinPerDay: number
   /** 0…1 “Cloud dynamics”: scales the shape evolution only. */
   dynamics: number
+  /** 0…1 cloud coverage: 0 = a few scattered wisps, 1 = a near-continuous sheet. */
+  coverage: number
   reducedMotion: boolean
   /** Longitude shift applied to the surface, in UV turns (matches the day map). */
   uvOffsetU?: number
@@ -205,6 +217,7 @@ export function Clouds({
   opacity,
   relativeSpinPerDay,
   dynamics,
+  coverage,
   reducedMotion,
   uvOffsetU = 0,
 }: CloudsProps) {
@@ -225,6 +238,7 @@ export function Clouds({
           uDynamics: { value: dynamics },
           uScale: { value: 2.7 },
           uUvOffset: { value: uvOffsetU },
+          uCoverage: { value: coverage },
         },
         transparent: true,
         depthWrite: false,
@@ -250,6 +264,7 @@ export function Clouds({
     if (meshRef.current) meshRef.current.rotation.y = spun.current
     material.uniforms.uTime.value = elapsed.current
     material.uniforms.uDynamics.value = dynamics
+    material.uniforms.uCoverage.value = coverage
     material.uniforms.uOpacity.value = opacity
     material.uniforms.uSunPosition.value.copy(sunPosition)
     // The sun's direction in the deck's own space, so the shader can march a

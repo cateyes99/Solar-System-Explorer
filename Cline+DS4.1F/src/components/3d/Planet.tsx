@@ -92,6 +92,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const cloudDynamics = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthCloudDynamics : 1,
   )
+  const cloudCoverage = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthCloudCoverage : 0.5,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -297,6 +300,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               opacity={cloudOpacity}
               relativeSpinPerDay={cloudRelativeSpinPerDay}
               dynamics={cloudDynamics}
+              coverage={cloudCoverage}
               reducedMotion={reducedMotion}
               uvOffsetU={visuals.textureOffsetU}
             />
