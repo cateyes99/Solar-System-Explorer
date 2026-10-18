@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import { LANGUAGES, useTranslation } from '../../i18n'
 import { useSimulationStore } from '../../store/simulationStore'
 import { IconButton, ToolbarButton } from './primitives'
 import {
@@ -23,6 +24,8 @@ import {
  * DOM, so screen readers and voice control still work perfectly).
  */
 export function Header() {
+  const { t, language } = useTranslation()
+  const setLanguage = useSimulationStore((state) => state.setLanguage)
   const startTour = useSimulationStore((state) => state.startTour)
   const exitTour = useSimulationStore((state) => state.exitTour)
   const cinematicActive = useSimulationStore((state) => state.cinematic.active)
@@ -56,16 +59,14 @@ export function Header() {
         </span>
         <div className="leading-tight">
           <h1 className="text-shadow sse-text-shadow text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-parchment sm:text-sm sm:tracking-[0.32em]">
-            Solar System Explorer
+            {t('app.name')}
           </h1>
           <p className="text-[0.62rem] uppercase tracking-[0.12em] text-mist/85 sm:text-[0.68rem] sm:tracking-[0.18em]">
             <span className="sm:hidden">
-              {realisticOrbits ? 'Real spacing · real data' : 'Educational layout'}
+              {realisticOrbits ? t('header.subtitle.realShort') : t('header.subtitle.eduShort')}
             </span>
             <span className="hidden sm:inline">
-              {realisticOrbits
-                ? 'Real orbit spacing · planet sizes compressed · real astronomy data'
-                : 'Educational layout · sizes and distances both compressed'}
+              {realisticOrbits ? t('header.subtitle.realLong') : t('header.subtitle.eduLong')}
             </span>
           </p>
         </div>
@@ -79,20 +80,27 @@ export function Header() {
           icon={<RocketIcon />}
           onClick={() => (cinematicActive ? exitTour() : startTour())}
         >
-          Cinematic Tour
+          {t('header.cinematicTour')}
         </ToolbarButton>
 
         <ToolbarButton
           compact
           variant={educationOpen ? 'primary' : 'ghost'}
           icon={<BookIcon />}
-          onClick={() => (educationOpen ? useSimulationStore.getState().closeEducation() : openEducation(null))}
+          onClick={() =>
+            educationOpen ? useSimulationStore.getState().closeEducation() : openEducation(null)
+          }
         >
-          Explore &amp; Learn
+          {t('header.exploreLearn')}
         </ToolbarButton>
 
-        <ToolbarButton compact variant={whatIfOpen ? 'primary' : 'ghost'} icon={<QuestionIcon />} onClick={() => toggleWhatIf()}>
-          What If?
+        <ToolbarButton
+          compact
+          variant={whatIfOpen ? 'primary' : 'ghost'}
+          icon={<QuestionIcon />}
+          onClick={() => toggleWhatIf()}
+        >
+          {t('header.whatIf')}
         </ToolbarButton>
 
         <ToolbarButton
@@ -101,11 +109,11 @@ export function Header() {
           icon={<RocketIcon />}
           onClick={() => (missionActive ? endMission() : startMission())}
         >
-          Mission Control
+          {t('header.missionControl')}
         </ToolbarButton>
 
         <ToolbarButton compact variant="ghost" icon={<BulbIcon />} onClick={teachMeSomething}>
-          Teach Me Something!
+          {t('header.teachMe')}
         </ToolbarButton>
 
         {/*
@@ -121,37 +129,58 @@ export function Header() {
           icon={<OrbitIcon />}
           onClick={() => toggleOrbitModel()}
           aria-pressed={realisticOrbits}
-          title={
-            realisticOrbits
-              ? 'Showing the real JPL orbits. Click to switch to the educational layout.'
-              : 'Showing the educational layout. Click to switch to the real JPL orbits.'
-          }
+          title={realisticOrbits ? t('header.orbitRealTitle') : t('header.orbitEduTitle')}
         >
-          {realisticOrbits ? 'More Realistic Orbits' : 'Educational Scale Orbits'}
+          {realisticOrbits ? t('header.orbitReal') : t('header.orbitEdu')}
         </ToolbarButton>
 
         <div className="mx-1 hidden h-8 w-px bg-white/12 sm:block" aria-hidden="true" />
 
         <IconButton
-          label={soundEnabled ? 'Mute ambient sound' : 'Turn on ambient sound'}
+          label={soundEnabled ? t('header.soundOff') : t('header.soundOn')}
           icon={soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
           active={soundEnabled}
           onClick={() => setSoundEnabled(!soundEnabled)}
         />
         <IconButton
-          label={reducedMotion ? 'Turn off reduced motion' : 'Reduce motion'}
+          label={reducedMotion ? t('header.reduceMotionOn') : t('header.reduceMotionOff')}
           icon={<MotionIcon />}
           active={reducedMotion}
           onClick={() => setReducedMotion(!reducedMotion)}
         />
-        <IconButton label="Keyboard shortcuts and help" icon={<HelpIcon />} onClick={() => toggleHelp()} />
+        <IconButton label={t('header.help')} icon={<HelpIcon />} onClick={() => toggleHelp()} />
         <IconButton
-          label="Settings and display options"
+          label={t('header.settings')}
           icon={<SettingsIcon />}
           active={settingsOpen}
           onClick={() => openSettings()}
           aria-expanded={settingsOpen}
         />
+
+        {/* The language picker: one button per language, labelled in its own script. */}
+        <div
+          role="group"
+          aria-label={t('header.language')}
+          className="flex items-center gap-0.5 rounded-xl border border-white/12 bg-white/5 p-0.5"
+        >
+          {LANGUAGES.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              lang={option.id}
+              title={option.english}
+              aria-pressed={language === option.id}
+              onClick={() => setLanguage(option.id)}
+              className={`min-h-[2.4rem] rounded-lg px-2 text-xs font-medium transition-colors ${
+                language === option.id
+                  ? 'bg-electric/90 text-white'
+                  : 'text-mist hover:bg-white/10 hover:text-parchment'
+              }`}
+            >
+              {option.native}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* A quiet banner so nobody ever mistakes the picture for a photograph. */}
@@ -163,7 +192,7 @@ export function Header() {
             exit={{ opacity: 0, y: -6 }}
             className="pointer-events-none absolute left-1/2 top-[4.6rem] hidden -translate-x-1/2 rounded-full border border-ice/25 bg-void/70 px-3 py-1 text-[0.62rem] uppercase tracking-[0.2em] text-ice/90 lg:block"
           >
-            Reduced motion is on
+            {t('header.reducedMotionBanner')}
           </motion.p>
         ) : null}
       </AnimatePresence>

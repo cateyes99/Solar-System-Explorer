@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import type { MotionProps } from 'framer-motion'
+import { useTranslation } from '../../i18n'
 import { ChevronIcon } from './icons'
 
 /**
@@ -279,9 +280,10 @@ interface PanelOpacityControlProps {
  * readable and grabbable even when the panel itself has been slid to 0%.
  */
 export function PanelOpacityControl({ value, onChange }: PanelOpacityControlProps) {
+  const { t } = useTranslation()
   return (
     <label className="flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-2.5 py-1.5">
-      <span className="sse-label-text text-[0.58rem]">Opacity</span>
+      <span className="sse-label-text text-[0.58rem]">{t('ui.opacity')}</span>
       <input
         type="range"
         min={0}
@@ -289,7 +291,7 @@ export function PanelOpacityControl({ value, onChange }: PanelOpacityControlProp
         step={0.01}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        aria-label="Panel opacity"
+        aria-label={t('ui.panelOpacity')}
         className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-white/20 accent-ice"
       />
       <span className="sse-numeric w-8 text-right text-[0.62rem] text-mist">

@@ -12,10 +12,12 @@ import type {
   WhatIfId,
 } from '../types'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
-import { FACTS, pickFact } from '../data/facts'
+import { pickFact } from '../data/facts'
 import { findClosestSpeed, DEFAULT_SPEED_INDEX, TIME_SPEEDS } from '../data/missions'
 import { audio } from '../utils/audio'
 import { clock } from '../utils/simulationClock'
+import { translate } from '../i18n'
+import type { Language } from '../i18n'
 
 export type ToastTone = 'info' | 'fun' | 'alert'
 
@@ -113,6 +115,8 @@ export interface SimulationState {
   volume: number
   reducedMotion: boolean
   quality: QualityLevel
+  /** The interface language. See `src/i18n`. */
+  language: Language
 
   /* Discoveries and easter eggs */
   factIndex: number
@@ -181,6 +185,7 @@ export interface SimulationActions {
   setVolume: (volume: number) => void
   setReducedMotion: (reduced: boolean) => void
   setQuality: (quality: QualityLevel) => void
+  setLanguage: (language: Language) => void
 
   teachMeSomething: () => void
   closeFactCard: () => void
@@ -271,6 +276,7 @@ const initialState: SimulationState = {
   volume: 0.4,
   reducedMotion: prefersReducedMotion(),
   quality: 'medium',
+  language: 'en',
 
   factIndex: -1,
   discoveries: [],
@@ -280,7 +286,7 @@ const initialState: SimulationState = {
 
   webglSupported: null,
   assetsProgress: 0,
-  assetsLabel: 'Preparing the Solar System…',
+  assetsLabel: 'loading.preparing',
   ready: false,
 }
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
@@ -494,7 +500,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (enabled) {
       if (!audio.enable()) {
         set({ soundEnabled: false })
-        get().showToast('This browser cannot play generated audio.', 'alert')
+        get().showToast(translate(get().language, 'toast.noAudio'), 'alert')
         return
       }
       audio.setVolume(get().volume)
@@ -515,6 +521,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setQuality: (quality) => set({ quality }),
 
+  setLanguage: (language) => set({ language }),
+
   teachMeSomething: () => {
     audio.play('click')
     set((state) => ({
@@ -531,7 +539,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (count % 3 === 0) {
       audio.play('flare')
       set((state) => ({ flareId: state.flareId + 1 }))
-      get().showToast('Solar flare! The Sun is throwing a tantrum of plasma.', 'fun')
+      get().showToast(translate(get().language, 'toast.solarFlare'), 'fun')
     }
   },
 
@@ -584,10 +592,4 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 export function simulationDaysPerSecond(state: SimulationState): number {
   const speed = TIME_SPEEDS[state.speedIndex] ?? TIME_SPEEDS[DEFAULT_SPEED_INDEX]
   return speed.daysPerSecond * state.direction
-}
-
-/** Text of the fact currently shown on the random-fact card. */
-export function currentFact(state: SimulationState): string {
-  if (state.factIndex < 0) return FACTS[0].text
-  return (FACTS[state.factIndex] ?? FACTS[0]).text
 }

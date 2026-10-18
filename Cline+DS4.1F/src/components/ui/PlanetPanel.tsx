@@ -1,15 +1,9 @@
 import { AnimatePresence } from 'framer-motion'
-import { BODY_BY_ID, satellitesOf } from '../../data/planets'
 import { BODY_VISUALS } from '../../data/visuals'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
-import {
-  formatDays,
-  formatDistanceUnits,
-  formatKm,
-  formatKmExact,
-  formatRotation,
-  formatTemperature,
-} from '../../utils/format'
+import { useFormatters } from '../../utils/format'
 import { getDistanceFromSun } from '../../utils/bodyRegistry'
 import { Chip, CollapsibleSidePanel, PanelCollapseButton, SectionTitle, SliderRow, Stat, ToolbarButton } from './primitives'
 import { CloseIcon, OrbitIcon, RocketIcon } from './icons'
@@ -22,6 +16,9 @@ import { CloseIcon, OrbitIcon, RocketIcon } from './icons'
  * learns the science without being misled by the picture.
  */
 export function PlanetPanel() {
+  const { t } = useTranslation()
+  const content = useContent()
+  const f = useFormatters()
   const selectedId = useSimulationStore((state) => state.selectedId)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -42,11 +39,12 @@ export function PlanetPanel() {
   const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
   const setRightOpacity = useSimulationStore((state) => state.setRightPanelOpacity)
 
-  const body = selectedId ? BODY_BY_ID[selectedId] : undefined
+  const body = selectedId ? content.bodyById[selectedId] : undefined
   const open = Boolean(body)
   const accent = body ? (BODY_VISUALS[body.id]?.accent ?? body.color) : '#8ab4ff'
   const liveDistanceUnits = body ? getDistanceFromSun(body.id) : 0
-  const moons = body ? satellitesOf(body.id) : []
+  const moons = body ? content.satellitesOf(body.id) : []
+  const isWorld = body?.kind === 'planet' || body?.kind === 'moon' || body?.kind === 'dwarf'
 
   return (
     <AnimatePresence>
@@ -55,7 +53,7 @@ export function PlanetPanel() {
           key={body.id}
           role="dialog"
           side="right"
-          label={`${body.name} information`}
+          label={body.name}
           collapsedLabel={body.name}
           collapsed={rightCollapsed}
           onToggle={toggleRightPanel}
@@ -85,13 +83,13 @@ export function PlanetPanel() {
               <span className="hidden sm:inline-flex">
                 <PanelCollapseButton
                   side="right"
-                  label="Collapse the information panel"
+                  label={t('planet.collapse')}
                   onToggle={toggleRightPanel}
                 />
               </span>
               <button
                 type="button"
-                aria-label={`Close the ${body.name} information panel`}
+                aria-label={t('planet.close', { name: body.name })}
                 onClick={() => selectBody(null)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:text-parchment"
               >
@@ -106,17 +104,17 @@ export function PlanetPanel() {
 
           {body.id === 'earth' ? (
             <div className="mt-4">
-              <SectionTitle hint="0% = no haze">Earth’s atmosphere</SectionTitle>
+              <SectionTitle hint={t('planet.atmosphereHint')}>{t('planet.earthAtmosphere')}</SectionTitle>
               <div className="rounded-xl border border-white/8 bg-white/4 p-1">
                 <SliderRow
-                  label="Atmosphere haze"
+                  label={t('planet.atmosphereHaze')}
                   value={earthAtmosphereOpacity}
                   min={0}
                   max={1}
                   step={0.01}
                   onChange={setEarthAtmosphereOpacity}
                   format={(value) => `${Math.round(value * 100)}%`}
-                  hint="How heavily the blue air hides the surface. Slide to 0% to study the bare continents and oceans, or up to 100% for the full glowing limb."
+                  hint={t('planet.atmosphereHazeHint')}
                 />
               </div>
             </div>
@@ -124,97 +122,129 @@ export function PlanetPanel() {
 
           {body.id === 'earth' ? (
             <div className="mt-4">
-              <SectionTitle hint="0% = clear skies">Earth’s clouds</SectionTitle>
+              <SectionTitle hint={t('planet.cloudsHint')}>{t('planet.earthClouds')}</SectionTitle>
               <div className="rounded-xl border border-white/8 bg-white/4 p-1">
                 <SliderRow
-                  label="Cloud coverage"
+                  label={t('planet.cloudCoverage')}
                   value={earthCloudCoverage}
                   min={0}
                   max={1}
                   step={0.01}
                   onChange={setEarthCloudCoverage}
                   format={(value) => `${Math.round(value * 100)}%`}
-                  hint="How much of the sky the clouds fill. 0% leaves a few scattered wisps, 50% is a balanced mix of clear and cloudy regions, and 100% closes in toward a near-continuous sheet."
+                  hint={t('planet.cloudCoverageHint')}
                 />
                 <SliderRow
-                  label="Cloud opacity"
+                  label={t('planet.cloudOpacity')}
                   value={earthCloudOpacity}
                   min={0}
                   max={1}
                   step={0.01}
                   onChange={setEarthCloudOpacity}
                   format={(value) => `${Math.round(value * 100)}%`}
-                  hint="How solid the white cloud deck is. Slide to 0% to clear the clouds and study the whole surface, or up to 100% for the full cloud cover."
+                  hint={t('planet.cloudOpacityHint')}
                 />
                 <SliderRow
-                  label="Cloud dynamics"
+                  label={t('planet.cloudDynamics')}
                   value={earthCloudDynamics}
                   min={0}
                   max={1}
                   step={0.01}
                   onChange={setEarthCloudDynamics}
                   format={(value) => `${Math.round(value * 100)}%`}
-                  hint="How much the cloud shapes swirl and re-form. 0% freezes them mid-drift (the deck still slips across the surface); 100% is the liveliest."
+                  hint={t('planet.cloudDynamicsHint')}
                 />
               </div>
             </div>
           ) : null}
 
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {body.diameterKm > 0 ? <Stat label="Diameter" value={formatKmExact(body.diameterKm)} /> : null}
+            {body.diameterKm > 0 ? (
+              <Stat label={t('planet.diameter')} value={f.kmExact(body.diameterKm)} />
+            ) : null}
             {body.kind === 'belt' ? (
-              <Stat label="Distance from Sun" value="2.2 – 3.2 AU" hint="330–480 million km" />
+              <Stat
+                label={t('planet.distanceFromSun')}
+                value={t('planet.beltDistance')}
+                hint={t('planet.beltDistanceHint')}
+              />
             ) : (
-              <Stat label="Distance from Sun" value={formatKm(body.distanceFromSunKm)} hint="average" />
+              <Stat
+                label={t('planet.distanceFromSun')}
+                value={f.km(body.distanceFromSunKm)}
+                hint={t('planet.average')}
+              />
             )}
             {body.kind !== 'belt' ? (
               <Stat
-                label="Length of year"
+                label={t('planet.lengthOfYear')}
                 value={
                   body.kind === 'moon'
-                    ? '27.3 days around Earth'
+                    ? t('planet.moonYear')
                     : body.orbitalPeriodDays > 0
-                      ? formatDays(body.orbitalPeriodDays)
+                      ? f.days(body.orbitalPeriodDays)
                       : '—'
                 }
               />
             ) : (
-              <Stat label="Orbital period" value="4.6 Earth years" hint="for the rocks in the middle" />
+              <Stat
+                label={t('planet.orbitalPeriod')}
+                value={t('planet.beltPeriod')}
+                hint={t('planet.beltPeriodHint')}
+              />
             )}
             {body.rotationPeriodHours !== 0 ? (
-              <Stat label="Length of day" value={formatRotation(body.rotationPeriodHours)} />
+              <Stat label={t('planet.lengthOfDay')} value={f.rotation(body.rotationPeriodHours)} />
             ) : null}
-            {body.kind === 'star' ? <Stat label="Planets" value="8" hint="plus dwarf planets" /> : null}
-            {body.kind === 'planet' || body.kind === 'moon' || body.kind === 'dwarf' ? (
-              <Stat label="Moons" value={String(body.moons)} hint="confirmed, rounding up" />
+            {body.kind === 'star' ? (
+              <Stat
+                label={t('planet.planets')}
+                value={t('planet.planetsValue')}
+                hint={t('planet.planetsHint')}
+              />
+            ) : null}
+            {isWorld ? (
+              <Stat
+                label={t('planet.moons')}
+                value={String(body.moons)}
+                hint={t('planet.moonsHint')}
+              />
             ) : null}
             {body.surfaceGravity > 0 ? (
-              <Stat label="Surface gravity" value={`${body.surfaceGravity.toFixed(2)} m/s²`} hint="how hard it pulls" />
-            ) : null}
-            <Stat label="Average temperature" value={formatTemperature(body.temperatureC)} />
-            {body.kind === 'planet' || body.kind === 'moon' || body.kind === 'dwarf' ? (
               <Stat
-                label="Compared with Earth"
+                label={t('planet.surfaceGravity')}
+                value={`${body.surfaceGravity.toFixed(2)} m/s²`}
+                hint={t('planet.surfaceGravityHint')}
+              />
+            ) : null}
+            <Stat label={t('planet.avgTemp')} value={f.temperature(body.temperatureC)} />
+            {isWorld ? (
+              <Stat
+                label={t('planet.comparedEarth')}
                 value={
                   body.massEarths >= 1
-                    ? `${body.massEarths.toFixed(1)}× the mass`
-                    : `${(body.massEarths * 100).toFixed(1)}% of the mass`
+                    ? t('planet.massMore', { value: body.massEarths.toFixed(1) })
+                    : t('planet.massLess', { value: (body.massEarths * 100).toFixed(1) })
                 }
               />
             ) : null}
-            {body.kind === 'planet' || body.kind === 'moon' || body.kind === 'dwarf' ? (
-              <Stat label="Tilt of its axis" value={`${body.axialTiltDeg.toFixed(1)}°`} hint="this makes seasons" />
+            {isWorld ? (
+              <Stat
+                label={t('planet.tilt')}
+                value={`${body.axialTiltDeg.toFixed(1)}°`}
+                hint={t('planet.tiltHint')}
+              />
             ) : null}
           </div>
 
           {liveDistanceUnits > 0 ? (
             <p className="sse-numeric mt-2 text-[0.68rem] text-mist/80">
-              In this view right now it sits {formatDistanceUnits(liveDistanceUnits)} from the Sun.
+              {t('planet.liveDistance', { value: f.distanceUnits(liveDistanceUnits) })}
             </p>
           ) : null}
 
           <div className="mt-4">
-            <SectionTitle hint="things to tell your friends">Cool facts</SectionTitle>
+            <SectionTitle hint={t('planet.coolFactsHint')}>{t('planet.coolFacts')}</SectionTitle>
             <ul className="space-y-1.5">
               {body.facts.map((fact) => (
                 <li key={fact} className="flex gap-2 text-sm leading-relaxed text-parchment/90">
@@ -232,14 +262,14 @@ export function PlanetPanel() {
             style={{ borderColor: `${accent}55`, background: `${accent}12` }}
           >
             <p className="sse-label-text" style={{ color: accent }}>
-              Did you know?
+              {t('planet.didYouKnow')}
             </p>
             <p className="mt-1 text-sm leading-relaxed text-parchment">{body.didYouKnow}</p>
           </div>
 
           {moons.length > 0 ? (
             <div className="mt-4">
-              <SectionTitle hint="rendered in the scene">Moons you can spot</SectionTitle>
+              <SectionTitle hint={t('planet.moonsRendered')}>{t('planet.moonsYouCanSpot')}</SectionTitle>
               <div className="flex flex-wrap gap-1.5">
                 {moons.map((moon) => (
                   <Chip key={moon.id} tone="neutral">
@@ -252,14 +282,14 @@ export function PlanetPanel() {
 
           <div className="mt-4 flex flex-wrap gap-1.5">
             <ToolbarButton icon={<RocketIcon />} compact onClick={() => focusBody(body.id, 'follow', 6)}>
-              Follow {body.name}
+              {t('planet.follow', { name: body.name })}
             </ToolbarButton>
             <ToolbarButton icon={<OrbitIcon />} compact onClick={resetView}>
-              Full view
+              {t('planet.fullView')}
             </ToolbarButton>
             {body.id === 'earth' ? (
               <ToolbarButton compact variant="ghost" onClick={() => openEducation('moon-phases')}>
-                Moon phases
+                {t('planet.moonPhases')}
               </ToolbarButton>
             ) : null}
             {body.id === 'sun' ? (
@@ -271,15 +301,14 @@ export function PlanetPanel() {
                   openEducation('sun')
                 }}
               >
-                How the Sun shines
+                {t('planet.howSunShines')}
               </ToolbarButton>
             ) : null}
           </div>
 
           <p className="mt-3 text-[0.66rem] leading-relaxed text-mist/75">
-            Numbers are rounded real values from NASA and IAU data and are approximate because the planets never stop
-            moving. The 3D picture keeps the real orbit spacing but compresses planet sizes so they stay visible.
-            {discoveries.length > 0 ? ` Discoveries so far: ${discoveries.length}.` : ''}
+            {t('planet.footer')}
+            {discoveries.length > 0 ? t('planet.discoveries', { count: discoveries.length }) : ''}
           </p>
         </CollapsibleSidePanel>
       ) : null}

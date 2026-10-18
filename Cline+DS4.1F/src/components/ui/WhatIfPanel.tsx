@@ -1,5 +1,6 @@
 import { AnimatePresence } from 'framer-motion'
-import { WHAT_IF_SCENARIOS } from '../../data/whatIf'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import type { WhatIfId } from '../../types'
 import { Sheet, ToolbarButton } from './primitives'
@@ -13,6 +14,8 @@ import { CloseIcon } from './icons'
  * can see cause and effect.
  */
 export function WhatIfPanel() {
+  const { t } = useTranslation()
+  const content = useContent()
   const open = useSimulationStore((state) => state.ui.whatIfOpen)
   const toggleWhatIf = useSimulationStore((state) => state.toggleWhatIf)
   const activeId = useSimulationStore((state) => state.whatIfId)
@@ -21,10 +24,11 @@ export function WhatIfPanel() {
   const resetView = useSimulationStore((state) => state.resetView)
   const showToast = useSimulationStore((state) => state.showToast)
 
-  const active = WHAT_IF_SCENARIOS.find((scenario) => scenario.id === activeId)
+  const scenarios = content.scenarios
+  const active = scenarios.find((scenario) => scenario.id === activeId)
 
   const choose = (id: WhatIfId): void => {
-    const scenario = WHAT_IF_SCENARIOS.find((entry) => entry.id === id)
+    const scenario = scenarios.find((entry) => entry.id === id)
     setWhatIf(activeId === id ? null : id)
     if (scenario && activeId !== id) {
       showToast(`${scenario.emoji} ${scenario.title}`, 'fun')
@@ -38,19 +42,16 @@ export function WhatIfPanel() {
   return (
     <AnimatePresence>
       {open ? (
-        <Sheet position="center" label="What if experiments">
+        <Sheet position="center" label={t('whatif.label')}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="sse-label-text text-violet">Playful physics</p>
-              <h2 className="mt-1 text-lg font-semibold text-parchment">What If…?</h2>
-              <p className="mt-1 text-xs leading-relaxed text-mist/90">
-                These are educational simulations, not predictions. Each one changes a single thing so you can see what
-                would happen.
-              </p>
+              <p className="sse-label-text text-violet">{t('whatif.eyebrow')}</p>
+              <h2 className="mt-1 text-lg font-semibold text-parchment">{t('whatif.title')}</h2>
+              <p className="mt-1 text-xs leading-relaxed text-mist/90">{t('whatif.intro')}</p>
             </div>
             <button
               type="button"
-              aria-label="Close the What If panel"
+              aria-label={t('whatif.close')}
               onClick={() => toggleWhatIf(false)}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:text-parchment"
             >
@@ -63,7 +64,7 @@ export function WhatIfPanel() {
           <div className="sse-divider my-3" />
 
           <div className="space-y-2">
-            {WHAT_IF_SCENARIOS.map((scenario) => {
+            {scenarios.map((scenario) => {
               const selected = scenario.id === activeId
               return (
                 <div
@@ -84,7 +85,9 @@ export function WhatIfPanel() {
                       </span>
                       <span className="text-sm font-semibold text-parchment">{scenario.title}</span>
                     </span>
-                    <span className="sse-label-text text-[0.6rem]">{selected ? 'active' : 'try it'}</span>
+                    <span className="sse-label-text text-[0.6rem]">
+                      {selected ? t('whatif.active') : t('whatif.tryIt')}
+                    </span>
                   </button>
 
                   {selected ? (
@@ -110,10 +113,10 @@ export function WhatIfPanel() {
               }}
               disabled={!active}
             >
-              Put the Solar System back
+              {t('whatif.reset')}
             </ToolbarButton>
             <ToolbarButton compact variant="subtle" onClick={() => toggleWhatIf(false)}>
-              Back to exploring
+              {t('whatif.back')}
             </ToolbarButton>
           </div>
         </Sheet>

@@ -22,13 +22,13 @@ export function useAssetPreloader(): void {
       setAssetsProgress(progress.ratio, progress.label)
     })
       .then(() => {
-        setAssetsProgress(1, 'Ready for launch')
+        setAssetsProgress(1, 'loading.ready')
         setReady(true)
       })
       .catch((error: unknown) => {
         // Never leave the visitor on the loading screen: show the system with
         // whatever textures exist (there is a fallback texture in the cache).
-        setAssetsProgress(1, 'Flight controls ready')
+        setAssetsProgress(1, 'loading.flightControls')
         setReady(true)
         if (import.meta.env.DEV) {
           // Surface the reason in development, but keep production quiet.

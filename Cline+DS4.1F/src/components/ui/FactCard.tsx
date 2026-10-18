@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { currentFact, useSimulationStore } from '../../store/simulationStore'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
+import { useSimulationStore } from '../../store/simulationStore'
 import { BulbIcon, CloseIcon } from './icons'
 
 /**
@@ -9,10 +11,14 @@ import { BulbIcon, CloseIcon } from './icons'
  * it can be read out loud in a single breath.
  */
 export function FactCard() {
+  const { t } = useTranslation()
+  const content = useContent()
   const open = useSimulationStore((state) => state.ui.factCardOpen)
   const closeFactCard = useSimulationStore((state) => state.closeFactCard)
   const teachMeSomething = useSimulationStore((state) => state.teachMeSomething)
-  const fact = useSimulationStore((state) => currentFact(state))
+  const factIndex = useSimulationStore((state) => state.factIndex)
+
+  const fact = content.facts[Math.max(0, factIndex)]?.text ?? content.facts[0].text
 
   return (
     <AnimatePresence>
@@ -20,7 +26,7 @@ export function FactCard() {
         <motion.div
           key="fact-card"
           role="dialog"
-          aria-label="A random space fact"
+          aria-label={t('fact.label')}
           initial={{ opacity: 0, y: 26, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 26, scale: 0.97 }}
@@ -35,11 +41,11 @@ export function FactCard() {
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-ice">
                 <BulbIcon size={20} />
-                <span className="sse-label-text">Teach me something!</span>
+                <span className="sse-label-text">{t('fact.eyebrow')}</span>
               </div>
               <button
                 type="button"
-                aria-label="Close the fact card"
+                aria-label={t('fact.close')}
                 onClick={closeFactCard}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:text-parchment"
               >
@@ -65,14 +71,14 @@ export function FactCard() {
                 onClick={teachMeSomething}
                 className="inline-flex min-h-[2.75rem] items-center gap-2 rounded-xl border border-electric/60 bg-electric/90 px-4 text-sm font-semibold text-white transition-colors hover:bg-electric"
               >
-                Another one, please!
+                {t('fact.another')}
               </button>
               <button
                 type="button"
                 onClick={closeFactCard}
                 className="inline-flex min-h-[2.75rem] items-center rounded-xl border border-white/12 bg-white/5 px-4 text-sm text-mist transition-colors hover:text-parchment"
               >
-                Back to space
+                {t('fact.back')}
               </button>
             </div>
           </div>

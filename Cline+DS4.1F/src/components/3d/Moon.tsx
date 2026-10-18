@@ -11,6 +11,8 @@ import { satellitePosition, satelliteOrbitPath, type SatelliteOrbit } from '../.
 import { hashString } from '../../utils/random'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { LOW_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE } from './geometry'
 
 /**
@@ -56,6 +58,8 @@ export function Moon({
   colorOverride,
   periodOverrideDays,
 }: MoonProps) {
+  const { t } = useTranslation()
+  const content = useContent()
   const orbitRef = useRef<Group>(null)
   const meshRef = useRef<Mesh>(null)
   const setHovered = useSimulationStore((state) => state.setHovered)
@@ -203,7 +207,13 @@ export function Moon({
               selectBody(bodyId)
               focusBody(bodyId, 'planet', 7)
             } else {
-              showToast(`${nameOverride ?? satellite.name}: ${satellite.note}`, 'fun')
+              showToast(
+                t('toast.satellite', {
+                  name: nameOverride ?? content.satellites.find((entry) => entry.id === satellite.id)?.name ?? satellite.name,
+                  note: content.satellites.find((entry) => entry.id === satellite.id)?.note ?? satellite.note,
+                }),
+                'fun',
+              )
             }
           }}
         />

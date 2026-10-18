@@ -1,8 +1,9 @@
 import { AnimatePresence } from 'framer-motion'
-import { TRAVEL_DESTINATIONS } from '../../data/missions'
+import { localeFor, useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useMissionReadout } from '../../hooks/useMissionReadout'
-import { formatKm } from '../../utils/format'
+import { useFormatters } from '../../utils/format'
 import { kmPerUnit } from '../../utils/scale'
 import { Chip, SectionTitle, Sheet, Stat, ToggleRow, ToolbarButton } from './primitives'
 import { RocketIcon } from './icons'
@@ -15,6 +16,9 @@ import { RocketIcon } from './icons'
  * Shift to boost. Live telemetry comes from the flight model at 5 Hz.
  */
 export function MissionControl() {
+  const { t, language } = useTranslation()
+  const content = useContent()
+  const f = useFormatters()
   const missionActive = useSimulationStore((state) => state.missionActive)
   const endMission = useSimulationStore((state) => state.endMission)
   const destinationId = useSimulationStore((state) => state.destinationId)
@@ -27,54 +31,61 @@ export function MissionControl() {
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const readout = useMissionReadout()
 
-  const destination = TRAVEL_DESTINATIONS.find((entry) => entry.id === destinationId)
+  const destinations = content.destinations
+  const destination = destinations.find((entry) => entry.id === destinationId)
   const statusLabel =
-    readout.status === 'arrived' ? 'Arrived — look around!' : readout.status === 'cruising' ? 'Cruising' : 'Idle'
+    readout.status === 'arrived'
+      ? t('mission.status.arrived')
+      : readout.status === 'cruising'
+        ? t('mission.status.cruising')
+        : t('mission.status.idle')
   const kilometresPerUnit = kmPerUnit(scaleMode, customScale, orbitModel)
 
   return (
     <AnimatePresence>
       {missionActive ? (
-        <Sheet position="bottom" label="Mission Control">
+        <Sheet position="bottom" label={t('mission.label')}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-ice">
               <RocketIcon size={20} />
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em]">Mission Control</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.18em]">{t('mission.title')}</h2>
             </div>
             <Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Stat
-              label="Speed"
-              value={`${readout.speed.toFixed(2)} units/s`}
-              hint={`${Math.round(readout.speedKmPerSecond).toLocaleString('en-US')} km/s (simulated)`}
+              label={t('mission.speed')}
+              value={`${f.distanceUnits(readout.speed)}/s`}
+              hint={t('mission.speedHint', {
+                value: Math.round(readout.speedKmPerSecond).toLocaleString(localeFor(language)),
+              })}
             />
             <Stat
-              label="Distance from Sun"
-              value={formatKm(readout.distanceFromSun * kilometresPerUnit)}
-              hint="measured in the current scale"
+              label={t('mission.distanceFromSun')}
+              value={f.km(readout.distanceFromSun * kilometresPerUnit)}
+              hint={t('mission.distanceHint')}
             />
             <Stat
-              label="Destination"
+              label={t('mission.destination')}
               value={destination ? destination.name : '—'}
               hint={
                 readout.distanceToDestinationKm > 0
-                  ? `${formatKm(readout.distanceToDestinationKm)} to go`
-                  : 'arrived'
+                  ? t('mission.toGo', { value: f.km(readout.distanceToDestinationKm) })
+                  : t('mission.arrived')
               }
             />
             <Stat
-              label="Pilot"
-              value={autopilot ? 'Autopilot' : 'You'}
-              hint={autopilot ? 'hands off' : 'use the keys below'}
+              label={t('mission.pilot')}
+              value={autopilot ? t('mission.autopilot') : t('mission.you')}
+              hint={autopilot ? t('mission.handsOff') : t('mission.useKeys')}
             />
           </div>
 
           <div className="mt-3">
-            <SectionTitle hint="tap to set course">Choose a destination</SectionTitle>
+            <SectionTitle hint={t('mission.chooseHint')}>{t('mission.chooseDestination')}</SectionTitle>
             <div className="flex flex-wrap gap-1.5">
-              {TRAVEL_DESTINATIONS.map((entry) => (
+              {destinations.map((entry) => (
                 <button
                   key={entry.id}
                   type="button"
@@ -82,7 +93,7 @@ export function MissionControl() {
                   onClick={() => {
                     setDestination(entry.id)
                     setAutopilot(true)
-                    showToast(`Course set for ${entry.name}. ${entry.funFact}`, 'info')
+                    showToast(t('mission.courseSet', { name: entry.name, fact: entry.funFact }), 'info')
                   }}
                   className={`min-h-[2.5rem] rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                     destinationId === entry.id
@@ -98,7 +109,7 @@ export function MissionControl() {
               <p className="mt-2 text-xs leading-relaxed text-mist/90">
                 {destination.description}
                 {destination.lightMinutesFromEarth > 0
-                  ? ` Radio messages from Earth would take about ${destination.lightMinutesFromEarth} minutes to arrive.`
+                  ? t('mission.radioDelay', { minutes: destination.lightMinutesFromEarth })
                   : ''}
               </p>
             ) : null}
@@ -106,20 +117,14 @@ export function MissionControl() {
 
           <div className="mt-2">
             <ToggleRow
-              label="Autopilot"
-              description="Fly to the destination automatically"
+              label={t('mission.autopilotLabel')}
+              description={t('mission.autopilotDesc')}
               checked={autopilot}
               onChange={() => setAutopilot(!autopilot)}
             />
           </div>
 
-          <p className="mt-2 text-[0.68rem] leading-relaxed text-mist/80">
-            Manual flight: <strong className="text-parchment">W/A/S/D</strong> move relative to the camera,{' '}
-            <strong className="text-parchment">R</strong> climbs, <strong className="text-parchment">F</strong> dives and{' '}
-            <strong className="text-parchment">Shift</strong> boosts. Turn the autopilot off to take the controls. Speeds
-            and distances are converted from scene units, so they show the scale of the journey rather than a real
-            spacecraft trajectory.
-          </p>
+          <p className="mt-2 text-[0.68rem] leading-relaxed text-mist/80">{t('mission.manual')}</p>
 
           <div className="mt-3 flex flex-wrap gap-1.5">
             <ToolbarButton
@@ -130,10 +135,10 @@ export function MissionControl() {
                 setAutopilot(true)
               }}
             >
-              Head home to Earth
+              {t('mission.headHome')}
             </ToolbarButton>
             <ToolbarButton compact variant="danger" onClick={endMission}>
-              End mission
+              {t('mission.end')}
             </ToolbarButton>
           </div>
         </Sheet>

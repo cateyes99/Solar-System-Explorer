@@ -21,6 +21,8 @@ import { clamp, createRandom, fbm } from '../../utils/random'
 import { getTexture } from '../../utils/textures'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { useSimulationStore } from '../../store/simulationStore'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { audio } from '../../utils/audio'
 import { PlanetLabel } from './PlanetLabel'
 
@@ -177,6 +179,9 @@ interface CometProps {
 }
 
 export function Comet({ body, reducedMotion, showLabels }: CometProps) {
+  const { t } = useTranslation()
+  const content = useContent()
+  const text = content.bodyById[body.id] ?? body
   const groupRef = useRef<Group>(null)
   const nucleusRef = useRef<Mesh>(null)
   const haloRef = useRef<Sprite>(null)
@@ -379,7 +384,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
           audio.play('arrive')
           if (!discovered) {
             registerDiscovery(body.id)
-            showToast(body.discoveryToast ?? `You found ${body.name}!`, 'fun')
+            showToast(text.discoveryToast ?? t('toast.foundBody', { name: text.name }), 'fun')
           }
         }}
       />
@@ -435,7 +440,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
       </group>
 
       {showLabels ? (
-        <PlanetLabel bodyId={body.id} name={body.name} accent={visuals.accent} offset={2.1} />
+        <PlanetLabel bodyId={body.id} name={text.name} accent={visuals.accent} offset={2.1} />
       ) : null}
     </group>
   )

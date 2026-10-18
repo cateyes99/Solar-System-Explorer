@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useSimulationStore } from '../../store/simulationStore'
 import { TOUR_STAGES } from '../../data/tour'
+import { translate } from '../../i18n'
 import { audio } from '../../utils/audio'
 
 /**
@@ -63,7 +64,7 @@ export function TourDirector() {
     const store = useSimulationStore.getState()
     if (stageIndex >= TOUR_STAGES.length - 1) {
       store.exitTour()
-      store.showToast('Tour complete! Where would you like to explore next?', 'info')
+      store.showToast(translate(store.language, 'tour.complete'), 'info')
     } else {
       store.setTourStage(stageIndex + 1)
     }
