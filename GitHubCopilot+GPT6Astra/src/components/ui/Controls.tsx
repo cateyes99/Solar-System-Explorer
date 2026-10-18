@@ -61,11 +61,16 @@ export function PlanetPanel() {
   const panel = useSimulation(state => state.panel)
   const tour = useSimulation(state => state.tour)
   const cameraMode = useSimulation(state => state.cameraMode)
+  const earthCloudOpacity = useSimulation(state => state.earthCloudOpacity)
   const body = id ? bodyById[id] : null
   return <AnimatePresence>{body && !panel && tour === null && <motion.aside key={body.id} className="side-panel planet-panel" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} aria-label={t("{{value1}} information", { value1: t(body.name) })}>
     <div className="panel-top"><span className="eyebrow">{t("COSMIC FIELD NOTES")}</span><IconButton label={t("Close planet information")} onClick={() => useSimulation.getState().viewSystem()}><X size={17} /></IconButton></div>
     <div className="body-title"><span className="eyebrow" style={{ color: body.color }}>{t(body.kind)}</span><h2>{t(body.name)}<span>.</span></h2>{body.id === 'earth' && <span className="home-tag">{t("HELLO, EARTH")}</span>}</div>
     <p className="body-description">{t(body.description)}</p>
+    {id === 'earth' && <div>
+      <label className="range-label" htmlFor="earth-cloud-opacity">{t("Cloud opacity")}<output htmlFor="earth-cloud-opacity">{earthCloudOpacity}%</output></label>
+      <input id="earth-cloud-opacity" type="range" min="0" max="100" step="1" value={earthCloudOpacity} aria-valuetext={`${earthCloudOpacity}%`} onChange={event => useSimulation.getState().set({ earthCloudOpacity: Number(event.target.value) })} />
+    </div>}
     <dl className="planet-stats">
       <div><dt>{id === 'halley' ? t('Nucleus dimensions') : t('Diameter')}</dt><dd>{id === 'halley' ? t('15 x 8') : body.diameter.toLocaleString(i18n.language)} <small>{t("km")}</small></dd></div>
       <div><dt>{body.id === 'moon' ? t('From Earth') : t('From the Sun')}</dt><dd>{body.id === 'moon' ? '384,400' : body.distanceAU === 0 ? t('Center') : (body.distanceAU * 149.598).toLocaleString(i18n.language, { maximumFractionDigits: 1 })} <small>{body.id === 'moon' ? t('km') : body.distanceAU ? t('million km') : ''}</small></dd></div>
