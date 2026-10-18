@@ -1,0 +1,40 @@
+{
+  // ===========================================================================
+  // Solar System Explorer — configuration
+  //
+  // This file is read once when the app starts. It is JSON with comments:
+  //   // line comments, /* block comments */ and trailing commas are all fine.
+  //
+  // Every setting is optional. Anything missing, misspelled or out of range is
+  // ignored and the built-in default is used instead, so the app always starts.
+  // The numbers are fractions from 0 (0%) to 1 (100%).
+  //
+  // The same values are also live in the UI: the sliders in the planet panel
+  // and the two side-panel opacity sliders, so you can preview a change and
+  // then write it down here.
+  // ===========================================================================
+
+  // The display language. Supported: "en" (English) or "zh" (Hanyu / Chinese).
+  "Language": "en",
+
+  // --- Earth's atmosphere --------------------------------------------------
+  // How heavily the blue air hides the surface. 0 = bare continents and oceans,
+  // 1 = the full glowing limb.
+  "Earth Atmosphere Haze": 0.45,
+
+  // --- Earth's clouds ------------------------------------------------------
+  // How much of the sky the clouds fill: 0 = a few scattered wisps,
+  // 1 = a near-continuous sheet.
+  "Earth Cloud Coverage": 0.3,
+  // How solid the cloud deck is: 0 = clear, 1 = the full cloud cover.
+  "Earth Cloud Opacity": 0.5,
+  // How much the cloud shapes swirl and re-form: 0 = frozen mid-drift,
+  // 1 = the liveliest.
+  "Earth Cloud Dynamics": 0.5,
+
+  // --- Side panels ---------------------------------------------------------
+  // Opacity of the left "Controls" panel and the right information panel.
+  // 0 = invisible (its header controls stay usable), 1 = fully opaque.
+  "SimulationControls Opacity": 0.75,
+  "PlanetPanel Opacity": 0.75
+}
