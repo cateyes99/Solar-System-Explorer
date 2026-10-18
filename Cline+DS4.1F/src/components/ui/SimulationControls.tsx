@@ -229,6 +229,8 @@ export function SimulationControls() {
   const cinematicActive = useSimulationStore((state) => state.cinematic.active)
   const collapsed = useSimulationStore((state) => state.ui.leftPanelCollapsed)
   const toggleLeftPanel = useSimulationStore((state) => state.toggleLeftPanel)
+  const opacity = useSimulationStore((state) => state.ui.leftPanelOpacity)
+  const setOpacity = useSimulationStore((state) => state.setLeftPanelOpacity)
 
   return (
     <CollapsibleSidePanel
@@ -237,27 +239,29 @@ export function SimulationControls() {
       collapsedLabel="Controls"
       collapsed={collapsed}
       onToggle={toggleLeftPanel}
+      opacity={opacity}
+      onOpacityChange={setOpacity}
       expandedWidthClass="w-[19rem] lg:w-[20.5rem]"
       collapsedWidthClass="w-12"
-      bodyClassName="p-4"
-      className={`bottom-44 left-4 hidden md:block ${
+      bodyClassName="px-4 pb-4"
+      className={`bottom-44 left-4 max-md:hidden ${
         cinematicActive ? 'top-[20rem]' : 'top-24'
       }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      header={
+        <>
           <p className="sse-label-text">Controls</p>
           <p className="mt-0.5 text-xs text-mist/80">Scale, layers and camera</p>
-        </div>
+        </>
+      }
+      headerActions={
         <PanelCollapseButton
           side="left"
           label="Collapse the controls panel"
           onToggle={toggleLeftPanel}
         />
-      </div>
-      <div className="mt-4">
-        <SimulationControlsContent />
-      </div>
+      }
+    >
+      <SimulationControlsContent />
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Chip tone="ice">WebGL · react-three-fiber</Chip>
         <Chip tone="violet">Procedural textures</Chip>
