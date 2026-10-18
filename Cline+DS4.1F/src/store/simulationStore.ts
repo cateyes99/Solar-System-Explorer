@@ -36,6 +36,9 @@ interface UiState {
   /** The left (controls) and right (information) side panels fold away independently. */
   leftPanelCollapsed: boolean
   rightPanelCollapsed: boolean
+  /** 0…1 opacity of each side panel's body (its header controls never fade). */
+  leftPanelOpacity: number
+  rightPanelOpacity: number
 }
 
 interface CinematicState {
@@ -190,6 +193,8 @@ export interface SimulationActions {
   openSettings: (open?: boolean) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
+  setLeftPanelOpacity: (value: number) => void
+  setRightPanelOpacity: (value: number) => void
 
   setWebglSupported: (supported: boolean) => void
   setAssetsProgress: (progress: number, label: string) => void
@@ -253,6 +258,8 @@ const initialState: SimulationState = {
     helpOpen: false,
     leftPanelCollapsed: false,
     rightPanelCollapsed: false,
+    leftPanelOpacity: 1,
+    rightPanelOpacity: 1,
   },
   whatIfId: null,
 
@@ -395,6 +402,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         helpOpen: false,
         leftPanelCollapsed: false,
         rightPanelCollapsed: false,
+        leftPanelOpacity: 1,
+        rightPanelOpacity: 1,
       },
     })
   },
@@ -555,6 +564,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   toggleRightPanel: () =>
     set((state) => ({ ui: { ...state.ui, rightPanelCollapsed: !state.ui.rightPanelCollapsed } })),
+
+  setLeftPanelOpacity: (value) =>
+    set((state) => ({
+      ui: { ...state.ui, leftPanelOpacity: Math.max(0, Math.min(1, value)) },
+    })),
+
+  setRightPanelOpacity: (value) =>
+    set((state) => ({
+      ui: { ...state.ui, rightPanelOpacity: Math.max(0, Math.min(1, value)) },
+    })),
 
   setWebglSupported: (webglSupported) => set({ webglSupported }),
   setAssetsProgress: (assetsProgress, assetsLabel) => set({ assetsProgress, assetsLabel }),

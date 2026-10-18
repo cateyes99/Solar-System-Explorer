@@ -267,6 +267,38 @@ export function PanelCollapseButton({
   )
 }
 
+interface PanelOpacityControlProps {
+  value: number
+  onChange: (value: number) => void
+}
+
+/**
+ * A compact opacity slider that sits in a side panel's header.
+ *
+ * It is deliberately kept outside the part of the panel that fades, so it stays
+ * readable and grabbable even when the panel itself has been slid to 0%.
+ */
+export function PanelOpacityControl({ value, onChange }: PanelOpacityControlProps) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-2.5 py-1.5">
+      <span className="sse-label-text text-[0.58rem]">Opacity</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        aria-label="Panel opacity"
+        className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-white/20 accent-ice"
+      />
+      <span className="sse-numeric w-8 text-right text-[0.62rem] text-mist">
+        {Math.round(value * 100)}%
+      </span>
+    </label>
+  )
+}
+
 type CollapsibleSidePanelProps = {
   children: ReactNode
   /** Which screen edge the panel is anchored to. */
@@ -283,10 +315,18 @@ type CollapsibleSidePanelProps = {
   expandedWidthClass: string
   /** Width classes while collapsed. Defaults to a narrow bar. */
   collapsedWidthClass?: string
-  /** Padding etc. for the scrollable content area (not applied to the collapsed bar). */
+  /** Padding etc. for the scrollable content area. */
   bodyClassName?: string
   /** ARIA role: a plain side region, or a dialog for information panels. */
   role?: 'complementary' | 'dialog'
+  /** 0…1 opacity of the panel's background and body. The header's controls never fade. */
+  opacity?: number
+  /** When supplied, an opacity slider is shown in the header while expanded. */
+  onOpacityChange?: (value: number) => void
+  /** Header content — the title block. Fades with the panel. */
+  header?: ReactNode
+  /** Extra header controls (e.g. a close button). Never faded. */
+  headerActions?: ReactNode
 } & MotionProps
 
 /**
@@ -298,6 +338,11 @@ type CollapsibleSidePanelProps = {
  * reduced-motion rules apply for free. On phones these panels are full-width
  * bottom sheets, so the collapsed bar is suppressed there and the panel simply
  * stays expanded.
+ *
+ * The optional opacity slider fades the panel's background and body. The header
+ * controls — the opacity slider, the collapse chevron and any `headerActions` —
+ * sit outside the faded layer, so they stay fully usable even at 0%. A collapsed
+ * panel is likewise kept solid: its bar is a control.
  */
 export function CollapsibleSidePanel({
   children,
@@ -309,25 +354,61 @@ export function CollapsibleSidePanel({
   className = '',
   expandedWidthClass,
   collapsedWidthClass = 'w-12',
-  bodyClassName = '',
+  bodyClassName = 'px-4 pb-4',
   role = 'complementary',
+  opacity = 1,
+  onOpacityChange,
+  header,
+  headerActions,
   ...motionProps
 }: CollapsibleSidePanelProps) {
   // On the collapsed bar the chevron points away from the edge — toward the
   // middle of the screen — so it reads as "pull the panel back out".
   const expandDirection = side === 'left' ? 'right' : 'left'
+  // A folded panel is just a handle, so it never fades; that keeps it clickable
+  // whatever the slider was left at.
+  const faded = collapsed ? 1 : opacity
   return (
     <motion.aside
       role={role}
       aria-label={label}
       {...motionProps}
-      className={`sse-panel sse-scroll pointer-events-auto fixed z-30 overflow-x-hidden overflow-y-auto transition-[width,top] duration-300 ease-out ${
+      className={`pointer-events-auto fixed z-30 flex flex-col overflow-hidden transition-[width,top] duration-300 ease-out ${
         collapsed ? collapsedWidthClass : expandedWidthClass
       } ${className}`}
     >
-      {/* Kept mounted while collapsed (just hidden from `sm` up) so panel state,
-          scroll position and the collapse toggle all survive a fold. */}
-      <div className={`${collapsed ? 'sm:hidden' : ''} ${bodyClassName}`}>{children}</div>
+      {/* The glass, on its own layer so it can fade independently of the controls. */}
+      <div className="sse-panel absolute inset-0" style={{ opacity: faded }} aria-hidden="true" />
+
+      <div
+        className={`relative flex shrink-0 items-start justify-between gap-2 px-4 pt-4 ${
+          !collapsed && onOpacityChange ? 'pb-2' : 'pb-3'
+        } ${collapsed ? 'sm:hidden' : ''}`}
+      >
+        <div className="min-w-0" style={{ opacity: faded }}>
+          {header}
+        </div>
+        {/* Controls: never faded, so the panel can always be adjusted or closed. */}
+        <div className="flex shrink-0 items-center gap-1.5">{headerActions}</div>
+      </div>
+
+      {/* The opacity slider is a control, so it sits outside the faded layer too. */}
+      {!collapsed && onOpacityChange ? (
+        <div className="relative shrink-0 px-4 pb-3">
+          <PanelOpacityControl value={opacity} onChange={onOpacityChange} />
+        </div>
+      ) : null}
+
+      {/* Kept mounted while collapsed (just hidden from `sm` up) so panel state
+          and scroll position survive a fold. */}
+      <div
+        className={`sse-scroll relative min-h-0 flex-1 overflow-y-auto ${bodyClassName} ${
+          collapsed ? 'sm:hidden' : ''
+        }`}
+        style={{ opacity: faded }}
+      >
+        {children}
+      </div>
 
       {collapsed ? (
         <button
@@ -335,7 +416,7 @@ export function CollapsibleSidePanel({
           onClick={onToggle}
           aria-label={`Expand ${label}`}
           title={`Expand ${label}`}
-          className="hidden h-full w-full flex-col items-center justify-center gap-3 px-1 text-mist transition-colors hover:bg-white/6 hover:text-parchment sm:flex"
+          className="relative hidden min-h-0 flex-1 flex-col items-center justify-center gap-3 px-1 text-mist transition-colors hover:bg-white/6 hover:text-parchment sm:flex"
         >
           <span aria-hidden="true">
             <ChevronIcon size={16} direction={expandDirection} />

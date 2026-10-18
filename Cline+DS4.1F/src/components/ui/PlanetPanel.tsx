@@ -39,6 +39,8 @@ export function PlanetPanel() {
   const setEarthCloudCoverage = useSimulationStore((state) => state.setEarthCloudCoverage)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
+  const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
+  const setRightOpacity = useSimulationStore((state) => state.setRightPanelOpacity)
 
   const body = selectedId ? BODY_BY_ID[selectedId] : undefined
   const open = Boolean(body)
@@ -57,24 +59,27 @@ export function PlanetPanel() {
           collapsedLabel={body.name}
           collapsed={rightCollapsed}
           onToggle={toggleRightPanel}
+          opacity={rightOpacity}
+          onOpacityChange={setRightOpacity}
           expandedWidthClass="sm:w-[24rem]"
           collapsedWidthClass="sm:w-12"
-          bodyClassName="p-4"
+          bodyClassName="px-4 pb-4"
           className="inset-x-2 bottom-48 max-h-[52vh] sm:inset-x-auto sm:right-4 sm:top-20 sm:bottom-44 sm:max-h-none"
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 18 }}
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          header={
+            <>
               <p className="sse-label-text" style={{ color: accent }}>
                 {body.type}
               </p>
               <h2 className="sse-text-shadow mt-1 text-xl font-semibold text-parchment">{body.name}</h2>
               <p className="mt-0.5 text-sm italic text-mist/90">{body.tagline}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            </>
+          }
+          headerActions={
+            <>
               {/* Collapsing only makes sense for the desktop right-hand drawer;
                   on phones this panel is a full-width bottom sheet. */}
               <span className="hidden sm:inline-flex">
@@ -94,10 +99,10 @@ export function PlanetPanel() {
                   <CloseIcon />
                 </span>
               </button>
-            </div>
-          </div>
-
-          <p className="mt-3 text-sm leading-relaxed text-parchment/95">{body.description}</p>
+            </>
+          }
+        >
+          <p className="text-sm leading-relaxed text-parchment/95">{body.description}</p>
 
           {body.id === 'earth' ? (
             <div className="mt-4">
