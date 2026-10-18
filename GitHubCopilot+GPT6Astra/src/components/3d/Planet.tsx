@@ -48,6 +48,7 @@ function Rings({ radius }: { radius: number }) {
 
 function Clouds({ radius }: { radius: number }) {
   const mesh = useRef<Mesh>(null)
+  const opacity = useSimulation(state => state.earthCloudOpacity)
   const [map] = useState(makeClouds)
   const [cloudTime] = useState(() => ({ value: 0 }))
   useEffect(() => () => map.dispose(), [map])
@@ -58,9 +59,9 @@ function Clouds({ radius }: { radius: number }) {
     cloudTime.value += step
     if (mesh.current) mesh.current.rotation.y += step * .025
   })
-  return <mesh ref={mesh} name="earth-clouds" scale={radius * 1.012}>
+  return <mesh ref={mesh} name="earth-clouds" scale={radius * 1.012} visible={opacity > 0}>
     <sphereGeometry args={[1, 48, 32]} />
-    <meshStandardMaterial map={map} transparent opacity={.55} depthWrite={false} userData={{ cloudTime }} customProgramCacheKey={() => 'earth-cloud-flow-v1'} onBeforeCompile={shader => {
+    <meshStandardMaterial map={map} transparent opacity={.75 * opacity / 50} depthWrite={false} userData={{ cloudTime }} customProgramCacheKey={() => 'earth-cloud-flow-v1'} onBeforeCompile={shader => {
       shader.uniforms.cloudTime = cloudTime
       shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 cloudPosition;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\ncloudPosition = position;')

@@ -24,6 +24,7 @@ interface SimulationState {
   scale: ScaleMode
   size: number
   spacing: number
+  earthCloudOpacity: number
   tour: number | null
   tourPaused: boolean
   experiment: Experiment
@@ -54,6 +55,7 @@ export const useSimulation = create<SimulationState>((set, get) => ({
   reducedMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   labels: true, orbits: true, audio: false, panel: null,
   scale: 'educational', size: 1, spacing: 1,
+  earthCloudOpacity: 50,
   tour: null, tourPaused: false, experiment: 'none', lesson: 0,
   missionDestination: 'earth', missionActive: false, thrust: 0, steer: 0, missionReset: 0,
   select: (selected, focus = true) => set(state => ({ selected, cameraMode: focus ? 'follow' : state.cameraMode, cameraRevision: state.cameraRevision + 1, panel: null })),
