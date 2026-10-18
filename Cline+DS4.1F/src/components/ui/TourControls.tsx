@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { TOUR_STAGES } from '../../data/tour'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import { ToolbarButton } from './primitives'
 import { BackIcon, CloseIcon, ForwardIcon, PauseIcon, PlayIcon } from './icons'
@@ -12,6 +13,9 @@ import { BackIcon, CloseIcon, ForwardIcon, PauseIcon, PlayIcon } from './icons'
  * DOM, so a smooth animation costs zero React renders.
  */
 export function TourControls() {
+  const { t } = useTranslation()
+  const content = useContent()
+  const stages = content.tourStages
   const active = useSimulationStore((state) => state.cinematic.active)
   const paused = useSimulationStore((state) => state.cinematic.paused)
   const stageIndex = useSimulationStore((state) => state.cinematic.stageIndex)
@@ -23,7 +27,7 @@ export function TourControls() {
 
   const barRef = useRef<HTMLDivElement>(null)
 
-  const stage = TOUR_STAGES[stageIndex]
+  const stage = stages[stageIndex]
   const duration = stage ? (reducedMotion ? stage.duration * 0.65 : stage.duration) : 6
 
   useEffect(() => {
@@ -61,17 +65,17 @@ export function TourControls() {
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="pointer-events-auto fixed inset-x-3 top-[7.2rem] z-40 mx-auto max-w-[46rem] sm:left-4 sm:right-auto sm:top-[6.4rem]"
           role="region"
-          aria-label="Cinematic tour"
+          aria-label={t('tour.label')}
         >
           <div className="sse-panel overflow-hidden p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="sse-label-text">
-                  Tour · {stageIndex + 1} / {TOUR_STAGES.length}
+                  {t('tour.progress', { index: stageIndex + 1, total: stages.length })}
                 </span>
               </div>
               <div className="flex items-center gap-1" aria-hidden="true">
-                {TOUR_STAGES.map((entry, index) => (
+                {stages.map((entry, index) => (
                   <span
                     key={entry.id}
                     className={`h-1.5 rounded-full transition-all duration-300 ${
@@ -96,7 +100,7 @@ export function TourControls() {
                 onClick={() => setTourStage(Math.max(0, stageIndex - 1))}
                 disabled={stageIndex === 0}
               >
-                Back
+                {t('tour.back')}
               </ToolbarButton>
               <ToolbarButton
                 compact
@@ -104,18 +108,18 @@ export function TourControls() {
                 icon={paused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}
                 onClick={() => (paused ? resumeTour() : pauseTour())}
               >
-                {paused ? 'Resume tour' : 'Pause tour'}
+                {paused ? t('tour.resume') : t('tour.pause')}
               </ToolbarButton>
               <ToolbarButton
                 compact
                 icon={<ForwardIcon size={16} />}
                 onClick={() => setTourStage(stageIndex + 1)}
-                disabled={stageIndex >= TOUR_STAGES.length - 1}
+                disabled={stageIndex >= stages.length - 1}
               >
-                Skip
+                {t('tour.skip')}
               </ToolbarButton>
               <ToolbarButton compact variant="danger" icon={<CloseIcon size={16} />} onClick={exitTour}>
-                Exit tour
+                {t('tour.exit')}
               </ToolbarButton>
             </div>
           </div>

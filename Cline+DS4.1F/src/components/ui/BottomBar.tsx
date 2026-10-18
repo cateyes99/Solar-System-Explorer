@@ -1,5 +1,6 @@
-import { BODIES } from '../../data/planets'
 import { BODY_VISUALS } from '../../data/visuals'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import type { BodyId } from '../../types'
 import { TimeControls } from './TimeControls'
@@ -24,6 +25,8 @@ const TIMELINE_ORDER: BodyId[] = [
 ]
 
 export function BottomBar() {
+  const { t } = useTranslation()
+  const content = useContent()
   const selectedId = useSimulationStore((state) => state.selectedId)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -38,11 +41,11 @@ export function BottomBar() {
     >
       <div className="pointer-events-auto mx-auto flex max-w-[100rem] flex-col gap-2">
         <nav
-          aria-label="Quick travel to a world"
+          aria-label={t('bottom.quickTravel')}
           className="sse-scroll -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1"
         >
           {TIMELINE_ORDER.map((id) => {
-            const body = BODIES.find((candidate) => candidate.id === id)
+            const body = content.bodyById[id]
             if (!body) return null
             const accent = BODY_VISUALS[id]?.accent ?? '#8ab4ff'
             const active = selectedId === id
@@ -75,12 +78,12 @@ export function BottomBar() {
 
         <div
           role="group"
-          aria-label="Time controls"
+          aria-label={t('bottom.timeControls')}
           className="sse-panel flex flex-wrap items-center gap-2 px-3 py-2"
         >
           <TimeControls />
           <span className="sse-numeric ml-auto hidden text-[0.66rem] text-mist/80 xl:inline">
-            {paused ? 'Simulation paused' : 'Simulation running'} · positions from mean orbital elements
+            {t(paused ? 'time.pausedNote' : 'time.runningNote')}
           </span>
         </div>
       </div>

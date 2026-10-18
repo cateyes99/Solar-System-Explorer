@@ -36,6 +36,7 @@ export default function App() {
   const setWebglSupported = useSimulationStore((state) => state.setWebglSupported)
   const setReady = useSimulationStore((state) => state.setReady)
   const setAssetsProgress = useSimulationStore((state) => state.setAssetsProgress)
+  const language = useSimulationStore((state) => state.language)
 
   // Textures are generated before the scene mounts, with progress on screen.
   useAssetPreloader()
@@ -46,7 +47,7 @@ export default function App() {
     setWebglSupported(capability.supported)
     if (!capability.supported) {
       // Nothing to generate for the 2D view: go straight to it.
-      setAssetsProgress(1, 'Showing the simplified view')
+      setAssetsProgress(1, 'loading.simplified')
       setReady(true)
     }
   }, [setWebglSupported, setReady, setAssetsProgress])
@@ -54,6 +55,12 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.reducedMotion = reducedMotion ? 'true' : 'false'
   }, [reducedMotion])
+
+  // Keep the document language in step so the browser, spell-check and screen
+  // readers all know which language the interface is speaking.
+  useEffect(() => {
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
+  }, [language])
 
   const showScene = webglSupported === true
 

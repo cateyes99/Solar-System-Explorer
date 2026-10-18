@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { COMETS, ORBITING_WORLDS } from '../../data/planets'
-import { formatDays, formatKm, formatTemperature } from '../../utils/format'
-
-/** Every world the simplified view offers, in the order they sit out from the Sun. */
-const FALLBACK_WORLDS = [...ORBITING_WORLDS, ...COMETS]
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
+import { useFormatters } from '../../utils/format'
 
 /**
  * The 2D fallback.
@@ -14,20 +12,26 @@ const FALLBACK_WORLDS = [...ORBITING_WORLDS, ...COMETS]
  * same real data, so nobody is left staring at an error message.
  */
 export function Fallback2D({ reason }: { reason?: string }) {
+  const { t } = useTranslation()
+  const content = useContent()
+  const f = useFormatters()
   const [selectedId, setSelectedId] = useState('earth')
-  const selected = FALLBACK_WORLDS.find((world) => world.id === selectedId) ?? FALLBACK_WORLDS[2]
+
+  const orbitingWorlds = content.bodies.filter(
+    (body) => body.kind === 'planet' || body.kind === 'dwarf',
+  )
+  const comets = content.bodies.filter((body) => body.kind === 'comet')
+  const worlds = [...orbitingWorlds, ...comets]
+  const selected = worlds.find((world) => world.id === selectedId) ?? orbitingWorlds[2]
 
   return (
     <div className="fixed inset-0 z-20 overflow-y-auto bg-[radial-gradient(circle_at_50%_28%,#0b1330_0%,#04060f_70%)] px-4 py-8">
       <div className="mx-auto max-w-3xl">
-        <p className="sse-label-text text-solar">Simplified 2D view</p>
-        <h2 className="mt-1 text-xl font-semibold text-parchment">
-          Your browser or graphics hardware cannot display the 3D Solar System
-        </h2>
+        <p className="sse-label-text text-solar">{t('fallback.eyebrow')}</p>
+        <h2 className="mt-1 text-xl font-semibold text-parchment">{t('fallback.title')}</h2>
         <p className="mt-2 text-sm leading-relaxed text-mist/90">
-          The 3D experience needs WebGL 2, which this device could not provide. Here is a 2D Solar System instead — the
-          astronomy is exactly the same, and every planet still has its real data.
-          {reason ? ` (${reason})` : ''}
+          {t('fallback.body')}
+          {reason ? t('fallback.reason', { reason }) : ''}
         </p>
 
         <div className="sse-panel mt-5 p-4">
@@ -41,7 +45,7 @@ export function Fallback2D({ reason }: { reason?: string }) {
                 boxShadow: '0 0 50px 12px rgba(255,138,43,0.35)',
               }}
             />
-            {ORBITING_WORLDS.map((world, index) => {
+            {orbitingWorlds.map((world, index) => {
               const size = 34 + index * 9
               const duration = 8 + index * 3.4
               return (
@@ -77,7 +81,7 @@ export function Fallback2D({ reason }: { reason?: string }) {
           </div>
 
           <ul className="mt-4 flex flex-wrap justify-center gap-1.5">
-            {FALLBACK_WORLDS.map((world) => (
+            {worlds.map((world) => (
               <li key={world.id}>
                 <button
                   type="button"
@@ -109,27 +113,27 @@ export function Fallback2D({ reason }: { reason?: string }) {
           <p className="mt-2 text-sm leading-relaxed text-parchment/95">{selected.description}</p>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
             <div className="rounded-lg border border-white/10 bg-white/4 px-2 py-1.5">
-              <dt className="sse-label-text text-[0.55rem]">Diameter</dt>
-              <dd className="sse-numeric text-parchment">{formatKm(selected.diameterKm)}</dd>
+              <dt className="sse-label-text text-[0.55rem]">{t('planet.diameter')}</dt>
+              <dd className="sse-numeric text-parchment">{f.km(selected.diameterKm)}</dd>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/4 px-2 py-1.5">
-              <dt className="sse-label-text text-[0.55rem]">Distance from Sun</dt>
-              <dd className="sse-numeric text-parchment">{formatKm(selected.distanceFromSunKm)}</dd>
+              <dt className="sse-label-text text-[0.55rem]">{t('planet.distanceFromSun')}</dt>
+              <dd className="sse-numeric text-parchment">{f.km(selected.distanceFromSunKm)}</dd>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/4 px-2 py-1.5">
-              <dt className="sse-label-text text-[0.55rem]">Year</dt>
-              <dd className="sse-numeric text-parchment">{formatDays(selected.orbitalPeriodDays)}</dd>
+              <dt className="sse-label-text text-[0.55rem]">{t('fallback.year')}</dt>
+              <dd className="sse-numeric text-parchment">{f.days(selected.orbitalPeriodDays)}</dd>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/4 px-2 py-1.5">
-              <dt className="sse-label-text text-[0.55rem]">Temperature</dt>
-              <dd className="sse-numeric text-parchment">{formatTemperature(selected.temperatureC)}</dd>
+              <dt className="sse-label-text text-[0.55rem]">{t('fallback.temperature')}</dt>
+              <dd className="sse-numeric text-parchment">{f.temperature(selected.temperatureC)}</dd>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/4 px-2 py-1.5">
-              <dt className="sse-label-text text-[0.55rem]">Moons</dt>
+              <dt className="sse-label-text text-[0.55rem]">{t('planet.moons')}</dt>
               <dd className="sse-numeric text-parchment">{selected.moons}</dd>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/4 px-2 py-1.5">
-              <dt className="sse-label-text text-[0.55rem]">Gravity</dt>
+              <dt className="sse-label-text text-[0.55rem]">{t('fallback.gravity')}</dt>
               <dd className="sse-numeric text-parchment">{selected.surfaceGravity.toFixed(2)} m/s²</dd>
             </div>
           </dl>
@@ -148,10 +152,7 @@ export function Fallback2D({ reason }: { reason?: string }) {
           </ul>
         </motion.div>
 
-        <p className="mt-4 text-[0.68rem] leading-relaxed text-mist/75">
-          Tip: a modern browser such as Chrome, Edge, Firefox or Safari with hardware acceleration enabled will unlock
-          the full 3D experience.
-        </p>
+        <p className="mt-4 text-[0.68rem] leading-relaxed text-mist/75">{t('fallback.tip')}</p>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { Suspense, useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { AdaptiveDpr, PerformanceMonitor } from '@react-three/drei'
 import { SolarSystem } from '../components/3d/SolarSystem'
+import { translate } from '../i18n'
 import { useSimulationStore } from '../store/simulationStore'
 import { clamp } from '../utils/random'
 import type { QualityLevel } from '../types'
@@ -53,7 +54,7 @@ export function SolarSystemScene() {
     // Say so out loud: an unexplained change of lighting is exactly what makes a
     // quality drop feel like a bug.
     if (direction === -1) {
-      useSimulationStore.getState().showToast('Slowing the graphics down a little to keep the motion smooth.', 'info')
+      useSimulationStore.getState().showToast(translate(useSimulationStore.getState().language, 'toast.slowGraphics'), 'info')
     }
   }
 

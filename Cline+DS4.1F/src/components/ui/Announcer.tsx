@@ -1,4 +1,5 @@
-import { BODIES } from '../../data/planets'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 
 /**
@@ -9,12 +10,14 @@ import { useSimulationStore } from '../../store/simulationStore'
  * navigate by keyboard or with a screen reader alone.
  */
 export function Announcer() {
+  const { t } = useTranslation()
+  const content = useContent()
   const selectedId = useSimulationStore((state) => state.selectedId)
   const toast = useSimulationStore((state) => state.toast)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
 
-  const selected = selectedId ? BODIES.find((body) => body.id === selectedId) : undefined
+  const selected = selectedId ? content.bodyById[selectedId] : undefined
   const message = toast?.message ?? (selected ? `${selected.name}. ${selected.tagline}.` : '')
 
   return (
@@ -23,9 +26,9 @@ export function Announcer() {
         {message}
       </p>
 
-      <nav aria-label="Jump to a world" className="sr-only">
+      <nav aria-label={t('a11y.jumpToWorld')} className="sr-only">
         <ul>
-          {BODIES.map((body) => (
+          {content.bodies.map((body) => (
             <li key={body.id}>
               <button
                 type="button"
@@ -34,7 +37,7 @@ export function Announcer() {
                   focusBody(body.id, 'planet', 6)
                 }}
               >
-                {body.name} — {body.type}
+                {t('a11y.bodyLabel', { name: body.name, type: body.type })}
               </button>
             </li>
           ))}

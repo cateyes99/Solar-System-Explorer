@@ -11,6 +11,8 @@ import { bodyRadius, orbitRadiusFor, sceneFromEclipticKm } from '../../utils/sca
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { smoothstep } from '../../utils/random'
 import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
 import { HIGH_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE, LOW_DETAIL_SPHERE, createRingGeometry } from './geometry'
@@ -62,6 +64,8 @@ interface PlanetProps {
 }
 
 export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps) {
+  const { t } = useTranslation()
+  const content = useContent()
   const orbitRef = useRef<Group>(null)
   const tiltRef = useRef<Group>(null)
   const spinRef = useRef<Group>(null)
@@ -263,7 +267,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     selectBody(body.id)
     focusBody(body.id, 'planet', 6)
     if (body.id === 'earth') {
-      showToast('Hello, Earth! You are standing on me right now.', 'fun')
+      showToast(t('toast.helloEarth'), 'fun')
       registerDiscovery('hello-earth')
     }
   }
@@ -368,7 +372,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       {showLabels ? (
         <PlanetLabel
           bodyId={body.id}
-          name={body.name}
+          name={content.bodyById[body.id]?.name ?? body.name}
           accent={visuals.accent}
           offset={Math.max(radius * 1.7, radius + 0.22)}
         />

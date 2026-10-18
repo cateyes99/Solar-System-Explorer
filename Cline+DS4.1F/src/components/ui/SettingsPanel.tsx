@@ -1,4 +1,5 @@
 import { AnimatePresence } from 'framer-motion'
+import { useTranslation } from '../../i18n'
 import { useSimulationStore } from '../../store/simulationStore'
 import { SimulationControlsContent } from './SimulationControls'
 import { SectionTitle, Sheet, SliderRow, ToggleRow, ToolbarButton } from './primitives'
@@ -10,13 +11,10 @@ import type { QualityLevel } from '../../types'
  * On phones and tablets this sheet is also where the scale picker and the layer
  * toggles live, so nothing is unreachable on a small screen.
  */
-const QUALITY_LABELS: Record<QualityLevel, string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-}
+const QUALITY_LEVELS: QualityLevel[] = ['low', 'medium', 'high']
 
 export function SettingsPanel() {
+  const { t } = useTranslation()
   const open = useSimulationStore((state) => state.ui.settingsOpen)
   const openSettings = useSimulationStore((state) => state.openSettings)
   const soundEnabled = useSimulationStore((state) => state.soundEnabled)
@@ -32,29 +30,29 @@ export function SettingsPanel() {
   return (
     <AnimatePresence>
       {open ? (
-        <Sheet label="Settings and display options">
+        <Sheet label={t('settings.label')}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-parchment">Settings</h2>
+            <h2 className="text-base font-semibold text-parchment">{t('settings.title')}</h2>
             <button
               type="button"
               onClick={() => openSettings(false)}
               className="min-h-[2.5rem] rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-mist transition-colors hover:text-parchment"
             >
-              Done
+              {t('settings.done')}
             </button>
           </div>
           <div className="sse-divider my-3" />
 
           <section>
-            <SectionTitle hint="off by default">Sound</SectionTitle>
+            <SectionTitle hint={t('settings.soundHint')}>{t('settings.sound')}</SectionTitle>
             <ToggleRow
-              label="Ambient space audio"
-              description="Generated live with the Web Audio API"
+              label={t('settings.ambientAudio')}
+              description={t('settings.ambientAudioDesc')}
               checked={soundEnabled}
               onChange={() => setSoundEnabled(!soundEnabled)}
             />
             <SliderRow
-              label="Volume"
+              label={t('settings.volume')}
               value={volume}
               min={0}
               max={1}
@@ -65,19 +63,19 @@ export function SettingsPanel() {
           </section>
 
           <section className="mt-4">
-            <SectionTitle hint="accessibility">Comfort</SectionTitle>
+            <SectionTitle hint={t('settings.comfortHint')}>{t('settings.comfort')}</SectionTitle>
             <ToggleRow
-              label="Reduce motion"
-              description="Calmer camera moves and fewer effects"
+              label={t('settings.reduceMotion')}
+              description={t('settings.reduceMotionDesc')}
               checked={reducedMotion}
               onChange={() => setReducedMotion(!reducedMotion)}
             />
           </section>
 
           <section className="mt-4">
-            <SectionTitle hint="performance">Graphics quality</SectionTitle>
+            <SectionTitle hint={t('settings.graphicsHint')}>{t('settings.graphics')}</SectionTitle>
             <div className="flex flex-wrap gap-1.5">
-              {(['low', 'medium', 'high'] as QualityLevel[]).map((level) => (
+              {QUALITY_LEVELS.map((level) => (
                 <button
                   key={level}
                   type="button"
@@ -89,33 +87,28 @@ export function SettingsPanel() {
                       : 'border-white/12 bg-white/4 text-mist hover:text-parchment'
                   }`}
                 >
-                  {QUALITY_LABELS[level]}
+                  {t(`settings.quality.${level}`)}
                 </button>
               ))}
             </div>
             <p className="mt-1 text-[0.68rem] leading-relaxed text-mist/80">
-              Surface textures are generated once when the page loads at the quality level detected at that moment.
-              Changing quality afterwards adjusts geometry detail, star counts and post-processing.
+              {t('settings.qualityNote')}
             </p>
           </section>
 
           <section className="mt-4 md:hidden">
-            <SectionTitle hint="also on the left on bigger screens">Scale, layers and camera</SectionTitle>
+            <SectionTitle hint={t('settings.scaleSectionHint')}>{t('settings.scaleSection')}</SectionTitle>
             <SimulationControlsContent />
           </section>
 
           <section className="mt-4">
-            <SectionTitle>Explore</SectionTitle>
+            <SectionTitle>{t('settings.explore')}</SectionTitle>
             <ToolbarButton compact onClick={resetView}>
-              Return to the full Solar System view
+              {t('settings.returnView')}
             </ToolbarButton>
           </section>
 
-          <p className="mt-4 text-[0.66rem] leading-relaxed text-mist/75">
-            Built with React, TypeScript, Three.js and react-three-fiber. All surface textures are generated
-            procedurally in your browser — no image files are downloaded. Planetary data comes from NASA and IAU
-            reference values.
-          </p>
+          <p className="mt-4 text-[0.66rem] leading-relaxed text-mist/75">{t('settings.footer')}</p>
         </Sheet>
       ) : null}
     </AnimatePresence>

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from '../../i18n'
 import { useSimulationStore } from '../../store/simulationStore'
 
 /**
@@ -9,6 +10,7 @@ import { useSimulationStore } from '../../store/simulationStore'
  * a running commentary on what is being painted.
  */
 export function LoadingScreen() {
+  const { t } = useTranslation()
   const ready = useSimulationStore((state) => state.ready)
   const progress = useSimulationStore((state) => state.assetsProgress)
   const label = useSimulationStore((state) => state.assetsLabel)
@@ -67,9 +69,9 @@ export function LoadingScreen() {
             </div>
 
             <h2 className="sse-text-shadow text-sm font-semibold uppercase tracking-[0.34em] text-parchment">
-              Preparing the Solar System…
+              {t('loading.preparing')}
             </h2>
-            <p className="mt-2 min-h-[1.2rem] text-xs text-mist">{label}</p>
+            <p className="mt-2 min-h-[1.2rem] text-xs text-mist">{t(label)}</p>
 
             <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
               <motion.div
@@ -79,7 +81,7 @@ export function LoadingScreen() {
               />
             </div>
             <p className="sse-numeric mt-2 text-[0.68rem] text-mist/80">
-              {Math.round(Math.min(1, progress) * 100)}% · textures are drawn in your browser, nothing is downloaded
+              {Math.round(Math.min(1, progress) * 100)}% · {t('loading.note')}
             </p>
           </div>
         </motion.div>

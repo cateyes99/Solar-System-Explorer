@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from '../../i18n'
 import { useSimulationStore } from '../../store/simulationStore'
 import { ToolbarButton } from './primitives'
 
@@ -11,6 +12,7 @@ import { ToolbarButton } from './primitives'
  * blocked by it.
  */
 export function WelcomeOverlay() {
+  const { t } = useTranslation()
   const visible = useSimulationStore((state) => state.ui.welcomeVisible)
   const ready = useSimulationStore((state) => state.ready)
   const dismiss = useSimulationStore((state) => state.dismissWelcome)
@@ -38,10 +40,8 @@ export function WelcomeOverlay() {
           className="pointer-events-none fixed inset-x-0 top-[19%] z-30 flex justify-center px-4"
         >
           <div className="sse-panel pointer-events-auto max-w-[30rem] px-5 py-4 text-center">
-            <p className="sse-label-text text-ice">Welcome to the Solar System</p>
-            <p className="sse-text-shadow mt-2 text-sm text-parchment">
-              Drag to explore · Click a planet to learn · Start a mission
-            </p>
+            <p className="sse-label-text text-ice">{t('welcome.title')}</p>
+            <p className="sse-text-shadow mt-2 text-sm text-parchment">{t('welcome.subtitle')}</p>
             <div className="mt-3 flex justify-center gap-2">
               <ToolbarButton
                 variant="primary"
@@ -50,7 +50,7 @@ export function WelcomeOverlay() {
                   dismiss()
                 }}
               >
-                Let&apos;s explore
+                {t('welcome.cta')}
               </ToolbarButton>
             </div>
           </div>
@@ -60,29 +60,31 @@ export function WelcomeOverlay() {
   )
 }
 
-const SHORTCUTS: { keys: string; description: string }[] = [
-  { keys: 'Drag', description: 'Rotate the view around the Solar System' },
-  { keys: 'Scroll / pinch', description: 'Zoom in and out' },
-  { keys: 'Right-drag / two fingers', description: 'Pan the view' },
-  { keys: 'Click a planet', description: 'Open its information panel' },
-  { keys: 'Double-click', description: 'Follow that world' },
-  { keys: 'Space', description: 'Pause or resume time' },
-  { keys: '← →', description: 'Step back or forward one day' },
-  { keys: '1 … 6', description: 'Choose a simulation speed' },
-  { keys: 'Esc', description: 'Close panels, or leave a tour or mission' },
-  { keys: 'L / O / B / N', description: 'Toggle labels, orbits, the belt and the nebula' },
-  { keys: 'R', description: 'Return to the full Solar System view' },
-  { keys: 'T', description: 'Start or stop the cinematic tour' },
-  { keys: 'E', description: 'Open Explore & Learn' },
-  { keys: 'I', description: 'Open the What If experiments' },
-  { keys: 'F', description: 'Teach me something (a random fact)' },
-  { keys: 'M', description: 'Mute or unmute the sound' },
-  { keys: 'S', description: 'Open settings' },
-  { keys: 'H', description: 'Show or hide this help' },
-  { keys: 'W A S D · R F · Shift', description: 'Fly the spacecraft during a mission' },
-]
+/** Each shortcut is a key label plus a one-line description, both translated. */
+const SHORTCUT_IDS = [
+  'drag',
+  'scroll',
+  'pan',
+  'clickPlanet',
+  'doubleClick',
+  'space',
+  'arrows',
+  'digits',
+  'esc',
+  'letters',
+  'r',
+  't',
+  'e',
+  'i',
+  'f',
+  'm',
+  's',
+  'h',
+  'wasd',
+] as const
 
 export function HelpPanel() {
+  const { t } = useTranslation()
   const open = useSimulationStore((state) => state.ui.helpOpen)
   const toggleHelp = useSimulationStore((state) => state.toggleHelp)
   const reducedMotion = useSimulationStore((state) => state.reducedMotion)
@@ -94,7 +96,7 @@ export function HelpPanel() {
         <motion.div
           key="help"
           role="dialog"
-          aria-label="How to explore"
+          aria-label={t('help.label')}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -111,12 +113,12 @@ export function HelpPanel() {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="sse-label-text text-ice">Flight manual</p>
-                <h2 className="mt-1 text-lg font-semibold text-parchment">How to explore</h2>
+                <p className="sse-label-text text-ice">{t('help.eyebrow')}</p>
+                <h2 className="mt-1 text-lg font-semibold text-parchment">{t('help.title')}</h2>
               </div>
               <button
                 type="button"
-                aria-label="Close help"
+                aria-label={t('help.close')}
                 onClick={() => toggleHelp(false)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 px-3 text-mist transition-colors hover:text-parchment"
               >
@@ -127,10 +129,14 @@ export function HelpPanel() {
             <div className="sse-divider my-3" />
 
             <ul className="space-y-1.5">
-              {SHORTCUTS.map((shortcut) => (
-                <li key={shortcut.keys} className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="sse-chip shrink-0 px-2 py-0.5 text-[0.66rem] text-parchment">{shortcut.keys}</span>
-                  <span className="text-right text-xs leading-relaxed text-mist/90">{shortcut.description}</span>
+              {SHORTCUT_IDS.map((id) => (
+                <li key={id} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="sse-chip shrink-0 px-2 py-0.5 text-[0.66rem] text-parchment">
+                    {t(`help.key.${id}`)}
+                  </span>
+                  <span className="text-right text-xs leading-relaxed text-mist/90">
+                    {t(`help.desc.${id}`)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -138,14 +144,10 @@ export function HelpPanel() {
             <div className="sse-divider my-3" />
 
             <ToolbarButton compact onClick={() => setReducedMotion(!reducedMotion)} active={reducedMotion}>
-              {reducedMotion ? 'Motion is reduced — tap to restore' : 'Reduce motion and effects'}
+              {reducedMotion ? t('help.motionReduced') : t('help.reduceMotion')}
             </ToolbarButton>
 
-            <p className="mt-3 text-[0.66rem] leading-relaxed text-mist/75">
-              Everything here also works with touch, and every control has a keyboard shortcut and a screen-reader label.
-              Planet facts are real astronomy with rounded numbers; the 3D picture keeps the real orbit spacing but
-              compresses planet sizes so they stay visible.
-            </p>
+            <p className="mt-3 text-[0.66rem] leading-relaxed text-mist/75">{t('help.footer')}</p>
           </motion.div>
         </motion.div>
       ) : null}

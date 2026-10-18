@@ -27,6 +27,7 @@ import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
  */
 
 export interface TextureProgress {
+  /** A translation key for the label (see `src/i18n/en.ts`, `texture.*`). */
   label: string
   ratio: number
 }
@@ -1361,7 +1362,7 @@ export async function generateTextures(
   for (let index = 0; index < TEXTURE_IDS.length; index += 1) {
     const id = TEXTURE_IDS[index]
     onProgress({
-      label: TEXTURE_SOURCES[id]?.label ?? PAINTER_BY_ID.get(id)?.label ?? 'Preparing textures',
+      label: TEXTURE_SOURCES[id] ? `texture.source.${id}` : `texture.${id}`,
       ratio: index / TEXTURE_IDS.length,
     })
     // Yield first: the browser paints the updated progress bar before we block.
@@ -1369,7 +1370,7 @@ export async function generateTextures(
     const texture = await buildMap(id, quality, shared)
     if (texture) cache.set(id, texture)
   }
-  onProgress({ label: 'Ready for launch', ratio: 1 })
+  onProgress({ label: 'loading.ready', ratio: 1 })
 }
 
 /** Frees GPU memory. Only used when the whole experience is torn down. */

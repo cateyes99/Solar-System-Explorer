@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { LESSONS } from '../../data/lessons'
+import { useTranslation } from '../../i18n'
+import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import { Sheet, ToolbarButton } from './primitives'
 import { LessonWidget } from './lessons/LessonWidgets'
@@ -14,6 +15,8 @@ import { CloseIcon, PlayIcon } from './icons'
  * happen in the real 3D Solar System.
  */
 export function EducationPanel() {
+  const { t } = useTranslation()
+  const content = useContent()
   const open = useSimulationStore((state) => state.ui.educationOpen)
   const lessonId = useSimulationStore((state) => state.ui.lessonId)
   const setLesson = useSimulationStore((state) => state.setLesson)
@@ -24,7 +27,8 @@ export function EducationPanel() {
   const setShowOrbitFlow = useSimulationStore((state) => state.setShowOrbitFlow)
   const [stepIndex, setStepIndex] = useState(0)
 
-  const lesson = LESSONS.find((entry) => entry.id === lessonId)
+  const lessons = content.lessons
+  const lesson = lessons.find((entry) => entry.id === lessonId)
 
   // Every new lesson starts at the first idea.
   useEffect(() => {
@@ -47,22 +51,22 @@ export function EducationPanel() {
       {open ? (
         <Sheet
           position="center"
-          label="Explore and learn"
+          label={t('education.label')}
           className="sm:top-[8.5rem] sm:bottom-44 sm:w-[min(52rem,94vw)] sm:translate-y-0"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="sse-label-text text-ice">Explore &amp; Learn</p>
+              <p className="sse-label-text text-ice">{t('education.eyebrow')}</p>
               <h2 className="mt-1 text-lg font-semibold text-parchment">
-                {lesson ? `${lesson.emoji} ${lesson.title}` : 'Pick something to discover'}
+                {lesson ? `${lesson.emoji} ${lesson.title}` : t('education.pick')}
               </h2>
               <p className="mt-1 text-xs text-mist/90">
-                {lesson ? lesson.summary : 'Eight short lessons, each with something to try yourself.'}
+                {lesson ? lesson.summary : t('education.intro')}
               </p>
             </div>
             <button
               type="button"
-              aria-label="Close the lessons"
+              aria-label={t('education.close')}
               onClick={closeEducation}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-mist transition-colors hover:text-parchment"
             >
@@ -74,7 +78,7 @@ export function EducationPanel() {
 
           <div className="sse-divider my-3" />
 
-          <nav aria-label="Lessons" className="sse-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2">
+          <nav aria-label={t('education.lessons')} className="sse-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2">
             <button
               type="button"
               aria-pressed={!lesson}
@@ -83,9 +87,9 @@ export function EducationPanel() {
                 !lesson ? 'border-ice/60 bg-ice/20 text-parchment' : 'border-white/12 bg-white/4 text-mist'
               }`}
             >
-              All lessons
+              {t('education.allLessons')}
             </button>
-            {LESSONS.map((entry) => (
+            {lessons.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
@@ -107,7 +111,7 @@ export function EducationPanel() {
 
           {!lesson ? (
             <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-              {LESSONS.map((entry) => (
+              {lessons.map((entry) => (
                 <li key={entry.id}>
                   <button
                     type="button"
@@ -133,7 +137,7 @@ export function EducationPanel() {
                 className="rounded-xl border border-white/10 bg-white/4 p-3"
               >
                 <p className="sse-label-text text-[0.58rem]">
-                  Idea {stepIndex + 1} of {lesson.steps.length}
+                  {t('education.ideaOf', { index: stepIndex + 1, total: lesson.steps.length })}
                 </p>
                 <p className="mt-2 text-sm leading-relaxed text-parchment/95">{lesson.steps[stepIndex].text}</p>
                 {lesson.steps[stepIndex].highlight ? (
@@ -148,7 +152,7 @@ export function EducationPanel() {
                     onClick={() => setStepIndex((value) => Math.max(0, value - 1))}
                     disabled={stepIndex === 0}
                   >
-                    Back
+                    {t('education.back')}
                   </ToolbarButton>
                   <ToolbarButton
                     compact
@@ -156,7 +160,7 @@ export function EducationPanel() {
                     onClick={() => setStepIndex((value) => Math.min(lesson.steps.length - 1, value + 1))}
                     disabled={stepIndex >= lesson.steps.length - 1}
                   >
-                    Next idea
+                    {t('education.nextIdea')}
                   </ToolbarButton>
                   <span className="flex items-center gap-1" aria-hidden="true">
                     {lesson.steps.map((step, index) => (
