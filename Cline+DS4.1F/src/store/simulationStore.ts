@@ -21,6 +21,21 @@ import type { Language } from '../i18n'
 
 export type ToastTone = 'info' | 'fun' | 'alert'
 
+/**
+ * A batch of already-validated settings, applied once at startup from the JSONC
+ * configuration file (see `src/config/appConfig.ts`). Every field is optional:
+ * anything left out keeps its current value.
+ */
+export interface SettingsPatch {
+  language?: Language
+  earthAtmosphereOpacity?: number
+  earthCloudCoverage?: number
+  earthCloudOpacity?: number
+  earthCloudDynamics?: number
+  leftPanelOpacity?: number
+  rightPanelOpacity?: number
+}
+
 export interface Toast {
   id: number
   message: string
@@ -186,6 +201,7 @@ export interface SimulationActions {
   setReducedMotion: (reduced: boolean) => void
   setQuality: (quality: QualityLevel) => void
   setLanguage: (language: Language) => void
+  applySettings: (patch: SettingsPatch) => void
 
   teachMeSomething: () => void
   closeFactCard: () => void
@@ -215,6 +231,10 @@ const prefersReducedMotion = (): boolean => {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
+
+/** Keeps a batch setting inside 0…1, falling back when it is missing or unusable. */
+const clamp01 = (value: number | undefined, fallback: number): number =>
+  value === undefined || !Number.isFinite(value) ? fallback : Math.max(0, Math.min(1, value))
 
 const initialState: SimulationState = {
   paused: false,
@@ -522,6 +542,20 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setQuality: (quality) => set({ quality }),
 
   setLanguage: (language) => set({ language }),
+
+  applySettings: (patch) =>
+    set((state) => ({
+      language: patch.language ?? state.language,
+      earthAtmosphereOpacity: clamp01(patch.earthAtmosphereOpacity, state.earthAtmosphereOpacity),
+      earthCloudCoverage: clamp01(patch.earthCloudCoverage, state.earthCloudCoverage),
+      earthCloudOpacity: clamp01(patch.earthCloudOpacity, state.earthCloudOpacity),
+      earthCloudDynamics: clamp01(patch.earthCloudDynamics, state.earthCloudDynamics),
+      ui: {
+        ...state.ui,
+        leftPanelOpacity: clamp01(patch.leftPanelOpacity, state.ui.leftPanelOpacity),
+        rightPanelOpacity: clamp01(patch.rightPanelOpacity, state.ui.rightPanelOpacity),
+      },
+    })),
 
   teachMeSomething: () => {
     audio.play('click')
