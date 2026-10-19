@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import type { WhatIfId } from '../../types'
-import { Sheet, ToolbarButton } from './primitives'
+import { DraggableSheet, ToolbarButton } from './primitives'
 import { CloseIcon } from './icons'
 
 /**
@@ -27,6 +28,9 @@ export function WhatIfPanel() {
   const scenarios = content.scenarios
   const active = scenarios.find((scenario) => scenario.id === activeId)
 
+  // Opacity is per-panel: fading What If? leaves every other popup alone.
+  const [opacity, setOpacity] = useState(1)
+
   const choose = (id: WhatIfId): void => {
     const scenario = scenarios.find((entry) => entry.id === id)
     setWhatIf(activeId === id ? null : id)
@@ -42,13 +46,19 @@ export function WhatIfPanel() {
   return (
     <AnimatePresence>
       {open ? (
-        <Sheet position="center" label={t('whatif.label')}>
-          <div className="flex items-start justify-between gap-3">
+        <DraggableSheet
+          position="center"
+          label={t('whatif.label')}
+          opacity={opacity}
+          onOpacityChange={setOpacity}
+          header={
             <div>
               <p className="sse-label-text text-violet">{t('whatif.eyebrow')}</p>
               <h2 className="mt-1 text-lg font-semibold text-parchment">{t('whatif.title')}</h2>
               <p className="mt-1 text-xs leading-relaxed text-mist/90">{t('whatif.intro')}</p>
             </div>
+          }
+          headerActions={
             <button
               type="button"
               aria-label={t('whatif.close')}
@@ -59,8 +69,8 @@ export function WhatIfPanel() {
                 <CloseIcon />
               </span>
             </button>
-          </div>
-
+          }
+        >
           <div className="sse-divider my-3" />
 
           <div className="space-y-2">
@@ -119,7 +129,7 @@ export function WhatIfPanel() {
               {t('whatif.back')}
             </ToolbarButton>
           </div>
-        </Sheet>
+        </DraggableSheet>
       ) : null}
     </AnimatePresence>
   )
