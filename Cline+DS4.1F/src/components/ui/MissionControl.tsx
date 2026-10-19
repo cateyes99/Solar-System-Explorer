@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { localeFor, useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
@@ -5,7 +6,7 @@ import { useSimulationStore } from '../../store/simulationStore'
 import { useMissionReadout } from '../../hooks/useMissionReadout'
 import { useFormatters } from '../../utils/format'
 import { kmPerUnit } from '../../utils/scale'
-import { Chip, SectionTitle, Sheet, Stat, ToggleRow, ToolbarButton } from './primitives'
+import { Chip, DraggableSheet, SectionTitle, Stat, ToggleRow, ToolbarButton } from './primitives'
 import { RocketIcon } from './icons'
 
 /**
@@ -31,6 +32,9 @@ export function MissionControl() {
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const readout = useMissionReadout()
 
+  // Opacity is per-panel: fading Mission Control leaves every other popup alone.
+  const [opacity, setOpacity] = useState(1)
+
   const destinations = content.destinations
   const destination = destinations.find((entry) => entry.id === destinationId)
   const statusLabel =
@@ -44,16 +48,20 @@ export function MissionControl() {
   return (
     <AnimatePresence>
       {missionActive ? (
-        <Sheet position="bottom" label={t('mission.label')}>
-          <div className="flex items-center justify-between gap-3">
+        <DraggableSheet
+          position="bottom"
+          label={t('mission.label')}
+          opacity={opacity}
+          onOpacityChange={setOpacity}
+          header={
             <div className="flex items-center gap-2 text-ice">
               <RocketIcon size={20} />
               <h2 className="text-sm font-semibold uppercase tracking-[0.18em]">{t('mission.title')}</h2>
             </div>
-            <Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          }
+          headerActions={<Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>}
+        >
+          <div className="mt-1 grid grid-cols-2 gap-2">
             <Stat
               label={t('mission.speed')}
               value={`${f.distanceUnits(readout.speed)}/s`}
@@ -141,7 +149,7 @@ export function MissionControl() {
               {t('mission.end')}
             </ToolbarButton>
           </div>
-        </Sheet>
+        </DraggableSheet>
       ) : null}
     </AnimatePresence>
   )

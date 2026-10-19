@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
-import { Sheet, ToolbarButton } from './primitives'
+import { DraggableSheet, ToolbarButton } from './primitives'
 import { LessonWidget } from './lessons/LessonWidgets'
 import { CloseIcon, PlayIcon } from './icons'
 
@@ -26,6 +26,8 @@ export function EducationPanel() {
   const setDaysPerSecond = useSimulationStore((state) => state.setDaysPerSecond)
   const setShowOrbitFlow = useSimulationStore((state) => state.setShowOrbitFlow)
   const [stepIndex, setStepIndex] = useState(0)
+  // Opacity is per-panel: fading Explore & Learn leaves every other popup alone.
+  const [opacity, setOpacity] = useState(1)
 
   const lessons = content.lessons
   const lesson = lessons.find((entry) => entry.id === lessonId)
@@ -49,12 +51,13 @@ export function EducationPanel() {
   return (
     <AnimatePresence>
       {open ? (
-        <Sheet
+        <DraggableSheet
           position="center"
           label={t('education.label')}
+          opacity={opacity}
+          onOpacityChange={setOpacity}
           className="sm:top-[8.5rem] sm:bottom-44 sm:w-[min(52rem,94vw)] sm:translate-y-0"
-        >
-          <div className="flex items-start justify-between gap-3">
+          header={
             <div>
               <p className="sse-label-text text-ice">{t('education.eyebrow')}</p>
               <h2 className="mt-1 text-lg font-semibold text-parchment">
@@ -64,6 +67,8 @@ export function EducationPanel() {
                 {lesson ? lesson.summary : t('education.intro')}
               </p>
             </div>
+          }
+          headerActions={
             <button
               type="button"
               aria-label={t('education.close')}
@@ -74,8 +79,8 @@ export function EducationPanel() {
                 <CloseIcon />
               </span>
             </button>
-          </div>
-
+          }
+        >
           <div className="sse-divider my-3" />
 
           <nav aria-label={t('education.lessons')} className="sse-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2">
@@ -183,7 +188,7 @@ export function EducationPanel() {
               <LessonWidget lessonId={lesson.id} />
             </div>
           )}
-        </Sheet>
+        </DraggableSheet>
       ) : null}
     </AnimatePresence>
   )
