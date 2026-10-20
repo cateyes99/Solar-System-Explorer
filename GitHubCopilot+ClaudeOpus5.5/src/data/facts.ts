@@ -1,0 +1,42 @@
+export interface AstronomyFact {
+  text: string
+  topic: string
+}
+
+export const RANDOM_FACTS: AstronomyFact[] = [
+  { topic: 'Venus', text: 'A day on Venus is longer than a year on Venus.' },
+  { topic: 'Jupiter', text: 'Jupiter is the largest planet in our Solar System – more than 1,300 Earths could fit inside it.' },
+  { topic: 'Saturn', text: 'Saturn’s rings are mostly made of ice and rock.' },
+  { topic: 'The Sun', text: 'Light from the Sun takes about 8 minutes to reach Earth.' },
+  { topic: 'The Sun', text: 'The Sun is so big that about 1.3 million Earths could fit inside it.' },
+  { topic: 'The Moon', text: 'Footprints left on the Moon by astronauts can last for millions of years, because there is no wind or rain to wipe them away.' },
+  { topic: 'Mars', text: 'Sunsets on Mars look blue, because of the way Martian dust scatters light.' },
+  { topic: 'Mars', text: 'Olympus Mons on Mars is the tallest volcano in the Solar System – about 2.5 times taller than Mount Everest.' },
+  { topic: 'Neptune', text: 'Neptune has the fastest winds of any planet – over 2,000 km/h.' },
+  { topic: 'Uranus', text: 'Uranus rolls around the Sun on its side.' },
+  { topic: 'Mercury', text: 'Mercury has no moons and almost no air.' },
+  { topic: 'Space', text: 'Space is completely silent, because there is no air to carry sound.' },
+  { topic: 'Earth', text: 'Earth is the only planet not named after a Greek or Roman god.' },
+  { topic: 'Earth', text: 'Earth is travelling around the Sun at about 30 kilometres every second.' },
+  { topic: 'The Moon', text: 'The Moon is moving away from Earth by about 3.8 cm each year.' },
+  { topic: 'Saturn', text: 'Saturn would float in water – if you could find a bathtub big enough!' },
+  { topic: 'Jupiter', text: 'Jupiter’s Great Red Spot is a storm bigger than the whole Earth.' },
+  { topic: 'Stars', text: 'Every star you see in the night sky is a sun, and many have planets of their own.' },
+  { topic: 'Space', text: 'The footprints of the Apollo astronauts are still on the Moon today.' },
+  { topic: 'Venus', text: 'Venus is the hottest planet, at about 464°C – hot enough to melt lead.' },
+  { topic: 'Comets', text: 'Comets are giant dirty snowballs. When they come close to the Sun, they grow long glowing tails.' },
+  { topic: 'Asteroids', text: 'Most asteroids live in the asteroid belt between Mars and Jupiter.' },
+  { topic: 'Light', text: 'Light from Neptune takes about 4 hours to reach Earth.' },
+  { topic: 'Space travel', text: 'Voyager 1, launched in 1977, is the farthest human-made object from Earth.' },
+  { topic: 'The Sun', text: 'The Sun is a star about halfway through its life – it is roughly 4.6 billion years old.' },
+  { topic: 'Mercury', text: 'Even though Mercury is closest to the Sun, Venus is hotter.' },
+  { topic: 'Uranus', text: 'Uranus was the first planet discovered using a telescope, in 1781.' },
+  { topic: 'Neptune', text: 'Neptune was found by doing maths before anyone saw it.' },
+  { topic: 'Earth', text: 'The International Space Station circles Earth about 16 times every day.' },
+  { topic: 'Jupiter', text: 'Jupiter’s moon Ganymede is the biggest moon in the Solar System – it is even bigger than Mercury.' },
+  { topic: 'Saturn', text: 'Saturn’s moon Enceladus shoots fountains of icy water into space.' },
+  { topic: 'Mars', text: 'Mars has seasons, just like Earth, because it is tilted too.' },
+  { topic: 'Space', text: 'Astronauts can grow a little taller in space, because their spines are not squished by gravity.' },
+  { topic: 'Gravity', text: 'On the Moon you would weigh about one sixth of what you weigh on Earth.' },
+  { topic: 'Galaxy', text: 'Our Solar System is just one small part of the Milky Way galaxy, which has hundreds of billions of stars.' },
+]
