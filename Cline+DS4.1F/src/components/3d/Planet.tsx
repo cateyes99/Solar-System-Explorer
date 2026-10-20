@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial } from 'three'
 import type { Group, Mesh, MeshBasicMaterial } from 'three'
@@ -15,7 +15,7 @@ import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { smoothstep } from '../../utils/random'
 import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
-import { HIGH_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE, LOW_DETAIL_SPHERE, createRingGeometry } from './geometry'
+import { SPHERE_LODS, sphereTierForApparentSize, createRingGeometry } from './geometry'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
 import { NightLights } from './NightLights'
@@ -139,6 +139,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const highlight = useRef(0)
   const ringOpacity = useRef(0)
 
+  // The sphere rung follows how large the body is on screen (see geometry.ts):
+  // a distant speck needs few segments, a world filling the view needs many.
+  const [sphereTier, setSphereTier] = useState(0)
+  const sphereTierRef = useRef(0)
+  const maxSphereTier = quality === 'low' ? 2 : 3
+
   const surfaceMaterial = useMemo(() => {
     const texture = getTexture(visuals.textureId)
     // The surface is aligned by shifting its maps in longitude. The albedo and
@@ -229,6 +235,13 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     if (detailRef.current) {
       detailRef.current.visible = apparentSize > detailThreshold
     }
+    // Match the sphere's tessellation to the body's apparent size so a close-up
+    // silhouette stays round. Only a threshold crossing re-renders React.
+    const wantedTier = sphereTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
+    if (wantedTier !== sphereTierRef.current) {
+      sphereTierRef.current = wantedTier
+      setSphereTier(wantedTier)
+    }
 
     // --- Hover emphasis ---------------------------------------------------
     // The glow is a pointing aid, not a badge: it answers "the pointer is on
@@ -260,8 +273,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     }
   })
 
-  const sphereGeometry =
-    quality === 'low' ? LOW_DETAIL_SPHERE : quality === 'medium' ? MEDIUM_DETAIL_SPHERE : HIGH_DETAIL_SPHERE
+  const sphereGeometry = SPHERE_LODS[sphereTier]
 
   const handleClick = (): void => {
     selectBody(body.id)
