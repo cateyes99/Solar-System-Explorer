@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, MeshStandardMaterial } from 'three'
+import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, MeshStandardMaterial, Vector3 } from 'three'
 import type { ColorRepresentation, Group, Mesh } from 'three'
 import type { BodyId, FocusTargetId, QualityLevel, SatelliteDefinition } from '../../types'
 import { BODY_VISUALS } from '../../data/visuals'
@@ -13,7 +13,7 @@ import { getTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
-import { LOW_DETAIL_SPHERE, MEDIUM_DETAIL_SPHERE } from './geometry'
+import { SPHERE_LODS, sphereTierForApparentSize } from './geometry'
 
 /**
  * A moon orbiting its parent planet.
@@ -62,6 +62,11 @@ export function Moon({
   const content = useContent()
   const orbitRef = useRef<Group>(null)
   const meshRef = useRef<Mesh>(null)
+  // The sphere rung follows how large the moon is on screen (see geometry.ts).
+  const [sphereTier, setSphereTier] = useState(0)
+  const sphereTierRef = useRef(0)
+  const maxSphereTier = quality === 'low' ? 2 : 3
+  const worldPos = useRef(new Vector3())
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -175,17 +180,30 @@ export function Moon({
     return () => unregisterBody(bodyId, object)
   }, [bodyId])
 
-  useFrame(() => {
+  useFrame((state) => {
     const group = orbitRef.current
     if (!group) return
     const position = satellitePosition(orbit, clock.daysSinceJ2000)
     group.position.set(position.x, position.y, position.z)
     // Tidally locked, like every large moon in the real Solar System: the same
     // face always turns toward the planet at the origin of this group.
-    if (meshRef.current) meshRef.current.rotation.y = -Math.atan2(-position.z, position.x)
+    const mesh = meshRef.current
+    if (mesh) {
+      mesh.rotation.y = -Math.atan2(-position.z, position.x)
+      // Keep the sphere's tessellation matched to how large the moon is on
+      // screen, so a moon zoomed in until it fills the view stays round.
+      mesh.getWorldPosition(worldPos.current)
+      const cameraDistance = state.camera.position.distanceTo(worldPos.current)
+      const apparentSize = (visualRadius * 2) / Math.max(cameraDistance, 0.001)
+      const wantedTier = sphereTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
+      if (wantedTier !== sphereTierRef.current) {
+        sphereTierRef.current = wantedTier
+        setSphereTier(wantedTier)
+      }
+    }
   })
 
-  const geometry = quality === 'low' ? LOW_DETAIL_SPHERE : MEDIUM_DETAIL_SPHERE
+  const geometry = SPHERE_LODS[sphereTier]
 
   return (
     <group>
