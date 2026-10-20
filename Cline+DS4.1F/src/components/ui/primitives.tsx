@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useDragControls } from 'framer-motion'
 import type { MotionProps } from 'framer-motion'
 import { useTranslation } from '../../i18n'
 import { ChevronIcon } from './icons'
@@ -203,6 +203,22 @@ export function Stat({ label, value, hint }: StatProps) {
   )
 }
 
+/**
+ * Shared placement for the floating sheets.
+ *
+ * Phone sheets stop just above the quick-travel strip so a child can still hop
+ * between worlds while a panel is open; from `sm` up they become drawers or a
+ * centred card.
+ */
+const SHEET_POSITION_CLASSES: Record<'right' | 'bottom' | 'center', string> = {
+  center:
+    'inset-x-2 bottom-48 max-h-[46vh] sm:inset-x-auto sm:max-h-none sm:left-1/2 sm:top-1/2 sm:w-[min(32rem,92vw)] sm:-translate-x-1/2 sm:-translate-y-1/2',
+  bottom:
+    'inset-x-2 bottom-48 max-h-[52vh] sm:inset-x-auto sm:max-h-none sm:right-4 sm:bottom-44 sm:w-[22rem]',
+  right:
+    'inset-x-2 bottom-48 max-h-[52vh] sm:inset-x-auto sm:right-4 sm:top-20 sm:bottom-44 sm:w-[24rem] sm:max-h-none',
+}
+
 interface SheetProps {
   children: ReactNode
   /** A right-hand drawer on desktop, a bottom sheet on phones. */
@@ -212,15 +228,6 @@ interface SheetProps {
 }
 
 export function Sheet({ children, position = 'right', label, className = '' }: SheetProps) {
-  // Phone sheets stop just above the quick-travel strip so a child can still hop
-  // between worlds while a panel is open. From `sm` up they become drawers.
-  const positionClasses =
-    position === 'center'
-      ? 'inset-x-2 bottom-48 max-h-[46vh] sm:inset-x-auto sm:max-h-none sm:left-1/2 sm:top-1/2 sm:w-[min(32rem,92vw)] sm:-translate-x-1/2 sm:-translate-y-1/2'
-      : position === 'bottom'
-        ? 'inset-x-2 bottom-48 max-h-[52vh] sm:inset-x-auto sm:max-h-none sm:right-4 sm:bottom-44 sm:w-[22rem]'
-        : 'inset-x-2 bottom-48 max-h-[52vh] sm:inset-x-auto sm:right-4 sm:top-20 sm:bottom-44 sm:w-[24rem] sm:max-h-none'
-
   return (
     <motion.aside
       role="dialog"
@@ -229,9 +236,126 @@ export function Sheet({ children, position = 'right', label, className = '' }: S
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 18 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className={`sse-panel sse-scroll pointer-events-auto fixed z-30 overflow-y-auto p-4 ${positionClasses} ${className}`}
+      className={`sse-panel sse-scroll pointer-events-auto fixed z-30 overflow-y-auto p-4 ${SHEET_POSITION_CLASSES[position]} ${className}`}
     >
       {children}
+    </motion.aside>
+  )
+}
+
+type DraggableSheetProps = {
+  children: ReactNode
+  /** Accessible name for the panel. */
+  label: string
+  /** A plain region for narration, a dialog for interactive panels. */
+  role?: 'dialog' | 'region'
+  /** One of the shared sheet positions, or `none` to place it entirely via `className`. */
+  position?: 'right' | 'bottom' | 'center' | 'none'
+  /** Extra fixed-position classes (width, top/left …). */
+  className?: string
+  /** Header content. Doubles as the drag handle, and fades with the panel. */
+  header: ReactNode
+  /** Controls beside the header (a close button, a status chip …). Never faded. */
+  headerActions?: ReactNode
+  /** Decorative layer painted behind the content but above the glass. */
+  backdrop?: ReactNode
+  /** Padding etc. for the scrollable body. */
+  bodyClassName?: string
+  /** 0…1 opacity applied to the glass and the body — never to the controls. */
+  opacity: number
+  onOpacityChange: (value: number) => void
+} & MotionProps
+
+/**
+ * A floating glass panel that can be dragged around and faded to taste.
+ *
+ * Dragging only ever starts from the header (the drag handle), so buttons,
+ * sliders and text in the body never move the panel by accident. The opacity
+ * slider lives outside the faded layers — exactly like
+ * {@link CollapsibleSidePanel} — so a panel left at 0% can always be brought
+ * back into view. Position and opacity are local to each instance, so moving or
+ * fading one panel never touches another.
+ */
+export function DraggableSheet({
+  children,
+  label,
+  role = 'dialog',
+  position = 'none',
+  className = '',
+  header,
+  headerActions,
+  backdrop,
+  bodyClassName = 'px-4 pb-4',
+  opacity,
+  onOpacityChange,
+  initial = { opacity: 0, y: 18 },
+  animate = { opacity: 1, y: 0 },
+  exit = { opacity: 0, y: 18 },
+  transition = { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+  ...motionProps
+}: DraggableSheetProps) {
+  const dragControls = useDragControls()
+  const positionClasses = position === 'none' ? '' : SHEET_POSITION_CLASSES[position]
+
+  return (
+    <motion.aside
+      role={role}
+      aria-label={label}
+      {...motionProps}
+      drag
+      dragListener={false}
+      dragControls={dragControls}
+      dragMomentum={false}
+      dragElastic={0}
+      className={`pointer-events-auto fixed z-30 flex flex-col overflow-hidden rounded-[var(--radius-panel)] ${positionClasses} ${className}`}
+    >
+      {/*
+        Entrance and exit live on this inner layer, clear of the drag transform,
+        so a panel the user has dragged still animates out from where it sits.
+      */}
+      <motion.div
+        initial={initial}
+        animate={animate}
+        exit={exit}
+        transition={transition}
+        className="relative flex min-h-0 flex-1 flex-col"
+      >
+        {/* The glass, on its own layer so it can fade independently of the controls. */}
+        <div className="sse-panel absolute inset-0" style={{ opacity }} aria-hidden="true" />
+        {backdrop ? (
+          <div className="pointer-events-none absolute inset-0" style={{ opacity }} aria-hidden="true">
+            {backdrop}
+          </div>
+        ) : null}
+
+        {/* The header is the drag handle; the actions beside it never start a drag. */}
+        <div
+          onPointerDown={(event) => dragControls.start(event)}
+          className="relative flex shrink-0 cursor-grab touch-none select-none items-start justify-between gap-2 px-4 pt-4 pb-2 active:cursor-grabbing"
+        >
+          <div className="min-w-0" style={{ opacity }}>
+            {header}
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-1.5"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {headerActions}
+          </div>
+        </div>
+
+        {/* The opacity slider is a control, so it sits outside the faded layer too. */}
+        <div className="relative shrink-0 px-4 pb-3">
+          <PanelOpacityControl value={opacity} onChange={onOpacityChange} />
+        </div>
+
+        <div
+          className={`sse-scroll relative min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}
+          style={{ opacity }}
+        >
+          {children}
+        </div>
+      </motion.div>
     </motion.aside>
   )
 }
