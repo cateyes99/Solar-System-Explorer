@@ -1,21 +1,14 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import {
-  AdditiveBlending,
-  BoxGeometry,
-  ConeGeometry,
-  CylinderGeometry,
-  MeshStandardMaterial,
-  SphereGeometry,
-  Vector3,
-} from 'three'
+import { useEffect, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { Vector3 } from 'three'
 import type { Group, Mesh, Sprite, SpriteMaterial } from 'three'
 import { getBodyWorldPosition, registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { spacecraft } from '../../utils/spacecraftSim'
 import { keyboard } from '../../utils/input'
-import { getTexture } from '../../utils/textures'
 import { audio } from '../../utils/audio'
 import { useSimulationStore } from '../../store/simulationStore'
+import { getSpacecraftMaterials } from './spacecraft/spacecraftResources'
+import { SpacecraftModel } from './spacecraft/SpacecraftModel'
 
 /**
  * Mission Control's spacecraft.
@@ -24,6 +17,10 @@ import { useSimulationStore } from '../../store/simulationStore'
  * Shift boosts. The autopilot takes over and cruises to the chosen destination,
  * which is how most children will use it — but nothing stops them grabbing the
  * controls and flying the ship themselves.
+ *
+ * The ship itself — a detailed probe with PBR materials and its own reflection
+ * environment — lives in `./spacecraft`; this component owns the flight model,
+ * the engine glow and the exhaust plume.
  */
 
 const FORWARD_KEYS = ['KeyW', 'ArrowUp']
@@ -33,11 +30,6 @@ const RIGHT_KEYS = ['KeyD', 'ArrowRight']
 const UP_KEYS = ['KeyR', 'Space']
 const DOWN_KEYS = ['KeyF', 'ShiftRight']
 const BOOST_KEYS = ['ShiftLeft']
-
-const CYLINDER = new CylinderGeometry(1, 1, 1, 14)
-const NOSE = new ConeGeometry(1, 1, 14)
-const SPHERE = new SphereGeometry(1, 14, 10)
-const PLATE = new BoxGeometry(1, 1, 1)
 
 const steer = new Vector3()
 const forward = new Vector3()
@@ -55,34 +47,9 @@ export function Spacecraft() {
   const autopilot = useSimulationStore((state) => state.autopilot)
   const destinationId = useSimulationStore((state) => state.destinationId)
 
-  const hullMaterial = useMemo(
-    () => new MeshStandardMaterial({ color: '#dfe8f5', roughness: 0.42, metalness: 0.6 }),
-    [],
-  )
-  const panelMaterial = useMemo(
-    () =>
-      new MeshStandardMaterial({
-        color: '#2f7bff',
-        roughness: 0.3,
-        metalness: 0.7,
-        emissive: '#123a7a',
-        emissiveIntensity: 0.5,
-      }),
-    [],
-  )
-  const engineMaterial = useMemo(
-    () => new MeshStandardMaterial({ color: '#4fd8ff', emissive: '#4fd8ff', emissiveIntensity: 1.6, roughness: 0.4 }),
-    [],
-  )
-
-  useEffect(
-    () => () => {
-      hullMaterial.dispose()
-      panelMaterial.dispose()
-      engineMaterial.dispose()
-    },
-    [hullMaterial, panelMaterial, engineMaterial],
-  )
+  // One shared set of materials for the one ship (see spacecraftResources).
+  const gl = useThree((state) => state.gl)
+  const materials = getSpacecraftMaterials(gl)
 
   useEffect(() => {
     const object = groupRef.current
@@ -165,29 +132,12 @@ export function Spacecraft() {
 
   return (
     <group ref={groupRef} visible={missionActive}>
-      {/* Fuselage */}
-      <mesh material={hullMaterial} geometry={CYLINDER} rotation={[Math.PI / 2, 0, 0]} scale={[0.3, 0.9, 0.3]} />
-      {/* Nose cone */}
-      <mesh material={hullMaterial} geometry={NOSE} position={[0, 0, 0.95]} rotation={[Math.PI / 2, 0, 0]} scale={0.3} />
-      {/* Cockpit */}
-      <mesh material={panelMaterial} geometry={SPHERE} position={[0, 0.18, 0.5]} scale={0.18} />
-      {/* Solar panels */}
-      <mesh material={panelMaterial} geometry={PLATE} position={[0.85, 0, -0.1]} scale={[1.1, 0.05, 0.42]} />
-      <mesh material={panelMaterial} geometry={PLATE} position={[-0.85, 0, -0.1]} scale={[1.1, 0.05, 0.42]} />
-      {/* Engine glow */}
-      <mesh ref={engineRef} material={engineMaterial} geometry={SPHERE} position={[0, 0, -0.95]} scale={0.22} />
-      <sprite ref={plumeRef} position={[0, 0, -1.6]} scale={[1.4, 1.4, 1]}>
-        <spriteMaterial
-          ref={plumeMaterialRef}
-          map={getTexture('glow')}
-          color="#7ce6ff"
-          blending={AdditiveBlending}
-          transparent
-          depthWrite={false}
-          opacity={0.2}
-          toneMapped={false}
-        />
-      </sprite>
+      <SpacecraftModel
+        materials={materials}
+        engineRef={engineRef}
+        plumeRef={plumeRef}
+        plumeMaterialRef={plumeMaterialRef}
+      />
     </group>
   )
 }
