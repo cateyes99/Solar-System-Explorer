@@ -277,6 +277,10 @@ export const zh: Record<TranslationKey, string> = {
   'mission.radioDelay': ' 来自地球的无线电讯息大约需要 {minutes} 分钟才能到达。',
   'mission.autopilotLabel': '自动驾驶',
   'mission.autopilotDesc': '自动飞往目的地',
+  'mission.chaseCamera': '追尾镜头',
+  'mission.chaseCameraDesc': '飞行时让镜头始终跟在飞船机头后方',
+  'mission.chaseAutoFrame': '自动取景',
+  'mission.chaseAutoFrameDesc': '始终与飞船保持固定的近距离',
   'mission.manual':
     '手动飞行：W/S 沿机头方向前进与后退，A/D 左右转向，R/F 抬头与低头，Shift 加速。按键持续越久，转向与推进就越快。关闭自动驾驶即可亲自操控。速度和距离由场景单位换算而来，因此它们展示的是这段旅程的规模，而不是真实航天器的飞行轨迹。',
   'mission.headHome': '返回地球家园',

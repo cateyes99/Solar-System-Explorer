@@ -63,7 +63,9 @@ unavailable the app automatically switches to a polished 2D orrery with the same
   off and fly the spacecraft yourself — `A`/`D` turn left and right, `R`/`F` pitch the nose up and
   down, `W`/`S` thrust forward and back along the nose, and `Shift` boosts. Turning and thrust build
   up smoothly the longer a key is held, and movement always follows the ship's own heading rather
-  than the screen. Live telemetry updates as you fly.
+  than the screen. A **Chase camera** switch (off by default) keeps the view easing round behind the
+  nose as you turn, and its **Auto framing** option holds a close, fixed distance behind the ship
+  while it is on (turn it off to zoom freely). Live telemetry updates as you fly.
 
 **Hidden fun**
 
