@@ -278,7 +278,7 @@ export const zh: Record<TranslationKey, string> = {
   'mission.autopilotLabel': '自动驾驶',
   'mission.autopilotDesc': '自动飞往目的地',
   'mission.manual':
-    '手动飞行：W/A/S/D 相对镜头移动，R 上升，F 下潜，Shift 加速。关闭自动驾驶即可亲自操控。速度和距离由场景单位换算而来，因此它们展示的是这段旅程的规模，而不是真实航天器的飞行轨迹。',
+    '手动飞行：W/S 沿机头方向前进与后退，A/D 左右转向，R/F 抬头与低头，Shift 加速。按键持续越久，转向与推进就越快。关闭自动驾驶即可亲自操控。速度和距离由场景单位换算而来，因此它们展示的是这段旅程的规模，而不是真实航天器的飞行轨迹。',
   'mission.headHome': '返回地球家园',
   'mission.end': '结束任务',
 
@@ -358,7 +358,7 @@ export const zh: Record<TranslationKey, string> = {
   'help.desc.m': '静音或取消静音',
   'help.desc.s': '打开设置',
   'help.desc.h': '显示或隐藏这份帮助',
-  'help.desc.wasd': '在任务中驾驶飞船',
+  'help.desc.wasd': '在任务中操控飞船转向与推进',
 
   /* -------------------------------------------------------- loading */
   'loading.preparing': '正在准备太阳系…',
