@@ -279,6 +279,10 @@ export const en = {
     ' Radio messages from Earth would take about {minutes} minutes to arrive.',
   'mission.autopilotLabel': 'Autopilot',
   'mission.autopilotDesc': 'Fly to the destination automatically',
+  'mission.chaseCamera': 'Chase camera',
+  'mission.chaseCameraDesc': "Keep the camera behind the ship's nose while flying",
+  'mission.chaseAutoFrame': 'Auto framing',
+  'mission.chaseAutoFrameDesc': 'Hold a close, fixed distance behind the ship',
   'mission.manual':
     'Manual flight: W and S thrust forward and back along the nose, A and D turn left and right, R and F pitch the nose up and down, and Shift boosts. Turning and thrust build up smoothly the longer a key is held. Turn the autopilot off to take the controls. Speeds and distances are converted from scene units, so they show the scale of the journey rather than a real spacecraft trajectory.',
   'mission.headHome': 'Head home to Earth',
