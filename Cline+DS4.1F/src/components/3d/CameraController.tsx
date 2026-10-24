@@ -5,6 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import { useSimulationStore } from '../../store/simulationStore'
 import { getBodyWorldPosition } from '../../utils/bodyRegistry'
+import { spacecraft } from '../../utils/spacecraftSim'
 import { visualRadiusOf } from '../../utils/scale'
 import { clamp } from '../../utils/random'
 import type { FocusTargetId } from '../../types'
@@ -43,6 +44,24 @@ function easeInOutCubic(t: number): number {
  */
 const RECENTRE_RATE = 2.5
 
+/**
+ * Where the chase camera sits relative to the ship, in the ship's own frame: a
+ * little above and behind the nose (its local +Z). Normalised when used.
+ */
+const CHASE_LOCAL_OFFSET = new Vector3(0, 0.34, -0.94)
+
+/**
+ * How quickly the chase camera eases round behind the nose. Slow enough that a
+ * turn swings the view rather than whipping it, fast enough to keep up.
+ */
+const CHASE_RATE = 4.5
+
+/**
+ * Where auto framing flies the camera to when the chase camera engages: a close
+ * view that frames the whole ship (the same distance the focus flight uses).
+ */
+const CHASE_FRAMING_DISTANCE = 5
+
 export function CameraController() {
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const tween = useRef<{
@@ -58,11 +77,15 @@ export function CameraController() {
   const lastFollow = useRef<Vector3 | null>(null)
   const tmp = useRef(new Vector3())
   const deltaVec = useRef(new Vector3())
+  const chaseOffset = useRef(new Vector3())
+  const chaseDesired = useRef(new Vector3())
   const dragging = useRef(false)
 
   const cameraRequest = useSimulationStore((state) => state.cameraRequest)
   const cameraMode = useSimulationStore((state) => state.cameraMode)
   const followTargetId = useSimulationStore((state) => state.followTargetId)
+  const chaseCamera = useSimulationStore((state) => state.chaseCamera)
+  const chaseAutoFrame = useSimulationStore((state) => state.chaseAutoFrame)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
@@ -153,16 +176,58 @@ export function CameraController() {
 
     controls.enabled = true
 
+    // The chase camera only ever chases the ship; planets keep the rigid follow
+    // below.
+    const chasingShip = chaseCamera && cameraMode === 'follow' && followTargetId === 'spacecraft'
+    // Auto framing holds one viewing distance, so lock out the wheel zoom that
+    // would fight it. Free zoom returns the moment it is switched off.
+    controls.enableZoom = !(chasingShip && chaseAutoFrame)
+
     if (cameraMode === 'follow' && followTargetId) {
       const position = getBodyWorldPosition(followTargetId, tmp.current)
       if (position) {
         const previous = lastFollow.current
-        if (previous) {
-          // Camera and look-at point move by the body's own motion, together. The
-          // framing is then rigid: the body holds its exact place on screen however
-          // fast it travels, and the viewing distance never pumps. Easing only the
-          // look-at point (as this used to) aimed the view one step behind the body
-          // and the correction landed on the next frame — that was the shimmer.
+
+        if (chasingShip && !dragging.current) {
+          // True chase: hold the ship centred from behind its nose. Move the
+          // camera with the ship *first* — measuring the offset after the ship
+          // has moved would measure it against the old camera position and let
+          // the camera drift away as the ship flies.
+          if (previous) {
+            deltaVec.current.copy(position).sub(previous)
+            camera.position.add(deltaVec.current)
+            controls.target.add(deltaVec.current)
+          }
+          chaseOffset.current.copy(camera.position).sub(position)
+          let distance = chaseOffset.current.length()
+          if (distance > 0.001) {
+            chaseDesired.current
+              .copy(CHASE_LOCAL_OFFSET)
+              .applyQuaternion(spacecraft.orientation)
+              .normalize()
+            const ease = reducedMotion ? 1 : 1 - Math.exp(-step * CHASE_RATE)
+            chaseOffset.current.normalize().lerp(chaseDesired.current, ease)
+            // Guard the exact 180° case, where the interpolation passes through
+            // zero and would normalise to NaN.
+            if (chaseOffset.current.lengthSq() < 1e-8) chaseOffset.current.copy(chaseDesired.current)
+            chaseOffset.current.normalize()
+            // Auto framing keeps the camera at the framing distance for as long
+            // as it is on, whether the ship is still or flying.
+            if (chaseAutoFrame) {
+              distance += (CHASE_FRAMING_DISTANCE - distance) * ease
+            }
+            camera.position.copy(position).addScaledVector(chaseOffset.current, distance)
+            controls.target.copy(position)
+            camera.lookAt(controls.target)
+          }
+        } else if (previous) {
+          // Rigid follow: camera and look-at point move by the body's own motion,
+          // together. The framing is then fixed: the body holds its exact place on
+          // screen however fast it travels, and the viewing distance never pumps.
+          // Easing only the look-at point (as this used to) aimed the view one step
+          // behind the body and the correction landed on the next frame — that was
+          // the shimmer. While the user drags a chase, this still keeps the ship
+          // framed but lets them look around.
           deltaVec.current.copy(position).sub(previous)
           camera.position.add(deltaVec.current)
           controls.target.add(deltaVec.current)

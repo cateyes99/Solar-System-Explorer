@@ -78,6 +78,16 @@ export interface SimulationState {
   cameraMode: CameraMode
   followTargetId: FocusTargetId | null
   cameraRequest: CameraRequest | null
+  /**
+   * When true, following the spacecraft keeps the view behind its nose instead
+   * of holding a fixed world-space offset. Only affects the ship, never planets.
+   */
+  chaseCamera: boolean
+  /**
+   * When true (and the chase camera is on), engaging the chase flies the camera
+   * in to a close, framed distance once, then leaves the zoom to the user.
+   */
+  chaseAutoFrame: boolean
 
   /* Layers */
   showOrbits: boolean
@@ -162,6 +172,8 @@ export interface SimulationActions {
   focusBody: (id: FocusTargetId, mode?: CameraMode, distanceScale?: number) => void
   resetView: () => void
   setCameraMode: (mode: CameraMode) => void
+  setChaseCamera: (enabled: boolean) => void
+  setChaseAutoFrame: (enabled: boolean) => void
 
   toggleOrbits: () => void
   toggleLabels: () => void
@@ -247,6 +259,8 @@ const initialState: SimulationState = {
   cameraMode: 'system',
   followTargetId: null,
   cameraRequest: null,
+  chaseCamera: false,
+  chaseAutoFrame: true,
 
   showOrbits: true,
   showLabels: true,
@@ -374,6 +388,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       cameraMode: mode,
       followTargetId: mode === 'follow' ? (state.followTargetId ?? state.selectedId) : null,
     })),
+
+  setChaseCamera: (enabled) => set({ chaseCamera: enabled }),
+
+  setChaseAutoFrame: (enabled) => set({ chaseAutoFrame: enabled }),
 
   toggleOrbits: () => set((state) => ({ showOrbits: !state.showOrbits })),
   toggleLabels: () => set((state) => ({ showLabels: !state.showLabels })),
