@@ -12,6 +12,7 @@ import type {
   WhatIfId,
 } from '../types'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
+import { clampSpacecraftSize, DEFAULT_SPACECRAFT_SIZE } from '../utils/spacecraftSize'
 import { pickFact } from '../data/facts'
 import { findClosestSpeed, DEFAULT_SPEED_INDEX, TIME_SPEEDS } from '../data/missions'
 import { audio } from '../utils/audio'
@@ -34,6 +35,8 @@ export interface SettingsPatch {
   earthCloudDynamics?: number
   leftPanelOpacity?: number
   rightPanelOpacity?: number
+  /** The spacecraft's size level, 1…10 (see `utils/spacecraftSize`). */
+  spacecraftSize?: number
 }
 
 export interface Toast {
@@ -134,6 +137,8 @@ export interface SimulationState {
   missionActive: boolean
   destinationId: BodyId | null
   autopilot: boolean
+  /** The ship's size level, 1…10. Level 10 is the model's authored size. */
+  spacecraftSize: number
 
   /* Settings */
   soundEnabled: boolean
@@ -305,6 +310,7 @@ const initialState: SimulationState = {
   missionActive: false,
   destinationId: 'earth',
   autopilot: false,
+  spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
 
   soundEnabled: false,
   volume: 0.4,
@@ -569,6 +575,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthCloudCoverage: clamp01(patch.earthCloudCoverage, state.earthCloudCoverage),
       earthCloudOpacity: clamp01(patch.earthCloudOpacity, state.earthCloudOpacity),
       earthCloudDynamics: clamp01(patch.earthCloudDynamics, state.earthCloudDynamics),
+      spacecraftSize: clampSpacecraftSize(patch.spacecraftSize ?? state.spacecraftSize),
       ui: {
         ...state.ui,
         leftPanelOpacity: clamp01(patch.leftPanelOpacity, state.ui.leftPanelOpacity),

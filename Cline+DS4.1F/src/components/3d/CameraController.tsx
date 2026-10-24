@@ -6,6 +6,7 @@ import { Vector3 } from 'three'
 import { useSimulationStore } from '../../store/simulationStore'
 import { getBodyWorldPosition } from '../../utils/bodyRegistry'
 import { spacecraft } from '../../utils/spacecraftSim'
+import { spacecraftScaleForLevel } from '../../utils/spacecraftSize'
 import { visualRadiusOf } from '../../utils/scale'
 import { clamp } from '../../utils/random'
 import type { FocusTargetId } from '../../types'
@@ -86,6 +87,7 @@ export function CameraController() {
   const followTargetId = useSimulationStore((state) => state.followTargetId)
   const chaseCamera = useSimulationStore((state) => state.chaseCamera)
   const chaseAutoFrame = useSimulationStore((state) => state.chaseAutoFrame)
+  const spacecraftSize = useSimulationStore((state) => state.spacecraftSize)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
@@ -93,6 +95,10 @@ export function CameraController() {
 
   const { camera } = useThree()
   const requestId = cameraRequest?.id ?? 0
+
+  // Framing follows the ship's size, so a smaller ship is still framed the same.
+  const spacecraftScale = spacecraftScaleForLevel(spacecraftSize)
+  const chaseFramingDistance = CHASE_FRAMING_DISTANCE * spacecraftScale
 
   // A new camera request starts a fresh tween.
   useEffect(() => {
@@ -105,7 +111,7 @@ export function CameraController() {
     if (targetId) {
       const worldPosition = getBodyWorldPosition(targetId, tmp.current)
       if (worldPosition) {
-        const radius = visualRadiusOf(targetId, scaleMode, customScale, orbitModel)
+        const radius = visualRadiusOf(targetId, scaleMode, customScale, orbitModel, spacecraftScale)
         const direction = camera.position.clone().sub(worldPosition)
         if (direction.lengthSq() < 1e-6) direction.set(0.62, 0.42, 0.72)
         direction.normalize()
@@ -132,7 +138,7 @@ export function CameraController() {
       elapsed: 0,
       duration,
     }
-  }, [requestId, camera, scaleMode, customScale, orbitModel, reducedMotion, cameraRequest])
+  }, [requestId, camera, scaleMode, customScale, orbitModel, reducedMotion, cameraRequest, spacecraftScale])
 
   // Re-aim the follow tracker whenever the followed body changes.
   useEffect(() => {
@@ -214,7 +220,7 @@ export function CameraController() {
             // Auto framing keeps the camera at the framing distance for as long
             // as it is on, whether the ship is still or flying.
             if (chaseAutoFrame) {
-              distance += (CHASE_FRAMING_DISTANCE - distance) * ease
+              distance += (chaseFramingDistance - distance) * ease
             }
             camera.position.copy(position).addScaledVector(chaseOffset.current, distance)
             controls.target.copy(position)
