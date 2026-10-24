@@ -43,5 +43,5 @@
   // The ship's size, as one of ten levels: 1 is the smallest (a tenth of the
   // model) and 10 is the model's full size, with each level at n/10 of that
   // size. 4 (40% of full size) is the default. The model itself never changes.
-  "Spacecraft Size": 4
+  "Spacecraft Size": 1
 }
