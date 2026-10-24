@@ -27,6 +27,10 @@ export function MissionControl() {
   const setDestination = useSimulationStore((state) => state.setDestination)
   const autopilot = useSimulationStore((state) => state.autopilot)
   const setAutopilot = useSimulationStore((state) => state.setAutopilot)
+  const chaseCamera = useSimulationStore((state) => state.chaseCamera)
+  const setChaseCamera = useSimulationStore((state) => state.setChaseCamera)
+  const chaseAutoFrame = useSimulationStore((state) => state.chaseAutoFrame)
+  const setChaseAutoFrame = useSimulationStore((state) => state.setChaseAutoFrame)
   const showToast = useSimulationStore((state) => state.showToast)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
@@ -131,6 +135,21 @@ export function MissionControl() {
               checked={autopilot}
               onChange={() => setAutopilot(!autopilot)}
             />
+            <ToggleRow
+              label={t('mission.chaseCamera')}
+              description={t('mission.chaseCameraDesc')}
+              checked={chaseCamera}
+              onChange={() => setChaseCamera(!chaseCamera)}
+            />
+            {/* Only meaningful while the chase camera is on, so it appears with it. */}
+            {chaseCamera ? (
+              <ToggleRow
+                label={t('mission.chaseAutoFrame')}
+                description={t('mission.chaseAutoFrameDesc')}
+                checked={chaseAutoFrame}
+                onChange={() => setChaseAutoFrame(!chaseAutoFrame)}
+              />
+            ) : null}
           </div>
 
           <p className="mt-2 text-[0.68rem] leading-relaxed text-mist/80">{t('mission.manual')}</p>
