@@ -22,6 +22,7 @@ npm run dev        # start the dev server (http://localhost:5173)
 npm run build      # type-check and build for production (output in dist/)
 npm run preview    # serve the production build (http://localhost:4173)
 npm run typecheck  # TypeScript only, no build
+npm test           # run the unit tests (Node's built-in runner)
 ```
 
 Node.js 20.19+ (or 22.12+) is required by Vite 8. The 3D scene needs **WebGL 2**; if it is
@@ -196,6 +197,11 @@ A few decisions worth knowing about:
 - **Data is separate from presentation.** Every number shown in the UI comes from `src/data`; a
   component never hard-codes a fact. Adding a new world means adding an entry (and, if it needs one,
   a visual recipe).
+- **Tunable settings live in one file.** `public/config.jsonc` (JSON with comments) holds the display
+  language, Earth's haze and clouds, the two side-panel opacities and the spacecraft size — ten
+  levels from 1 (a tenth of the model) to 10 (full size), defaulting to 4. It is fetched and
+  validated before the first render, so a missing file or a bad value can never stop the app
+  starting.
 - **Two kinds of state.** Anything the interface *renders* lives in the Zustand store. Anything that
   changes every frame (the clock, the spacecraft) lives in a plain mutable module singleton that the
   render loop reads and the HUD samples about five times a second. Orbiting planets never re-render

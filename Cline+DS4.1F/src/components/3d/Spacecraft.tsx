@@ -7,6 +7,7 @@ import { spacecraft } from '../../utils/spacecraftSim'
 import type { FlightControls } from '../../utils/spacecraftSim'
 import { keyboard } from '../../utils/input'
 import { audio } from '../../utils/audio'
+import { spacecraftScaleForLevel } from '../../utils/spacecraftSize'
 import { useSimulationStore } from '../../store/simulationStore'
 import { getSpacecraftMaterials } from './spacecraft/spacecraftResources'
 import { SpacecraftModel } from './spacecraft/SpacecraftModel'
@@ -47,6 +48,9 @@ export function Spacecraft() {
   const missionActive = useSimulationStore((state) => state.missionActive)
   const autopilot = useSimulationStore((state) => state.autopilot)
   const destinationId = useSimulationStore((state) => state.destinationId)
+  // The ship's size level scales the whole model uniformly. Position, heading
+  // and the flight model all work in scene units and are untouched by it.
+  const spacecraftSize = useSimulationStore((state) => state.spacecraftSize)
 
   // One shared set of materials for the one ship (see spacecraftResources).
   const gl = useThree((state) => state.gl)
@@ -125,7 +129,7 @@ export function Spacecraft() {
   })
 
   return (
-    <group ref={groupRef} visible={missionActive}>
+    <group ref={groupRef} visible={missionActive} scale={spacecraftScaleForLevel(spacecraftSize)}>
       <SpacecraftModel
         materials={materials}
         engineRef={engineRef}

@@ -2,6 +2,11 @@ import { LANGUAGES } from '../i18n'
 import type { Language } from '../i18n'
 import { useSimulationStore } from '../store/simulationStore'
 import type { SettingsPatch } from '../store/simulationStore'
+import {
+  DEFAULT_SPACECRAFT_SIZE,
+  SPACECRAFT_SIZE_MAX,
+  SPACECRAFT_SIZE_MIN,
+} from '../utils/spacecraftSize'
 
 /**
  * JSONC configuration.
@@ -37,6 +42,11 @@ export interface AppConfig {
   leftPanelOpacity: number
   /** Opacity of the right information panel, 0…1 (store: `ui.rightPanelOpacity`). */
   rightPanelOpacity: number
+  /**
+   * The spacecraft's size, as a level from 1 (a tenth of the model) to 10 (the
+   * model's full size). See `utils/spacecraftSize`.
+   */
+  spacecraftSize: number
 }
 
 /**
@@ -52,25 +62,35 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthCloudDynamics: 0.5,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
+  spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
 }
-
-const MIN_VALUE = 0
-const MAX_VALUE = 1
 
 interface NumberField {
   /** The key as written in `config.jsonc`. */
   key: string
+  /** The accepted range, inclusive. */
+  min: number
+  max: number
+  /** When true the value must be a whole number. */
+  integer?: boolean
   /** Which store value it drives. */
   set: (config: AppConfig, value: number) => void
 }
 
 const NUMBER_FIELDS: NumberField[] = [
-  { key: 'Earth Atmosphere Haze', set: (c, v) => { c.earthAtmosphereOpacity = v } },
-  { key: 'Earth Cloud Coverage', set: (c, v) => { c.earthCloudCoverage = v } },
-  { key: 'Earth Cloud Opacity', set: (c, v) => { c.earthCloudOpacity = v } },
-  { key: 'Earth Cloud Dynamics', set: (c, v) => { c.earthCloudDynamics = v } },
-  { key: 'SimulationControls Opacity', set: (c, v) => { c.leftPanelOpacity = v } },
-  { key: 'PlanetPanel Opacity', set: (c, v) => { c.rightPanelOpacity = v } },
+  { key: 'Earth Atmosphere Haze', min: 0, max: 1, set: (c, v) => { c.earthAtmosphereOpacity = v } },
+  { key: 'Earth Cloud Coverage', min: 0, max: 1, set: (c, v) => { c.earthCloudCoverage = v } },
+  { key: 'Earth Cloud Opacity', min: 0, max: 1, set: (c, v) => { c.earthCloudOpacity = v } },
+  { key: 'Earth Cloud Dynamics', min: 0, max: 1, set: (c, v) => { c.earthCloudDynamics = v } },
+  { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
+  { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
+  {
+    key: 'Spacecraft Size',
+    min: SPACECRAFT_SIZE_MIN,
+    max: SPACECRAFT_SIZE_MAX,
+    integer: true,
+    set: (c, v) => { c.spacecraftSize = v },
+  },
 ]
 
 /**
@@ -158,8 +178,12 @@ export function validateAppConfig(raw: unknown): { config: AppConfig; issues: st
       issues.push(`${field.key}: expected a number, got ${JSON.stringify(value)}`)
       continue
     }
-    if (value < MIN_VALUE || value > MAX_VALUE) {
-      issues.push(`${field.key}: ${value} is outside the allowed range ${MIN_VALUE}–${MAX_VALUE}`)
+    if (value < field.min || value > field.max) {
+      issues.push(`${field.key}: ${value} is outside the allowed range ${field.min}–${field.max}`)
+      continue
+    }
+    if (field.integer && !Number.isInteger(value)) {
+      issues.push(`${field.key}: expected a whole number, got ${value}`)
       continue
     }
     field.set(config, value)
@@ -224,6 +248,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthCloudDynamics: config.earthCloudDynamics,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
+    spacecraftSize: config.spacecraftSize,
   }
   useSimulationStore.getState().applySettings(patch)
 }
