@@ -269,14 +269,21 @@ export function sceneFromEclipticKm(
   return { x: xKm * factor, y: zKm * factor, z: -yKm * factor }
 }
 
-/** Visual radius for any focusable object, used to frame the camera nicely. */
+/**
+ * Visual radius for any focusable object, used to frame the camera nicely.
+ *
+ * `spacecraftScale` is the ship's size level as a factor (see
+ * `utils/spacecraftSize`), so a smaller ship is framed from proportionally
+ * closer. It is ignored for every other body.
+ */
 export function visualRadiusOf(
   id: FocusTargetId,
   mode: ScaleMode,
   custom: CustomScale,
   model: OrbitModel = 'realistic',
+  spacecraftScale = 1,
 ): number {
-  if (id === 'spacecraft') return 0.6
+  if (id === 'spacecraft') return 0.6 * spacecraftScale
   if (id === 'belt') {
     const [inner, outer] = asteroidBeltRadii(mode, custom, model)
     return Math.max(6, (outer - inner) * 0.75)
