@@ -43,7 +43,7 @@ export interface AppConfig {
   /** Opacity of the right information panel, 0…1 (store: `ui.rightPanelOpacity`). */
   rightPanelOpacity: number
   /**
-   * The spacecraft's size, as a level from 1 (a tenth of the model) to 10 (the
+   * The spacecraft's size, as a level from 1 (1% of the model) to 100 (the
    * model's full size). See `utils/spacecraftSize`.
    */
   spacecraftSize: number
