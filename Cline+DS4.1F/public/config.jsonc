@@ -8,7 +8,7 @@
   // Every setting is optional. Anything missing, misspelled or out of range is
   // ignored and the built-in default is used instead, so the app always starts.
   // The haze, cloud and opacity numbers are fractions from 0 (0%) to 1 (100%);
-  // the spacecraft size is a whole-number level from 1 to 10.
+  // the spacecraft size is a whole-number level from 1 to 100.
   //
   // The same values are also live in the UI: the sliders in the planet panel
   // and the two side-panel opacity sliders, so you can preview a change and
@@ -40,8 +40,8 @@
   "PlanetPanel Opacity": 0.75,
 
   // --- Spacecraft ----------------------------------------------------------
-  // The ship's size, as one of ten levels: 1 is the smallest (a tenth of the
-  // model) and 10 is the model's full size, with each level at n/10 of that
-  // size. 4 (40% of full size) is the default. The model itself never changes.
-  "Spacecraft Size": 1
+  // The ship's size, as one of a hundred levels: 1 is the smallest (1% of the
+  // model) and 100 is the model's full size, with each level at n/100 of that
+  // size. 10 (10% of full size) is the default. The model itself never changes.
+  "Spacecraft Size": 10
 }

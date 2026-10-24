@@ -198,8 +198,8 @@ A few decisions worth knowing about:
   component never hard-codes a fact. Adding a new world means adding an entry (and, if it needs one,
   a visual recipe).
 - **Tunable settings live in one file.** `public/config.jsonc` (JSON with comments) holds the display
-  language, Earth's haze and clouds, the two side-panel opacities and the spacecraft size — ten
-  levels from 1 (a tenth of the model) to 10 (full size), defaulting to 4. It is fetched and
+  language, Earth's haze and clouds, the two side-panel opacities and the spacecraft size — a hundred
+  levels from 1 (1% of the model) to 100 (full size), defaulting to 10. It is fetched and
   validated before the first render, so a missing file or a bad value can never stop the app
   starting.
 - **Two kinds of state.** Anything the interface *renders* lives in the Zustand store. Anything that

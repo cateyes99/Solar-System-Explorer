@@ -35,7 +35,7 @@ export interface SettingsPatch {
   earthCloudDynamics?: number
   leftPanelOpacity?: number
   rightPanelOpacity?: number
-  /** The spacecraft's size level, 1…10 (see `utils/spacecraftSize`). */
+  /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
   spacecraftSize?: number
 }
 
@@ -137,7 +137,7 @@ export interface SimulationState {
   missionActive: boolean
   destinationId: BodyId | null
   autopilot: boolean
-  /** The ship's size level, 1…10. Level 10 is the model's authored size. */
+  /** The ship's size level, 1…100. Level 100 is the model's authored size. */
   spacecraftSize: number
 
   /* Settings */
