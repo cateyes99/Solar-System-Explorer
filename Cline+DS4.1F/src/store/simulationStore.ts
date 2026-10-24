@@ -395,7 +395,17 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       followTargetId: mode === 'follow' ? (state.followTargetId ?? state.selectedId) : null,
     })),
 
-  setChaseCamera: (enabled) => set({ chaseCamera: enabled }),
+  // Turning the chase camera on is the way back from "return to the full Solar
+  // System view" (the R shortcut), which clears the follow state. So enabling it
+  // re-engages the ship whenever nothing is being followed — otherwise the
+  // switch would only set a flag that nothing acts on, and tracking could never
+  // resume. An existing follow (of the ship or a planet) is left alone.
+  setChaseCamera: (enabled) =>
+    set((state) => {
+      if (!enabled) return { chaseCamera: false }
+      if (!state.missionActive || state.followTargetId !== null) return { chaseCamera: true }
+      return { chaseCamera: true, cameraMode: 'follow', followTargetId: 'spacecraft' }
+    }),
 
   setChaseAutoFrame: (enabled) => set({ chaseAutoFrame: enabled }),
 
