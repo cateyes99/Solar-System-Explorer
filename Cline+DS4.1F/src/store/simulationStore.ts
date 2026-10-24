@@ -508,7 +508,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     audio.play('click')
     set((state) => ({
       missionActive: true,
-      autopilot: false,
+      // A mission starts on autopilot (see Spacecraft), so the switch opens ON.
+      autopilot: true,
       cameraMode: 'follow',
       followTargetId: 'spacecraft',
       ui: { ...state.ui, welcomeVisible: false, factCardOpen: false },
