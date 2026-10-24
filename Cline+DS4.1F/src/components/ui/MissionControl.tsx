@@ -13,8 +13,9 @@ import { RocketIcon } from './icons'
  * Mission Control.
  *
  * Choose a destination and the autopilot flies the ship there; or switch the
- * autopilot off and fly it by hand with W/A/S/D, R to climb, F to dive and
- * Shift to boost. Live telemetry comes from the flight model at 5 Hz.
+ * autopilot off and fly it by hand — A/D turn left and right, R/F pitch the nose
+ * up and down, W/S thrust forward and back along the nose, and Shift boosts.
+ * Live telemetry comes from the flight model at 5 Hz.
  */
 export function MissionControl() {
   const { t, language } = useTranslation()

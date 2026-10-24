@@ -280,7 +280,7 @@ export const en = {
   'mission.autopilotLabel': 'Autopilot',
   'mission.autopilotDesc': 'Fly to the destination automatically',
   'mission.manual':
-    'Manual flight: W/A/S/D move relative to the camera, R climbs, F dives and Shift boosts. Turn the autopilot off to take the controls. Speeds and distances are converted from scene units, so they show the scale of the journey rather than a real spacecraft trajectory.',
+    'Manual flight: W and S thrust forward and back along the nose, A and D turn left and right, R and F pitch the nose up and down, and Shift boosts. Turning and thrust build up smoothly the longer a key is held. Turn the autopilot off to take the controls. Speeds and distances are converted from scene units, so they show the scale of the journey rather than a real spacecraft trajectory.',
   'mission.headHome': 'Head home to Earth',
   'mission.end': 'End mission',
 
@@ -360,7 +360,7 @@ export const en = {
   'help.desc.m': 'Mute or unmute the sound',
   'help.desc.s': 'Open settings',
   'help.desc.h': 'Show or hide this help',
-  'help.desc.wasd': 'Fly the spacecraft during a mission',
+  'help.desc.wasd': 'Turn and thrust the spacecraft during a mission',
 
   /* -------------------------------------------------------- loading */
   'loading.preparing': 'Preparing the Solar System…',
