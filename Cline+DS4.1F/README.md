@@ -60,8 +60,10 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 **Fly**
 
 - **Mission Control**: pick a destination, let the autopilot cruise there, or switch the autopilot
-  off and fly the spacecraft yourself (W/A/S/D, R to climb, F to dive, Shift to boost) with live
-  telemetry.
+  off and fly the spacecraft yourself — `A`/`D` turn left and right, `R`/`F` pitch the nose up and
+  down, `W`/`S` thrust forward and back along the nose, and `Shift` boosts. Turning and thrust build
+  up smoothly the longer a key is held, and movement always follows the ship's own heading rather
+  than the screen. Live telemetry updates as you fly.
 
 **Hidden fun**
 
@@ -89,7 +91,13 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 | `M` | Mute / unmute |
 | `S` | Settings |
 | `H` | Help (the full list is also in the app) |
-| `W A S D` `R` `F` `Shift` | Fly the spacecraft |
+| `W` `S` | Spacecraft: thrust forward / back |
+| `A` `D` | Spacecraft: turn left / right |
+| `R` `F` | Spacecraft: pitch the nose up / down |
+| `Shift` | Spacecraft: boost |
+
+While you are flying the spacecraft by hand, the ship's keys take priority over the global
+shortcuts above, so `S` will not open Settings and `R` will not reset the view mid-turn.
 
 Every control is also reachable with a mouse or a finger, has a visible focus ring, an accessible
 name and a 44 px touch target on phones.
