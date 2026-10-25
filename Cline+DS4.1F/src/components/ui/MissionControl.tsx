@@ -6,8 +6,8 @@ import { useSimulationStore } from '../../store/simulationStore'
 import { useMissionReadout } from '../../hooks/useMissionReadout'
 import { useFormatters } from '../../utils/format'
 import { kmPerUnit } from '../../utils/scale'
-import { Chip, DraggableSheet, SectionTitle, Stat, ToggleRow, ToolbarButton } from './primitives'
-import { RocketIcon } from './icons'
+import { Chip, DraggableSheet, IconButton, SectionTitle, Stat, ToggleRow, ToolbarButton } from './primitives'
+import { QuestionIcon, RocketIcon } from './icons'
 
 /**
  * Mission Control.
@@ -31,6 +31,7 @@ export function MissionControl() {
   const setChaseCamera = useSimulationStore((state) => state.setChaseCamera)
   const chaseAutoFrame = useSimulationStore((state) => state.chaseAutoFrame)
   const setChaseAutoFrame = useSimulationStore((state) => state.setChaseAutoFrame)
+  const toggleSpacecraftHelp = useSimulationStore((state) => state.toggleSpacecraftHelp)
   const showToast = useSimulationStore((state) => state.showToast)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
@@ -64,7 +65,16 @@ export function MissionControl() {
               <h2 className="text-sm font-semibold uppercase tracking-[0.18em]">{t('mission.title')}</h2>
             </div>
           }
-          headerActions={<Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>}
+          headerActions={
+            <>
+              <Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>
+              <IconButton
+                label={t('mission.controlsHelp')}
+                icon={<QuestionIcon />}
+                onClick={() => toggleSpacecraftHelp(true)}
+              />
+            </>
+          }
         >
           <div className="mt-1 grid grid-cols-2 gap-2">
             <Stat

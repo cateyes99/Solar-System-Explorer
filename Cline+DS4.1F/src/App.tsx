@@ -13,6 +13,7 @@ import { FactCard } from './components/ui/FactCard'
 import { Toast } from './components/ui/Toast'
 import { Announcer } from './components/ui/Announcer'
 import { HelpPanel, WelcomeOverlay } from './components/ui/Overlays'
+import { SpacecraftHelp } from './components/ui/SpacecraftHelp'
 import { LoadingScreen } from './components/ui/LoadingScreen'
 import { Fallback2D } from './components/ui/Fallback2D'
 import { CanvasErrorBoundary } from './components/ui/CanvasErrorBoundary'
@@ -93,6 +94,7 @@ export default function App() {
           <Toast />
           <WelcomeOverlay />
           <HelpPanel />
+          <SpacecraftHelp />
         </>
       ) : null}
 

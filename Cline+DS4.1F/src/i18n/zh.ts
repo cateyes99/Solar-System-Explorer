@@ -285,6 +285,32 @@ export const zh: Record<TranslationKey, string> = {
     '手动飞行：W/S 沿机头方向前进与后退，A/D 左右转向，R/F 抬头与低头，Shift 加速。按键持续越久，转向与推进就越快。关闭自动驾驶即可亲自操控。速度和距离由场景单位换算而来，因此它们展示的是这段旅程的规模，而不是真实航天器的飞行轨迹。',
   'mission.headHome': '返回地球家园',
   'mission.end': '结束任务',
+  'mission.controlsHelp': '操控与快捷键',
+
+  /* ----------------------------------------------- spacecraft help */
+  'spacecraftHelp.eyebrow': '任务控制中心',
+  'spacecraftHelp.title': '飞船操控',
+  'spacecraftHelp.intro': '关闭自动驾驶即可手动驾驶飞船。',
+  'spacecraftHelp.key.forward': 'W',
+  'spacecraftHelp.key.back': 'S',
+  'spacecraftHelp.key.left': 'A',
+  'spacecraftHelp.key.right': 'D',
+  'spacecraftHelp.key.pitchUp': 'R',
+  'spacecraftHelp.key.pitchDown': 'F',
+  'spacecraftHelp.key.boost': 'Shift',
+  'spacecraftHelp.desc.forward': '向前推进',
+  'spacecraftHelp.desc.back': '向后推进',
+  'spacecraftHelp.desc.left': '向左转向',
+  'spacecraftHelp.desc.right': '向右转向',
+  'spacecraftHelp.desc.pitchUp': '抬起机头',
+  'spacecraftHelp.desc.pitchDown': '压低机头',
+  'spacecraftHelp.desc.boost': '加速',
+  'spacecraftHelp.note.autopilot': '只有在关闭自动驾驶时，飞船才会响应这些按键。',
+  'spacecraftHelp.note.ramp': '按键持续越久，转向与推进就越快。',
+  'spacecraftHelp.note.reset':
+    '只有在自动驾驶开启时，R 才会返回完整太阳系视图；手动驾驶时它用于抬起机头。',
+  'spacecraftHelp.note.camera': '拖动可环视，滚动可缩放；使用追尾镜头可让视角始终跟在机头后方。',
+  'spacecraftHelp.close': '关闭操控说明',
 
   /* ---------------------------------------------------------- tour */
   'tour.label': '电影式导览',

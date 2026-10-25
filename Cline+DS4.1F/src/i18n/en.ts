@@ -287,6 +287,33 @@ export const en = {
     'Manual flight: W and S thrust forward and back along the nose, A and D turn left and right, R and F pitch the nose up and down, and Shift boosts. Turning and thrust build up smoothly the longer a key is held. Turn the autopilot off to take the controls. Speeds and distances are converted from scene units, so they show the scale of the journey rather than a real spacecraft trajectory.',
   'mission.headHome': 'Head home to Earth',
   'mission.end': 'End mission',
+  'mission.controlsHelp': 'Controls & shortcuts',
+
+  /* ----------------------------------------------- spacecraft help */
+  'spacecraftHelp.eyebrow': 'Mission Control',
+  'spacecraftHelp.title': 'Spacecraft controls',
+  'spacecraftHelp.intro': 'Switch the autopilot off to fly the ship by hand.',
+  'spacecraftHelp.key.forward': 'W',
+  'spacecraftHelp.key.back': 'S',
+  'spacecraftHelp.key.left': 'A',
+  'spacecraftHelp.key.right': 'D',
+  'spacecraftHelp.key.pitchUp': 'R',
+  'spacecraftHelp.key.pitchDown': 'F',
+  'spacecraftHelp.key.boost': 'Shift',
+  'spacecraftHelp.desc.forward': 'Thrust forward',
+  'spacecraftHelp.desc.back': 'Thrust backward',
+  'spacecraftHelp.desc.left': 'Turn left',
+  'spacecraftHelp.desc.right': 'Turn right',
+  'spacecraftHelp.desc.pitchUp': 'Pitch the nose up',
+  'spacecraftHelp.desc.pitchDown': 'Pitch the nose down',
+  'spacecraftHelp.desc.boost': 'Boost',
+  'spacecraftHelp.note.autopilot': 'The ship only answers these keys while the autopilot is off.',
+  'spacecraftHelp.note.ramp': 'Turning and thrust build up smoothly the longer a key is held.',
+  'spacecraftHelp.note.reset':
+    'R returns to the full Solar System view only while the autopilot is on; when you fly by hand it pitches the nose up.',
+  'spacecraftHelp.note.camera':
+    'Drag to look around, scroll to zoom, and use the Chase camera to keep the view behind the nose.',
+  'spacecraftHelp.close': 'Close the controls help',
 
   /* ---------------------------------------------------------- tour */
   'tour.label': 'Cinematic tour',
