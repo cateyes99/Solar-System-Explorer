@@ -33,6 +33,7 @@ export interface SettingsPatch {
   earthCloudCoverage?: number
   earthCloudOpacity?: number
   earthCloudDynamics?: number
+  earthTerrainRelief?: number
   leftPanelOpacity?: number
   rightPanelOpacity?: number
   /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
@@ -122,6 +123,13 @@ export interface SimulationState {
    * near-continuous sheet. Only Earth has clouds, so only Earth reads it.
    */
   earthCloudCoverage: number
+  /**
+   * How much of Earth's real elevation model is applied: 0 = a smooth globe,
+   * 1 = the full vertical exaggeration. Earth is the only body with a terrain
+   * model, so no other body reads it. See `TerrainVisuals` for the exaggeration
+   * it scales.
+   */
+  earthTerrainRelief: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -191,6 +199,7 @@ export interface SimulationActions {
   setEarthCloudOpacity: (value: number) => void
   setEarthCloudDynamics: (value: number) => void
   setEarthCloudCoverage: (value: number) => void
+  setEarthTerrainRelief: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -289,6 +298,10 @@ const initialState: SimulationState = {
   earthCloudDynamics: 0.5,
   // Half the sky filled by default: a balanced mix of clear and cloudy regions.
   earthCloudCoverage: 0.5,
+  // Half the maximum vertical exaggeration — the default a relief globe would
+  // ship with: mountains read clearly from orbit without turning Earth into a
+  // pincushion when the camera comes close.
+  earthTerrainRelief: 0.5,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -432,6 +445,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthCloudCoverage: (value) =>
     set({ earthCloudCoverage: Math.max(0, Math.min(1, value)) }),
+
+  setEarthTerrainRelief: (value) =>
+    set({ earthTerrainRelief: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')
@@ -592,6 +608,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthCloudCoverage: clamp01(patch.earthCloudCoverage, state.earthCloudCoverage),
       earthCloudOpacity: clamp01(patch.earthCloudOpacity, state.earthCloudOpacity),
       earthCloudDynamics: clamp01(patch.earthCloudDynamics, state.earthCloudDynamics),
+      earthTerrainRelief: clamp01(patch.earthTerrainRelief, state.earthTerrainRelief),
       spacecraftSize: clampSpacecraftSize(patch.spacecraftSize ?? state.spacecraftSize),
       ui: {
         ...state.ui,

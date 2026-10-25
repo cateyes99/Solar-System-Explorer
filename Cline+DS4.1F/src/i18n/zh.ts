@@ -160,6 +160,11 @@ export const zh: Record<TranslationKey, string> = {
   'planet.cloudDynamics': '云的运动',
   'planet.cloudDynamicsHint':
     '云朵的形状翻卷、重组的程度。0% 让它们在飘移途中静止（云层仍会掠过地表）；100% 则最生动活泼。',
+  'planet.earthTerrain': '地球的地形',
+  'planet.terrainHint': '0% = 光滑的球体',
+  'planet.terrainRelief': '地形起伏',
+  'planet.terrainReliefHint':
+    '真实地表从球面上隆起的程度。地球的陆地由 NASA / USGS 的全球高程模型顶起，因此山脉、高原和峡谷都是真正的三维形状。高度经过夸张处理——真实起伏只有地球半径的 0.14%——这个滑块决定夸张多少。',
   'planet.diameter': '直径',
   'planet.distanceFromSun': '与太阳的距离',
   'planet.average': '平均',
@@ -518,6 +523,7 @@ export const zh: Record<TranslationKey, string> = {
   'texture.glow': '点燃太阳的光晕',
   'texture.sun': '搅拌太阳的等离子体',
   'texture.earth': '构建地球的大陆',
+  'texture.earthHeightmap': '隆起地球的山脉',
   'texture.earthClouds': '铺开地球的云层',
   'texture.earthNight': '点亮城市的灯光',
   'texture.earthRoughness': '计算海面的反光',
@@ -538,6 +544,7 @@ export const zh: Record<TranslationKey, string> = {
   'texture.source.mercury': '测绘水星的环形山',
   'texture.source.venus': '揭开金星的云层',
   'texture.source.earth': '展开蓝色弹珠',
+  'texture.source.earthHeightmap': '读取地球真实的高程',
   'texture.source.earthClouds': '铺开地球真实的云',
   'texture.source.earthNight': '点亮真实的城市灯光',
   'texture.source.moon': '勘测月球',

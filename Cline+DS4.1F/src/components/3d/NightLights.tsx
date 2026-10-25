@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { AdditiveBlending, Color, ShaderMaterial, Vector3 } from 'three'
-import type { Mesh } from 'three'
+import type { BufferGeometry, Mesh } from 'three'
 import { HIGH_DETAIL_SPHERE } from './geometry'
+import { TERRAIN_VERTEX_DISPLACE, TERRAIN_VERTEX_PARS, type TerrainUniforms } from './terrain'
 import { getTexture } from '../../utils/textures'
 import type { NightLightsVisuals } from '../../data/visuals'
 
@@ -12,20 +13,14 @@ import type { NightLightsVisuals } from '../../data/visuals'
  * The lights map is generated from the same land mask the continents came from,
  * so the glow only ever appears on land — and a soft terminator keeps it off the
  * daytime half of the planet.
+ *
+ * The shell is displaced by the same elevation model as the ground beneath it,
+ * through the same uniforms. That matters because the ground is no longer a
+ * smooth sphere: a shell at a fixed height would sink into every mountain range
+ * and the lights over Tibet would simply vanish behind the plateau. Sharing the
+ * uniforms, rather than repeating the numbers, is what guarantees the glow lies
+ * on the actual surface — valleys, plateaus and all.
  */
-const vertexShader = /* glsl */ `
-  varying vec2 vUv;
-  varying vec3 vWorldNormal;
-  varying vec3 vWorldPosition;
-  void main() {
-    vUv = uv;
-    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-    vWorldPosition = worldPosition.xyz;
-    vWorldNormal = normalize(mat3(modelMatrix) * normal);
-    gl_Position = projectionMatrix * viewMatrix * worldPosition;
-  }
-`
-
 const fragmentShader = /* glsl */ `
   uniform sampler2D uMap;
   uniform vec3 uSunPosition;
@@ -57,6 +52,10 @@ interface NightLightsProps {
   opacity?: number
   /** Longitude shift applied to the surface, in UV turns (matches the day map). */
   uvOffsetU?: number
+  /** The planet's own tessellation, so the glow follows the terrain it sits on. */
+  geometry?: BufferGeometry
+  /** The elevation model shared with the surface, when the body has one. */
+  terrain?: TerrainUniforms | null
 }
 
 export function NightLights({
@@ -65,8 +64,31 @@ export function NightLights({
   sunPosition,
   opacity = 1,
   uvOffsetU = 0,
+  geometry,
+  terrain = null,
 }: NightLightsProps) {
   const meshRef = useRef<Mesh>(null)
+
+  const vertexShader = useMemo(
+    () => /* glsl */ `
+      ${terrain ? TERRAIN_VERTEX_PARS : ''}
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vUv = uv;
+        // The ground is pushed out along its own normal by the elevation model,
+        // so the lights are pushed out exactly the same way.
+        vec3 transformed = vec3(position);
+        ${terrain ? TERRAIN_VERTEX_DISPLACE : ''}
+        vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    [terrain],
+  )
 
   const material = useMemo(
     () =>
@@ -80,12 +102,15 @@ export function NightLights({
           uIntensity: { value: visuals.intensity },
           uOpacity: { value: opacity },
           uUvOffset: { value: uvOffsetU },
+          // The elevation model's own uniforms are shared by reference, so a
+          // relief change reaches the lights and the surface at the same time.
+          ...(terrain ? terrain.uniforms : {}),
         },
         transparent: true,
         blending: AdditiveBlending,
         depthWrite: false,
       }),
-    [visuals.color, visuals.intensity, visuals.textureId, sunPosition, opacity, uvOffsetU],
+    [visuals.color, visuals.intensity, visuals.textureId, sunPosition, opacity, uvOffsetU, terrain, vertexShader],
   )
 
   useFrame(() => {
@@ -93,5 +118,12 @@ export function NightLights({
     material.uniforms.uOpacity.value = opacity
   })
 
-  return <mesh ref={meshRef} geometry={HIGH_DETAIL_SPHERE} material={material} scale={radius * 1.002} />
+  return (
+    <mesh
+      ref={meshRef}
+      geometry={geometry ?? HIGH_DETAIL_SPHERE}
+      material={material}
+      scale={radius * 1.002}
+    />
+  )
 }

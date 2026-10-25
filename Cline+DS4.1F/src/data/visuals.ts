@@ -6,6 +6,7 @@ export type TextureId =
   | 'mercury'
   | 'venus'
   | 'earth'
+  | 'earthHeightmap'
   | 'earthClouds'
   | 'earthNight'
   | 'earthRoughness'
@@ -47,6 +48,34 @@ export interface NightLightsVisuals {
   textureId: TextureId
   intensity: number
   color: string
+}
+
+/**
+ * Real terrain relief, driven by a global digital elevation model.
+ *
+ * Only Earth has one. The map is an equirectangular 8-bit grayscale height
+ * field, and the four numbers below are what turn those texels back into
+ * metres — the two texel values that mean "sea level" and "the highest land",
+ * and the real height of that land. Everything else (the displacement, the
+ * shading normals, how far above the surface the cloud deck has to sit) is
+ * derived from them, so a different DEM only needs a new file and a new
+ * encoding here.
+ */
+export interface TerrainVisuals {
+  heightMapId: TextureId
+  /** The texel value (0…1) that means sea level in this map. */
+  seaLevelTexel: number
+  /** The texel value (0…1) that means the highest land in this map. */
+  peakTexel: number
+  /** How high that highest land really is, in metres. */
+  peakElevationM: number
+  /**
+   * Vertical exaggeration applied at the full "Terrain relief" setting. The
+   * true relief is 0.14% of Earth's radius, which is a fraction of a pixel on
+   * a globe that fills the screen, so relief globes have always stretched it;
+   * this is the stretch, and the UI says so.
+   */
+  maxExaggeration: number
 }
 
 export interface RingVisuals {
@@ -117,6 +146,12 @@ export interface BodyVisuals {
   flattening?: number
   /** Rotation offset so features (like the Great Red Spot) face nicely at start. */
   textureOffsetU: number
+  /**
+   * Real elevation data, when the body has any. Present only for Earth, whose
+   * surface is genuinely displaced by a global DEM instead of being a smooth
+   * sphere (see `TerrainVisuals`).
+   */
+  terrain?: TerrainVisuals
   atmosphere?: AtmosphereVisuals
   clouds?: CloudVisuals
   nightLights?: NightLightsVisuals
@@ -179,7 +214,20 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     roughness: 1,
     metalness: 0,
     roughnessMapId: 'earthRoughness',
-    bumpScale: 0.008,
+    // Earth has no `bumpScale`: its relief is real, so it comes from the
+    // elevation model below rather than from a fake shading trick on the map.
+    //
+    // The DEM is the NASA / USGS SRTM–GTOPO30 height field, normalised to 8-bit
+    // grayscale. In that normalisation sea level is texel 12 and the highest
+    // land — Everest, 8,848 m — is texel 218, which is what the two texel
+    // values below record.
+    terrain: {
+      heightMapId: 'earthHeightmap',
+      seaLevelTexel: 12 / 255,
+      peakTexel: 218 / 255,
+      peakElevationM: 8_848,
+      maxExaggeration: 160,
+    },
     flattening: 0.00335,
     textureOffsetU: 0.55,
     atmosphere: {
