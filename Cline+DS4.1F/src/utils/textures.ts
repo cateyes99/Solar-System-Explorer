@@ -404,6 +404,72 @@ function paintEarth(size: MapSize, shared: SharedBuild): HTMLCanvasElement {
   return canvas
 }
 
+/**
+ * The texel values the real DEM uses for sea level and for the highest land
+ * (see `TerrainVisuals` in `data/visuals.ts`). The fallback below writes its
+ * height field with the same encoding, so a missing file degrades to invented
+ * mountains rather than to a flat globe — and never to a mismatch with the
+ * displacement maths, which reads these numbers.
+ */
+const HEIGHTMAP_SEA_LEVEL_BYTE = 12
+const HEIGHTMAP_PEAK_BYTE = 218
+
+/**
+ * A stand-in for the real elevation model, used only when the shipped height
+ * map is missing or fails to decode.
+ *
+ * It is deliberately shaped like terrain rather than like noise: a broad
+ * fractal field for the general rise of the land, ridged noise for the
+ * mountain chains, and the day map's own land mask so the invented mountains
+ * still stand on the real continents instead of in the middle of the Pacific.
+ */
+function paintEarthHeightmap(size: MapSize, shared: SharedBuild): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const { width, height } = size
+  const ground = sampleField(width, height, {
+    radius: 3.1,
+    height: 2,
+    octaves: 6,
+    seed: 2024,
+    warp: 0.08,
+  })
+  const ridges = sampleField(width, height, {
+    radius: 9,
+    height: 5,
+    octaves: 5,
+    seed: 8081,
+    warp: 0.05,
+  })
+  // The real day map's land mask when it loaded, or the painted one otherwise.
+  // The two can be different sizes, so the lookup below resamples by position
+  // rather than indexing straight into the mask.
+  const land = sharedLandMask?.landMask
+    ? { mask: sharedLandMask.landMask, maskWidth: sharedLandMask.width, maskHeight: sharedLandMask.height }
+    : shared.landMask
+      ? { mask: shared.landMask, maskWidth: shared.width, maskHeight: shared.height }
+      : null
+  colorize(canvas, ground, (value, _u, _v, x, y) => {
+    const isLand = land
+      ? land.mask[
+          Math.min(land.maskHeight - 1, Math.floor((y / height) * land.maskHeight)) * land.maskWidth +
+            Math.min(land.maskWidth - 1, Math.floor((x / width) * land.maskWidth))
+        ] === 1
+      : value > 0.5
+    if (!isLand) {
+      return [HEIGHTMAP_SEA_LEVEL_BYTE, HEIGHTMAP_SEA_LEVEL_BYTE, HEIGHTMAP_SEA_LEVEL_BYTE]
+    }
+    // Ridged noise (1 − |2n − 1|) makes sharp crests; the broad field decides
+    // whether a region is a plain or a plateau.
+    const ridge = 1 - Math.abs(ridges[y * width + x] * 2 - 1)
+    const elevation = clamp(value * 0.45 + ridge * 0.55, 0, 1)
+    const byte = Math.round(
+      lerp(HEIGHTMAP_SEA_LEVEL_BYTE, HEIGHTMAP_PEAK_BYTE, Math.pow(elevation, 1.35)),
+    )
+    return [byte, byte, byte]
+  })
+  return canvas
+}
+
 function paintEarthClouds(size: MapSize): HTMLCanvasElement {
   const canvas = makeCanvas(size.width, size.height)
   const field = sampleField(size.width, size.height, {
@@ -1085,6 +1151,19 @@ function paintCometNucleus(size: MapSize): HTMLCanvasElement {
  */
 const QUALITY_SCALE: Record<QualityLevel, number> = { high: 1, medium: 0.5, low: 0.25 }
 
+/**
+ * A ceiling on the width uploaded for the few maps whose source is wider than
+ * the rest of the set. Earth's elevation model is published at 3840 px, and at
+ * full quality that would be a 29 MB texture — three times the cost of every
+ * other map put together. 2048 is the density the whole set is designed around,
+ * and it is already finer than the geometry the field displaces, so the extra
+ * source resolution is kept on disk (for a future, finer mesh) but not spent on
+ * video memory.
+ */
+const TEXTURE_MAX_WIDTH: Partial<Record<TextureId, number>> = {
+  earthHeightmap: 2048,
+}
+
 function imageUrl(file: string): string {
   const base = import.meta.env.BASE_URL || '/'
   return `${base.endsWith('/') ? base : `${base}/`}textures/${file}`
@@ -1229,6 +1308,7 @@ const PAINTERS: Painter[] = [
   { id: 'glow', label: 'Kindling the Sun’s glow', build: (size) => paintGlow(size) },
   { id: 'sun', label: 'Stirring the Sun’s plasma', build: (size) => paintSun(size) },
   { id: 'earth', label: 'Building Earth’s continents', build: (size, shared) => paintEarth(size, shared) },
+  { id: 'earthHeightmap', label: 'Raising Earth’s mountains', build: (size, shared) => paintEarthHeightmap(size, shared) },
   { id: 'earthClouds', label: 'Rolling out Earth’s clouds', build: (size) => paintEarthClouds(size) },
   { id: 'earthNight', label: 'Switching on the city lights', build: (size) => paintEarthNight(size, sharedLandMask ?? { landMask: null, width: 0, height: 0 }) },
   { id: 'moon', label: 'Pocking the Moon with craters', build: (size) => paintMoon(size) },
@@ -1248,7 +1328,16 @@ const PAINTERS: Painter[] = [
 
 const PAINTER_BY_ID = new Map<TextureId, Painter>(PAINTERS.map((painter) => [painter.id, painter]))
 
-const LARGE_MAPS: TextureId[] = ['earth', 'earthClouds', 'earthNight', 'jupiter', 'saturn', 'sun', 'nebula']
+const LARGE_MAPS: TextureId[] = [
+  'earth',
+  'earthHeightmap',
+  'earthClouds',
+  'earthNight',
+  'jupiter',
+  'saturn',
+  'sun',
+  'nebula',
+]
 
 function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'star') return { width: 64, height: 64 }
@@ -1297,10 +1386,11 @@ function nextFrame(): Promise<void> {
 
 /**
  * Maps that carry numbers rather than colour — a cloud-coverage mask, an ocean
- * roughness value — must not be gamma-decoded by the GPU on the way in, so they
- * are uploaded as raw data. Everything else is a photograph and is treated as sRGB.
+ * roughness value, and the elevation model that displaces Earth's surface —
+ * must not be gamma-decoded by the GPU on the way in, so they are uploaded as
+ * raw data. Everything else is a photograph and is treated as sRGB.
  */
-const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness']
+const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness', 'earthHeightmap']
 
 /**
  * How far the Milky Way panorama's exposure is lifted before it is uploaded (see
@@ -1322,7 +1412,9 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
   if (source) {
     try {
       const image = await loadImage(imageUrl(source.file))
-      const canvas = drawScaled(image, QUALITY_SCALE[quality])
+      const cap = TEXTURE_MAX_WIDTH[id]
+      const scale = cap ? Math.min(QUALITY_SCALE[quality], cap / image.naturalWidth) : QUALITY_SCALE[quality]
+      const canvas = drawScaled(image, scale)
       if (id === 'earth') analyseEarth(canvas)
       if (id === 'nebula') liftExposure(canvas, MILKY_WAY_GAMMA)
       return mapTexture(canvas, id)

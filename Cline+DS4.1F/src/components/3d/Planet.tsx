@@ -15,7 +15,18 @@ import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { smoothstep } from '../../utils/random'
 import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
-import { SPHERE_LODS, sphereTierForApparentSize, createRingGeometry } from './geometry'
+import {
+  SPHERE_LODS,
+  sphereTierForApparentSize,
+  terrainTierForApparentSize,
+  createRingGeometry,
+} from './geometry'
+import {
+  TERRAIN_VERTEX_DISPLACE,
+  TERRAIN_VERTEX_PARS,
+  createTerrainUniforms,
+  terrainDisplacement,
+} from './terrain'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
 import { NightLights } from './NightLights'
@@ -99,6 +110,11 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const cloudCoverage = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthCloudCoverage : 0.5,
   )
+  // How much of the real elevation model is applied. Only a body that has one
+  // reads it, so every other world keeps the constant 0 and never re-renders.
+  const terrainRelief = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthTerrainRelief : 0,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -141,9 +157,57 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
   // The sphere rung follows how large the body is on screen (see geometry.ts):
   // a distant speck needs few segments, a world filling the view needs many.
+  // A displaced surface climbs two rungs further, because relief needs vertices
+  // to live in and a sphere fine enough to keep a circle round is nowhere near
+  // fine enough to hold a mountain range.
   const [sphereTier, setSphereTier] = useState(0)
   const sphereTierRef = useRef(0)
-  const maxSphereTier = quality === 'low' ? 2 : 3
+  const maxSphereTier = visuals.terrain
+    ? quality === 'low'
+      ? 3
+      : quality === 'medium'
+        ? 4
+        : 5
+    : quality === 'low'
+      ? 2
+      : 3
+
+  /**
+   * The relief numbers for this frame's relief setting. `peakRadius` is what
+   * everything around the surface has to clear; `scale`/`bias` are the pair the
+   * material and the city lights apply to the height map.
+   */
+  const terrain = useMemo(
+    () => (visuals.terrain ? terrainDisplacement(visuals.terrain, terrainRelief) : null),
+    [visuals.terrain, terrainRelief],
+  )
+  /**
+   * The bump strength, which is not the same number as the displacement scale:
+   * three.js measures the shading slope against the surface's *view-space*
+   * position, so the height it compares against has to be in view-space units
+   * too. The mesh's own scale turns the object-space displacement into those
+   * units. (Because both sides scale with the planet, the shading looks the
+   * same whether Earth is drawn large or small.)
+   */
+  const bumpScale = terrain ? radius * terrain.scale : 0
+
+  /**
+   * The elevation model's shader uniforms. They are built once per body and
+   * shared with the city lights, so the glow lies on exactly the ground the
+   * surface is displaced to.
+   */
+  const terrainUniforms = useMemo(
+    () =>
+      visuals.terrain
+        ? createTerrainUniforms(
+            visuals.terrain,
+            getTexture(visuals.terrain.heightMapId),
+            useSimulationStore.getState().earthTerrainRelief,
+            visuals.textureOffsetU,
+          )
+        : null,
+    [visuals],
+  )
 
   const surfaceMaterial = useMemo(() => {
     const texture = getTexture(visuals.textureId)
@@ -154,11 +218,8 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     // are handed the same shift as a uniform instead (see `uvOffsetU` below).
     texture.offset.x = visuals.textureOffsetU
     if (visuals.roughnessMapId) getTexture(visuals.roughnessMapId).offset.x = visuals.textureOffsetU
-    return new MeshStandardMaterial({
+    const material = new MeshStandardMaterial({
       map: texture,
-      // Real maps double as relief: a darker texel sits lower than a bright one.
-      bumpMap: visuals.bumpScale ? texture : null,
-      bumpScale: visuals.bumpScale ?? 0,
       roughness: visuals.roughness,
       metalness: visuals.metalness,
       // Earth varies its roughness across the surface — glassy ocean, dusty land —
@@ -167,7 +228,49 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       emissive: new Color(visuals.accent),
       emissiveIntensity: 0,
     })
-  }, [visuals])
+
+    if (visuals.terrain && terrainUniforms) {
+      // The real thing: the ground is genuinely three-dimensional.
+      //
+      //  - **Shading** comes from the material's own bump map reading the same
+      //    elevation model. three.js takes the slope from the map's screen-space
+      //    gradient, so the relief is lit even where the mesh is too coarse to
+      //    hold it — which is what keeps the mountains visible from orbit.
+      //  - **Geometry** is displaced a few lines further down the vertex shader.
+      //    It is injected by hand rather than left to `material.displacementMap`
+      //    so that the surface and the city lights share one set of uniforms and
+      //    one definition of where the ground is.
+      const heightMap = terrainUniforms.map
+      heightMap.offset.x = visuals.textureOffsetU
+      material.bumpMap = heightMap
+      material.bumpScale = radius * terrainUniforms.uniforms.uTerrainScale.value
+      material.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, terrainUniforms.uniforms)
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', `#include <common>\n${TERRAIN_VERTEX_PARS}`)
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>\n${TERRAIN_VERTEX_DISPLACE}`,
+          )
+      }
+    } else {
+      // Everything else keeps the old trick: a real map doubles as relief,
+      // because a darker texel sits lower than a bright one.
+      material.bumpMap = visuals.bumpScale ? texture : null
+      material.bumpScale = visuals.bumpScale ?? 0
+    }
+    return material
+  }, [visuals, terrainUniforms])
+
+  // Relief is a live uniform, so moving the slider — or the scale preset, which
+  // changes how large the planet is drawn — retunes the mountains without
+  // rebuilding (and recompiling) the surface material.
+  useEffect(() => {
+    if (!terrain || !terrainUniforms) return
+    terrainUniforms.uniforms.uTerrainScale.value = terrain.scale
+    terrainUniforms.uniforms.uTerrainBias.value = terrain.bias
+    surfaceMaterial.bumpScale = bumpScale
+  }, [surfaceMaterial, terrain, terrainUniforms, bumpScale])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)
@@ -236,8 +339,11 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       detailRef.current.visible = apparentSize > detailThreshold
     }
     // Match the sphere's tessellation to the body's apparent size so a close-up
-    // silhouette stays round. Only a threshold crossing re-renders React.
-    const wantedTier = sphereTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
+    // silhouette stays round — and, for a displaced surface, so the terrain has
+    // enough vertices to be there at all. Only a threshold crossing re-renders.
+    const wantedTier = visuals.terrain
+      ? terrainTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
+      : sphereTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
     if (wantedTier !== sphereTierRef.current) {
       sphereTierRef.current = wantedTier
       setSphereTier(wantedTier)
@@ -309,6 +415,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
           {visuals.clouds ? (
             <Clouds
+              // The deck is a smooth shell, not a displaced surface: it is the
+              // weather *above* the ground, so it keeps the round sphere and is
+              // simply lifted clear of the highest terrain instead of following it.
               geometry={sphereGeometry}
               radius={radius}
               visuals={visuals.clouds}
@@ -319,6 +428,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               coverage={cloudCoverage}
               reducedMotion={reducedMotion}
               uvOffsetU={visuals.textureOffsetU}
+              shellLift={terrain?.peakRadius ?? 0}
             />
           ) : null}
         </group>
@@ -335,6 +445,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               visuals={visuals.atmosphere}
               sunPosition={SUN_POSITION}
               opacity={atmosphereOpacity}
+              shellLift={terrain?.peakRadius ?? 0}
             />
           ) : null}
           {visuals.nightLights ? (
@@ -344,6 +455,10 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
                 visuals={visuals.nightLights}
                 sunPosition={SUN_POSITION}
                 uvOffsetU={visuals.textureOffsetU}
+                // The lights are painted on the ground, so they ride the same
+                // displaced surface as the terrain instead of hovering over it.
+                geometry={sphereGeometry}
+                terrain={terrainUniforms}
               />
             </group>
           ) : null}

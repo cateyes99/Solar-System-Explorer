@@ -38,6 +38,11 @@ export interface AppConfig {
   earthCloudOpacity: number
   /** Earth's cloud dynamics, 0…1 (store: `earthCloudDynamics`). */
   earthCloudDynamics: number
+  /**
+   * How much of Earth's real elevation model is applied, 0…1 (store:
+   * `earthTerrainRelief`). 0 is a smooth globe, 1 is the full exaggeration.
+   */
+  earthTerrainRelief: number
   /** Opacity of the left controls panel, 0…1 (store: `ui.leftPanelOpacity`). */
   leftPanelOpacity: number
   /** Opacity of the right information panel, 0…1 (store: `ui.rightPanelOpacity`). */
@@ -60,6 +65,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthCloudCoverage: 0.5,
   earthCloudOpacity: 0.5,
   earthCloudDynamics: 0.5,
+  earthTerrainRelief: 0.5,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
   spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
@@ -82,6 +88,7 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Cloud Coverage', min: 0, max: 1, set: (c, v) => { c.earthCloudCoverage = v } },
   { key: 'Earth Cloud Opacity', min: 0, max: 1, set: (c, v) => { c.earthCloudOpacity = v } },
   { key: 'Earth Cloud Dynamics', min: 0, max: 1, set: (c, v) => { c.earthCloudDynamics = v } },
+  { key: 'Earth Terrain Relief', min: 0, max: 1, set: (c, v) => { c.earthTerrainRelief = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -246,6 +253,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthCloudCoverage: config.earthCloudCoverage,
     earthCloudOpacity: config.earthCloudOpacity,
     earthCloudDynamics: config.earthCloudDynamics,
+    earthTerrainRelief: config.earthTerrainRelief,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
     spacecraftSize: config.spacecraftSize,

@@ -34,6 +34,8 @@ export function PlanetPanel() {
   const setEarthCloudDynamics = useSimulationStore((state) => state.setEarthCloudDynamics)
   const earthCloudCoverage = useSimulationStore((state) => state.earthCloudCoverage)
   const setEarthCloudCoverage = useSimulationStore((state) => state.setEarthCloudCoverage)
+  const earthTerrainRelief = useSimulationStore((state) => state.earthTerrainRelief)
+  const setEarthTerrainRelief = useSimulationStore((state) => state.setEarthTerrainRelief)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
   const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
@@ -115,6 +117,24 @@ export function PlanetPanel() {
                   onChange={setEarthAtmosphereOpacity}
                   format={(value) => `${Math.round(value * 100)}%`}
                   hint={t('planet.atmosphereHazeHint')}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {body.id === 'earth' ? (
+            <div className="mt-4">
+              <SectionTitle hint={t('planet.terrainHint')}>{t('planet.earthTerrain')}</SectionTitle>
+              <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+                <SliderRow
+                  label={t('planet.terrainRelief')}
+                  value={earthTerrainRelief}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthTerrainRelief}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint={t('planet.terrainReliefHint')}
                 />
               </div>
             </div>

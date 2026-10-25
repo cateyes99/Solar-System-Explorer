@@ -33,6 +33,14 @@
   // 1 = the liveliest.
   "Earth Cloud Dynamics": 0.5,
 
+  // --- Earth's terrain -----------------------------------------------------
+  // How much of the real elevation model (a global NASA / USGS height map) is
+  // applied to the surface itself. 0 = a smooth globe, 1 = the full vertical
+  // exaggeration (160x), which is what makes mountain ranges, plateaus and
+  // canyons stand out of the sphere. The relief is exaggerated because the true
+  // thing is only 0.14% of Earth's radius — a fraction of a pixel from orbit.
+  "Earth Terrain Relief": 0.25,
+
   // --- Side panels ---------------------------------------------------------
   // Opacity of the left "Controls" panel and the right information panel.
   // 0 = invisible (its header controls stay usable), 1 = fully opaque.

@@ -6,7 +6,13 @@ These images are **not** hand-drawn: they are real planetary map data.
   licensed **CC BY 4.0**.
 - Derived from public-domain NASA / JPL / USGS imagery (Blue Marble, MESSENGER,
   Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).
-- Format: equirectangular (2:1) colour maps, plus one alpha ring strip.
+- Format: equirectangular (2:1) colour maps, plus one alpha ring strip and one
+  grayscale height field.
+- `earth_heightmap.jpg` is not from Solar System Scope: it is the public-domain
+  NASA / USGS SRTM–GTOPO30 global relief map, published by Wikimedia Commons,
+  normalised to 8-bit grayscale with sea level at `#0c0c0c`. The app reads that
+  encoding (sea level texel 12, highest land texel 218) back into metres to
+  displace Earth’s surface; it is 3840×1920 and is downscaled on upload.
 - Pluto’s map is the public-domain NASA / JHUAPL / SwRI New Horizons global
   colour mosaic, with the southern band New Horizons never imaged filled in to
   complete the globe. It is composited rather than downloaded, so the fetch
@@ -18,6 +24,7 @@ These images are **not** hand-drawn: they are real planetary map data.
 | `2k_mercury.jpg` | Mercury | MESSENGER global mosaic |
 | `2k_venus_atmosphere.jpg` | Venus | Cloud tops as seen by Mariner 10 / Venus Express |
 | `2k_earth_daymap.jpg` | Earth | Blue Marble: land, ocean and vegetation colour |
+| `earth_heightmap.jpg` | Earth elevation | NASA / USGS SRTM–GTOPO30 global relief (public domain), sea level at #0c0c0c |
 | `2k_earth_clouds.jpg` | Earth clouds | Cloud-cover layer (black sky, white cloud) |
 | `2k_earth_nightmap.jpg` | Earth at night | City lights (NASA Black Marble) |
 | `2k_moon.jpg` | The Moon | LRO / Clementine albedo mosaic |
