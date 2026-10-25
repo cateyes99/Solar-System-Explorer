@@ -227,7 +227,7 @@ export const en = {
   'settings.quality.medium': 'Medium',
   'settings.quality.high': 'High',
   'settings.qualityNote':
-    'Surface textures are generated once when the page loads at the quality level detected at that moment. Changing quality afterwards adjusts geometry detail, star counts and post-processing.',
+    'Changing quality rebuilds the surface maps at the new resolution and adjusts geometry detail, star counts and post-processing. Higher settings load larger maps and use more graphics memory.',
   'settings.scaleSection': 'Scale, layers and camera',
   'settings.scaleSectionHint': 'also on the left on bigger screens',
   'settings.explore': 'Explore',

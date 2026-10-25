@@ -12,12 +12,16 @@ import { useSimulationStore } from '../../store/simulationStore'
 export function LoadingScreen() {
   const { t } = useTranslation()
   const ready = useSimulationStore((state) => state.ready)
+  // `rebuilding` covers a quality change after the first load: the scene stays
+  // mounted and only its maps are swapped, but the work is the same, so it gets
+  // the same cover.
+  const rebuilding = useSimulationStore((state) => state.rebuilding)
   const progress = useSimulationStore((state) => state.assetsProgress)
   const label = useSimulationStore((state) => state.assetsLabel)
 
   return (
     <AnimatePresence>
-      {!ready ? (
+      {!ready || rebuilding ? (
         <motion.div
           key="loading"
           initial={{ opacity: 1 }}
