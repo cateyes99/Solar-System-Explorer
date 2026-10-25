@@ -7,10 +7,15 @@
  * completely offline. This script only exists so the provenance of every image is
  * written down and the assets can be re-fetched (or upgraded) on demand.
  *
- * Source: Solar System Scope (https://www.solarsystemscope.com/textures/),
- * released under CC BY 4.0. Their maps are processed from NASA / JPL / USGS
- * imagery (Blue Marble, MESSENGER, Magellan, Viking, Cassini, Voyager 2, LRO and
- * the Lunar Reconnaissance Orbiter mosaic), which is public-domain material.
+ * Sources:
+ *
+ *  - Solar System Scope (https://www.solarsystemscope.com/textures/), released
+ *    under CC BY 4.0. Their maps are processed from NASA / JPL / USGS imagery
+ *    (Blue Marble, MESSENGER, Magellan, Viking, Cassini, Voyager 2, LRO and the
+ *    Lunar Reconnaissance Orbiter mosaic), which is public-domain material.
+ *  - Earth's elevation model, from Wikimedia Commons (public domain, NASA /
+ *    USGS SRTM–GTOPO30 relief). It is the one map here that is not a colour
+ *    photograph and the one that is wider than 2k; see below.
  *
  * Equipment note: the maps are equirectangular (2:1), which is exactly the layout
  * a Three.js SphereGeometry expects, so no re-projection is needed.
@@ -23,12 +28,36 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const OUTPUT_DIR = join(HERE, '..', 'public', 'textures')
 const BASE = 'https://www.solarsystemscope.com/textures/download/'
 
+/**
+ * Earth's elevation model, which is not part of the Solar System Scope set.
+ *
+ * It is the NASA / USGS global relief map that Wikipedia's "Elevation" article
+ * uses: GTOPO30 / SRTM land elevation, normalised to 8-bit grayscale with sea
+ * level at #0c0c0c. It comes from Wikimedia Commons (public domain — NASA
+ * material).
+ *
+ * The original is 21600×10800 and 6 MB, which is more than the whole rest of the
+ * texture set put together; the `width` query asks Wikimedia for its 3840×1920
+ * rendition (283 kB) instead, which is still twice the density the app uploads
+ * (see `TEXTURE_MAX_WIDTH` in `src/utils/textures.ts`). The encoding — sea level
+ * texel 12, highest land texel 218 — is recorded in `src/data/visuals.ts`, so
+ * the renderer reads the real heights back out.
+ */
+const HEIGHTMAP_URL =
+  'https://commons.wikimedia.org/wiki/Special:FilePath/Srtm_ramp2.world.21600x10800.jpg?width=3840'
+
 /** Every map the scene can load, with the reason each one is here. */
 const FILES = [
   { file: '2k_sun.jpg', body: 'Sun', note: 'Photosphere granulation (SDO/NASA imagery)' },
   { file: '2k_mercury.jpg', body: 'Mercury', note: 'MESSENGER global mosaic' },
   { file: '2k_venus_atmosphere.jpg', body: 'Venus', note: 'Cloud tops as seen by Mariner 10 / Venus Express' },
   { file: '2k_earth_daymap.jpg', body: 'Earth', note: 'Blue Marble: land, ocean and vegetation colour' },
+  {
+    file: 'earth_heightmap.jpg',
+    body: 'Earth elevation',
+    note: 'NASA / USGS SRTM–GTOPO30 global relief (public domain), sea level at #0c0c0c',
+    url: HEIGHTMAP_URL,
+  },
   { file: '2k_earth_clouds.jpg', body: 'Earth clouds', note: 'Cloud-cover layer (black sky, white cloud)' },
   { file: '2k_earth_nightmap.jpg', body: 'Earth at night', note: 'City lights (NASA Black Marble)' },
   { file: '2k_moon.jpg', body: 'The Moon', note: 'LRO / Clementine albedo mosaic' },
@@ -52,8 +81,10 @@ const FILES = [
   { file: '2k_stars_milky_way.jpg', body: 'Milky Way', note: 'ESO panoramic background, unwrapped as a sky sphere' },
 ]
 
-async function download(file, attempt = 1) {
-  const url = `${BASE}${file}`
+async function download(entry, attempt = 1) {
+  // Most maps live on one host, so the entry usually carries only a file name;
+  // the elevation model has a `url` of its own.
+  const url = entry.url ?? `${BASE}${entry.file}`
   try {
     const response = await fetch(url, { redirect: 'follow' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -67,7 +98,7 @@ async function download(file, attempt = 1) {
   } catch (error) {
     if (attempt >= 4) throw error
     await new Promise((resolve) => setTimeout(resolve, 700 * attempt))
-    return download(file, attempt + 1)
+    return download(entry, attempt + 1)
   }
 }
 
@@ -89,7 +120,7 @@ for (const entry of FILES) {
   }
   const path = join(OUTPUT_DIR, entry.file)
   try {
-    const bytes = await download(entry.file)
+    const bytes = await download(entry)
     writeFileSync(path, bytes)
     report.push({ ...entry, status: describe(entry.file), ok: true })
   } catch (error) {
@@ -109,7 +140,13 @@ writeFileSync(
     '  licensed **CC BY 4.0**.',
     '- Derived from public-domain NASA / JPL / USGS imagery (Blue Marble, MESSENGER,',
     '  Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).',
-    '- Format: equirectangular (2:1) colour maps, plus one alpha ring strip.',
+    '- Format: equirectangular (2:1) colour maps, plus one alpha ring strip and one',
+    '  grayscale height field.',
+    '- `earth_heightmap.jpg` is not from Solar System Scope: it is the public-domain',
+    '  NASA / USGS SRTM–GTOPO30 global relief map, published by Wikimedia Commons,',
+    '  normalised to 8-bit grayscale with sea level at `#0c0c0c`. The app reads that',
+    '  encoding (sea level texel 12, highest land texel 218) back into metres to',
+    '  displace Earth’s surface; it is 3840×1920 and is downscaled on upload.',
     '- Pluto’s map is the public-domain NASA / JHUAPL / SwRI New Horizons global',
     '  colour mosaic, with the southern band New Horizons never imaged filled in to',
     '  complete the globe. It is composited rather than downloaded, so the fetch',

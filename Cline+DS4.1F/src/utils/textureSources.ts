@@ -50,6 +50,16 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     label: 'Unfolding the Blue Marble',
     credit: 'NASA Blue Marble land and ocean colour',
   },
+  earthHeightmap: {
+    // The only map here that is not a colour photograph: it is a grayscale
+    // height field, and the only one larger than 2k, because 3840×1920 is the
+    // resolution the public dataset is published at. `textures.ts` caps what
+    // reaches the GPU by quality tier like every other map, so 'high' gets the
+    // full field and 'medium' the same 2k density as the rest of the set.
+    file: 'earth_heightmap.jpg',
+    label: 'Raising Earth’s mountains',
+    credit: 'NASA / USGS SRTM–GTOPO30 global elevation (public domain)',
+  },
   earthClouds: {
     file: '2k_earth_clouds.jpg',
     label: 'Rolling out Earth’s real clouds',
@@ -114,6 +124,7 @@ export const TEXTURE_IDS: TextureId[] = [
   'glow',
   'sun',
   'earth',
+  'earthHeightmap',
   'earthClouds',
   'earthNight',
   'earthRoughness',

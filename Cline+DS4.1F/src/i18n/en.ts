@@ -161,6 +161,11 @@ export const en = {
   'planet.cloudDynamics': 'Cloud dynamics',
   'planet.cloudDynamicsHint':
     'How much the cloud shapes swirl and re-form. 0% freezes them mid-drift (the deck still slips across the surface); 100% is the liveliest.',
+  'planet.earthTerrain': 'Earth’s terrain',
+  'planet.terrainHint': '0% = a smooth globe',
+  'planet.terrainRelief': 'Terrain relief',
+  'planet.terrainReliefHint':
+    'How far the real surface rises out of the globe. Earth’s continents are pushed up by a global NASA / USGS elevation model, so mountain ranges, plateaus and canyons are genuinely three-dimensional. The height is exaggerated — the real thing is only 0.14% of Earth’s radius — and this slider sets how much.',
   'planet.diameter': 'Diameter',
   'planet.distanceFromSun': 'Distance from Sun',
   'planet.average': 'average',
@@ -522,6 +527,7 @@ export const en = {
   'texture.glow': 'Kindling the Sun’s glow',
   'texture.sun': 'Stirring the Sun’s plasma',
   'texture.earth': 'Building Earth’s continents',
+  'texture.earthHeightmap': 'Raising Earth’s mountains',
   'texture.earthClouds': 'Rolling out Earth’s clouds',
   'texture.earthNight': 'Switching on the city lights',
   'texture.earthRoughness': 'Working out the ocean glint',
@@ -542,6 +548,7 @@ export const en = {
   'texture.source.mercury': 'Mapping Mercury’s craters',
   'texture.source.venus': 'Peeling back Venus’s clouds',
   'texture.source.earth': 'Unfolding the Blue Marble',
+  'texture.source.earthHeightmap': 'Reading Earth’s real elevation',
   'texture.source.earthClouds': 'Rolling out Earth’s real clouds',
   'texture.source.earthNight': 'Switching on the real city lights',
   'texture.source.moon': 'Surveying the Moon',
