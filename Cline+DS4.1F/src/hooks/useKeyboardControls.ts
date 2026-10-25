@@ -63,6 +63,7 @@ export function useKeyboardControls(): void {
           break
         case 'Escape': {
           if (store.cinematic.active) store.exitTour()
+          else if (store.ui.spacecraftHelpOpen) store.toggleSpacecraftHelp(false)
           else if (store.missionActive) store.endMission()
           else if (store.ui.educationOpen) store.closeEducation()
           else if (store.ui.whatIfOpen) store.toggleWhatIf(false)
