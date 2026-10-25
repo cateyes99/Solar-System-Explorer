@@ -59,6 +59,8 @@ interface UiState {
   /** The left (controls) and right (information) side panels fold away independently. */
   leftPanelCollapsed: boolean
   rightPanelCollapsed: boolean
+  /** The bottom time-and-travel console folds away on its own too. */
+  bottomBarCollapsed: boolean
   /** 0…1 opacity of each side panel's body (its header controls never fade). */
   leftPanelOpacity: number
   rightPanelOpacity: number
@@ -250,6 +252,7 @@ export interface SimulationActions {
   openSettings: (open?: boolean) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
+  toggleBottomBar: () => void
   setLeftPanelOpacity: (value: number) => void
   setRightPanelOpacity: (value: number) => void
 
@@ -327,6 +330,7 @@ const initialState: SimulationState = {
     spacecraftHelpOpen: false,
     leftPanelCollapsed: false,
     rightPanelCollapsed: false,
+    bottomBarCollapsed: false,
     leftPanelOpacity: 1,
     rightPanelOpacity: 1,
   },
@@ -493,6 +497,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         spacecraftHelpOpen: false,
         leftPanelCollapsed: false,
         rightPanelCollapsed: false,
+        bottomBarCollapsed: false,
         leftPanelOpacity: 1,
         rightPanelOpacity: 1,
       },
@@ -677,6 +682,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   toggleRightPanel: () =>
     set((state) => ({ ui: { ...state.ui, rightPanelCollapsed: !state.ui.rightPanelCollapsed } })),
+
+  toggleBottomBar: () =>
+    set((state) => ({ ui: { ...state.ui, bottomBarCollapsed: !state.ui.bottomBarCollapsed } })),
 
   setLeftPanelOpacity: (value) =>
     set((state) => ({

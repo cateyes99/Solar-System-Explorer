@@ -42,6 +42,9 @@ export const en = {
   /* ---------------------------------------------------------- bottom bar */
   'bottom.quickTravel': 'Quick travel to a world',
   'bottom.timeControls': 'Time controls',
+  'bottom.title': 'Time & travel',
+  'bottom.collapse': 'Collapse the time and travel console',
+  'bottom.expand': 'Expand the time and travel console',
   'bottom.paused': 'Simulation paused',
   'bottom.running': 'Simulation running',
   'bottom.positions': 'positions from mean orbital elements',

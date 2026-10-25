@@ -41,6 +41,9 @@ export const zh: Record<TranslationKey, string> = {
   /* ---------------------------------------------------------- bottom bar */
   'bottom.quickTravel': '快速前往某个星球',
   'bottom.timeControls': '时间控制',
+  'bottom.title': '时间与航行',
+  'bottom.collapse': '收起时间与航行控制台',
+  'bottom.expand': '展开时间与航行控制台',
   'bottom.paused': '模拟已暂停',
   'bottom.running': '模拟运行中',
   'bottom.positions': '位置基于平均轨道要素',

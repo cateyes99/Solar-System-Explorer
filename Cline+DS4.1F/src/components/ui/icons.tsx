@@ -60,16 +60,17 @@ export function ForwardIcon({ size = 18, className = '' }: IconProps) {
   )
 }
 
+/** The path points left; every other direction is a clockwise rotation of it. */
+const CHEVRON_ROTATION = { left: 0, right: 180, up: 90, down: 270 } as const
+
 export function ChevronIcon({
   size = 18,
   className = '',
   direction = 'left',
-}: IconProps & { direction?: 'left' | 'right' }) {
+}: IconProps & { direction?: keyof typeof CHEVRON_ROTATION }) {
+  const rotation = CHEVRON_ROTATION[direction]
   return (
-    <svg
-      {...base(size, className)}
-      style={direction === 'right' ? { transform: 'rotate(180deg)' } : undefined}
-    >
+    <svg {...base(size, className)} style={rotation ? { transform: `rotate(${rotation}deg)` } : undefined}>
       <path d="M14.5 6 9 12l5.5 6" />
     </svg>
   )
