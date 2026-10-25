@@ -46,9 +46,14 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     credit: 'Venus cloud tops (Mariner 10 / Venus Express)',
   },
   earth: {
-    file: '2k_earth_daymap.jpg',
+    // The day map ships at 8192×4096 so a close-up of Earth stays sharp. It is
+    // the same product line as the old 2K map (identical projection, colour and
+    // geographic alignment — verified pixel-for-pixel against the 2K file), just
+    // at four times the width; `textures.ts` uploads it at 8K / 4K / 2K by
+    // quality tier so the extra resolution is only spent when it is asked for.
+    file: '8k_earth_daymap.jpg',
     label: 'Unfolding the Blue Marble',
-    credit: 'NASA Blue Marble land and ocean colour',
+    credit: 'NASA Blue Marble land and ocean colour, 8192×4096',
   },
   earthHeightmap: {
     // The only map here that is not a colour photograph: it is a grayscale

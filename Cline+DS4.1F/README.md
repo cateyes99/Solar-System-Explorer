@@ -171,7 +171,8 @@ src/
   store/      simulationStore.ts — one Zustand store for all shared UI state
   utils/      astronomy.ts (Keplerian positions) · scale.ts (the four scale modes)
               textures.ts (map loader + procedural painters) · textureSources.ts
-              (where each real map comes from) · simulationClock.ts
+              (where each real map comes from) · textureResolution.ts (how much of
+              each map reaches the GPU) · simulationClock.ts
               spacecraftSim.ts · bodyRegistry.ts · audio.ts · format.ts
               input.ts · random.ts · webgl.ts
   hooks/      useSimulationTime · useMissionReadout · useAssetPreloader
@@ -187,7 +188,7 @@ src/
               Overlays · primitives · icons
   scenes/     SolarSystemScene.tsx — the Canvas, lighting and quality tiers
 public/
-  textures/   Real map data (equirectangular 2:1) + CREDITS.md
+  textures/   Real map data (equirectangular 2:1; Earth's day map at 8K) + CREDITS.md
 tools/
   fetch-textures.mjs — re-downloads the maps and rewrites CREDITS.md
 ```
@@ -214,9 +215,18 @@ A few decisions worth knowing about:
 - **Real maps, baked in.** `public/textures` holds real equirectangular map data — NASA / JPL /
   USGS imagery via Solar System Scope, CC BY 4.0, listed in `public/textures/CREDITS.md` — and
   `utils/textures.ts` decodes it into GPU textures before the scene mounts, reporting progress on
-  the loading screen. Whatever has no real counterpart (the Sun's corona, the star and comet
-  sprites, Earth's ocean-roughness map, Uranus's ring strip) is still painted procedurally, and if
-  a file is ever missing the same painter covers for it, so no world can render blank.
+  the loading screen. Earth's day map is the one map kept at full 8K (8192×4096): it is the map a
+  viewer inspects most closely, and the terrain relief only makes its limits more obvious. Whatever
+  has no real counterpart (the Sun's corona, the star and comet sprites, Earth's ocean-roughness
+  map, Uranus's ring strip) is still painted procedurally, and if a file is ever missing the same
+  painter covers for it, so no world can render blank.
+- **Resolution is spent where it is seen.** `utils/textureResolution.ts` decides how much of each
+  source reaches the GPU: a tier's fraction of the source (High = full, Medium = half, Low =
+  quarter), reduced by any per-map ceiling and never above the driver's `MAX_TEXTURE_SIZE`. Earth's
+  8K day map therefore uploads at 8K on High, 4K on Medium and 2K on Low, while the ocean-roughness
+  mask derived from it is analysed at 2K regardless, so an 8K surface never turns into a quarter of
+  a gigabyte of scratch memory. Mipmaps and the driver's best anisotropic filtering keep every zoom
+  level clean.
 - **Measured, not guessed.** Every material setting comes from a measurement rather than a taste:
   the IAU polar flattening squashes Jupiter (6.5%) and Saturn (9.8%), the ring discs begin and end
   at the published ring radii, the Sun's disc is dimmed toward the limb by the Eddington
@@ -234,6 +244,13 @@ A few decisions worth knowing about:
 
 - `npm run typecheck` and `npm run build` are clean (strict TypeScript, no `any` in application code;
   about 1.5 MB of JavaScript, 420 kB gzipped, including three.js).
+- The texture-resolution policy is unit-tested (`npm test`): Earth's 8K day map uploads at 8K / 4K /
+  2K by tier, is clamped to the driver's maximum texture size, and the elevation model's own ceiling
+  still applies.
+- The 8K day map was checked against the 2K it replaced: its best alignment is a zero-pixel shift at
+  42 dB PSNR — the same projection and longitude origin, so it lines up with the terrain and every
+  texture offset — and it carries about 2.4× the fine detail of a 4× upscale of the 2K, so it is
+  genuinely higher resolution rather than enlarged.
 - The shipped build was driven through headless Chrome in WebGL 2 (SwiftShader) with an empty console:
   startup and the quick-travel HUD, planet selection and the information panel, the cinematic tour,
   every lesson, the What If experiments, Mission Control, the desktop HUD and the phone layout.
