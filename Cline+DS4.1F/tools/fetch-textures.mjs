@@ -15,7 +15,16 @@
  *    Lunar Reconnaissance Orbiter mosaic), which is public-domain material.
  *  - Earth's elevation model, from Wikimedia Commons (public domain, NASA /
  *    USGS SRTM–GTOPO30 relief). It is the one map here that is not a colour
- *    photograph and the one that is wider than 2k; see below.
+ *    photograph; see below.
+ *
+ * Earth's day map is fetched at Solar System Scope's "ultra" resolution,
+ * 8192×4096, rather than the 2K the rest of the set uses: it is the map that
+ * carries Earth's coastlines and terrain colour, and the one a viewer inspects
+ * most closely. It is the same product as the 2K map — identical projection,
+ * colour and geographic alignment — so it drops straight onto the existing
+ * terrain geometry and texture offsets. `src/utils/textureResolution.ts` uploads
+ * it at 8K / 4K / 2K by quality tier, so the extra resolution is only spent when
+ * it is asked for.
  *
  * Equipment note: the maps are equirectangular (2:1), which is exactly the layout
  * a Three.js SphereGeometry expects, so no re-projection is needed.
@@ -51,7 +60,11 @@ const FILES = [
   { file: '2k_sun.jpg', body: 'Sun', note: 'Photosphere granulation (SDO/NASA imagery)' },
   { file: '2k_mercury.jpg', body: 'Mercury', note: 'MESSENGER global mosaic' },
   { file: '2k_venus_atmosphere.jpg', body: 'Venus', note: 'Cloud tops as seen by Mariner 10 / Venus Express' },
-  { file: '2k_earth_daymap.jpg', body: 'Earth', note: 'Blue Marble: land, ocean and vegetation colour' },
+  {
+    file: '8k_earth_daymap.jpg',
+    body: 'Earth',
+    note: 'Blue Marble: land, ocean and vegetation colour (8192×4096)',
+  },
   {
     file: 'earth_heightmap.jpg',
     body: 'Earth elevation',
@@ -142,6 +155,12 @@ writeFileSync(
     '  Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).',
     '- Format: equirectangular (2:1) colour maps, plus one alpha ring strip and one',
     '  grayscale height field.',
+    '- `8k_earth_daymap.jpg` is Solar System Scope’s “ultra resolution” Earth day map,',
+    '  8192×4096 — four times the width of the 2K map it replaced. It is the same',
+    '  product (identical projection, colour and geographic alignment), so it lines up',
+    '  exactly with the elevation model and every texture offset. The app uploads it at',
+    '  8K on High, 4K on Medium and 2K on Low quality, and never above the GPU’s',
+    '  maximum texture size.',
     '- `earth_heightmap.jpg` is not from Solar System Scope: it is the public-domain',
     '  NASA / USGS SRTM–GTOPO30 global relief map, published by Wikimedia Commons,',
     '  normalised to 8-bit grayscale with sea level at `#0c0c0c`. The app reads that',
