@@ -53,6 +53,8 @@ interface UiState {
   factCardOpen: boolean
   welcomeVisible: boolean
   helpOpen: boolean
+  /** Mission Control's own "Spacecraft controls" popup. */
+  spacecraftHelpOpen: boolean
   /** The left (controls) and right (information) side panels fold away independently. */
   leftPanelCollapsed: boolean
   rightPanelCollapsed: boolean
@@ -228,6 +230,8 @@ export interface SimulationActions {
   clearToast: () => void
   dismissWelcome: () => void
   toggleHelp: (open?: boolean) => void
+  /** Opens or closes Mission Control's "Spacecraft controls" popup. */
+  toggleSpacecraftHelp: (open?: boolean) => void
   openSettings: (open?: boolean) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
@@ -300,6 +304,7 @@ const initialState: SimulationState = {
     factCardOpen: false,
     welcomeVisible: true,
     helpOpen: false,
+    spacecraftHelpOpen: false,
     leftPanelCollapsed: false,
     rightPanelCollapsed: false,
     leftPanelOpacity: 1,
@@ -461,6 +466,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         factCardOpen: false,
         welcomeVisible: false,
         helpOpen: false,
+        spacecraftHelpOpen: false,
         leftPanelCollapsed: false,
         rightPanelCollapsed: false,
         leftPanelOpacity: 1,
@@ -540,7 +546,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       cameraMode: 'system',
       followTargetId: null,
       selectedId: null,
-      ui: { ...state.ui, welcomeVisible: false, factCardOpen: false },
+      ui: { ...state.ui, welcomeVisible: false, factCardOpen: false, spacecraftHelpOpen: false },
     }))
     get().resetView()
   },
@@ -626,6 +632,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   dismissWelcome: () => set((state) => ({ ui: { ...state.ui, welcomeVisible: false } })),
 
   toggleHelp: (open) => set((state) => ({ ui: { ...state.ui, helpOpen: open ?? !state.ui.helpOpen } })),
+
+  toggleSpacecraftHelp: (open) =>
+    set((state) => ({ ui: { ...state.ui, spacecraftHelpOpen: open ?? !state.ui.spacecraftHelpOpen } })),
 
   openSettings: (open) =>
     set((state) => ({
