@@ -1,39 +1,54 @@
 import { useEffect } from 'react'
-import { generateTextures } from '../utils/textures'
+import { ensureTextures, textureBuildQuality } from '../utils/textures'
 import { useSimulationStore } from '../store/simulationStore'
 
 /**
- * Generates every procedural texture once, before the 3D scene mounts, and
- * reports progress to the loading screen.
+ * Builds every surface map before the scene mounts, and rebuilds them when the
+ * viewer changes the graphics quality.
  *
- * Guarded by a module flag so React's development double-render (and a strict
- * mode remount) can never start the work twice.
+ * The first build owns the full loading screen, because the scene is not mounted
+ * yet. A later build is triggered by the quality selector: the maps are swapped
+ * in place while the scene stays mounted, so only a light overlay is shown and
+ * the camera, the simulated date and the spacecraft all keep their state.
+ * `ensureTextures` coalesces duplicate requests, so React's development
+ * double-render cannot start the work twice.
  */
-let generationStarted = false
-
 export function useAssetPreloader(): void {
+  const quality = useSimulationStore((state) => state.quality)
+
   useEffect(() => {
-    if (generationStarted) return
-    generationStarted = true
+    if (textureBuildQuality() === null) {
+      useSimulationStore.getState().setAssetsProgress(0, 'loading.preparing')
+    } else {
+      useSimulationStore.getState().setRebuilding(true)
+    }
 
-    const { setAssetsProgress, setReady, quality } = useSimulationStore.getState()
-
-    generateTextures(quality, (progress) => {
-      setAssetsProgress(progress.ratio, progress.label)
+    let cancelled = false
+    ensureTextures(quality, (progress) => {
+      useSimulationStore.getState().setAssetsProgress(progress.ratio, progress.label)
     })
       .then(() => {
-        setAssetsProgress(1, 'loading.ready')
-        setReady(true)
+        if (cancelled) return
+        const state = useSimulationStore.getState()
+        state.setAssetsProgress(1, 'loading.ready')
+        state.setRebuilding(false)
+        state.setReady(true)
       })
       .catch((error: unknown) => {
+        if (cancelled) return
         // Never leave the visitor on the loading screen: show the system with
         // whatever textures exist (there is a fallback texture in the cache).
-        setAssetsProgress(1, 'loading.flightControls')
-        setReady(true)
+        const state = useSimulationStore.getState()
+        state.setAssetsProgress(1, 'loading.flightControls')
+        state.setRebuilding(false)
+        state.setReady(true)
         if (import.meta.env.DEV) {
-          // Surface the reason in development, but keep production quiet.
           window.console.warn('Texture generation failed', error)
         }
       })
-  }, [])
+
+    return () => {
+      cancelled = true
+    }
+  }, [quality])
 }

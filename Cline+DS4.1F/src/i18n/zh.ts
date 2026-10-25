@@ -226,7 +226,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.quality.medium': '中',
   'settings.quality.high': '高',
   'settings.qualityNote':
-    '表面纹理会根据页面加载那一刻检测到的质量级别生成一次。之后再更改质量，只会调整几何细节、星星数量和后期处理。',
+    '更改质量会按新的分辨率重建表面纹理，并调整几何细节、星星数量和后期处理。更高的设置会加载更大的纹理，占用更多显存。',
   'settings.scaleSection': '比例、图层和镜头',
   'settings.scaleSectionHint': '在更大的屏幕上也会出现在左侧',
   'settings.explore': '探索',

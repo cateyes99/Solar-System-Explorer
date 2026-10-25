@@ -170,6 +170,12 @@ export interface SimulationState {
   assetsProgress: number
   assetsLabel: string
   ready: boolean
+  /**
+   * True while the surface maps are being rebuilt for a new quality tier. The
+   * scene stays mounted throughout (only the maps are swapped), so this drives
+   * the loading overlay without unmounting the canvas.
+   */
+  rebuilding: boolean
 }
 
 export interface SimulationActions {
@@ -250,6 +256,7 @@ export interface SimulationActions {
   setWebglSupported: (supported: boolean) => void
   setAssetsProgress: (progress: number, label: string) => void
   setReady: (ready: boolean) => void
+  setRebuilding: (rebuilding: boolean) => void
 }
 
 export type SimulationStore = SimulationState & SimulationActions
@@ -346,6 +353,7 @@ const initialState: SimulationState = {
   assetsProgress: 0,
   assetsLabel: 'loading.preparing',
   ready: false,
+  rebuilding: false,
 }
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   ...initialState,
@@ -683,6 +691,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setWebglSupported: (webglSupported) => set({ webglSupported }),
   setAssetsProgress: (assetsProgress, assetsLabel) => set({ assetsProgress, assetsLabel }),
   setReady: (ready) => set({ ready }),
+  setRebuilding: (rebuilding) => set({ rebuilding }),
 }))
 
 /** Current simulation speed in days per second, including direction. */

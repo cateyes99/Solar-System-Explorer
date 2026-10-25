@@ -172,9 +172,9 @@ src/
   utils/      astronomy.ts (Keplerian positions) · scale.ts (the four scale modes)
               textures.ts (map loader + procedural painters) · textureSources.ts
               (where each real map comes from) · textureResolution.ts (how much of
-              each map reaches the GPU) · simulationClock.ts
-              spacecraftSim.ts · bodyRegistry.ts · audio.ts · format.ts
-              input.ts · random.ts · webgl.ts
+              each map reaches the GPU) · buildQueue.ts (single-flight map builds)
+              simulationClock.ts · spacecraftSim.ts · bodyRegistry.ts · audio.ts
+              format.ts · input.ts · random.ts · webgl.ts
   hooks/      useSimulationTime · useMissionReadout · useAssetPreloader
               useKeyboardControls
   components/
@@ -227,6 +227,13 @@ A few decisions worth knowing about:
   mask derived from it is analysed at 2K regardless, so an 8K surface never turns into a quarter of
   a gigabyte of scratch memory. Mipmaps and the driver's best anisotropic filtering keep every zoom
   level clean.
+- **Changing quality rebuilds the maps live.** The Graphics-quality buttons are not just a geometry
+  setting: they rebuild the surface maps at the new resolution. The maps are swapped *in place* —
+  every material, shader uniform and terrain uniform holds a reference to its texture, so updating
+  the image underneath keeps them all valid — which means no scene remount, no new WebGL context and
+  no camera reset. A single-flight queue (`utils/buildQueue.ts`) collapses React's development
+  double-render and rapid clicks into the one build that matters, and the performance monitor treats
+  the rebuild as start-up so it cannot drop the tier the viewer just chose.
 - **Measured, not guessed.** Every material setting comes from a measurement rather than a taste:
   the IAU polar flattening squashes Jupiter (6.5%) and Saturn (9.8%), the ring discs begin and end
   at the published ring radii, the Sun's disc is dimmed toward the limb by the Eddington
@@ -234,9 +241,10 @@ A few decisions worth knowing about:
   puts a sun glint on the real planet.
 - **Quality is adaptive — and recoverable.** A performance monitor inside the scene reduces star, rock
   and segment counts (and drops post-processing) when the frame rate stays low, but it ignores the
-  start-up warm-up, never climbs above the default look on its own, and steps back up as soon as the
-  machine proves comfortable — so a brief dip can no longer leave the scene permanently darker.
-  Lighting is never part of the trade: the Sun burns just as brightly at every tier.
+  start-up warm-up and any map rebuild, never climbs above the default look on its own, and never
+  overrules a viewer who deliberately chose High — so a brief dip can no longer leave the scene
+  permanently darker. Lighting is never part of the trade: the Sun burns just as brightly at every
+  tier.
 - **Failure is graceful.** WebGL 2 is probed before the scene is created; if it is unavailable (or the
   context is lost later) a React error boundary swaps in a 2D orrery built from the same data.
 
@@ -247,6 +255,9 @@ A few decisions worth knowing about:
 - The texture-resolution policy is unit-tested (`npm test`): Earth's 8K day map uploads at 8K / 4K /
   2K by tier, is clamped to the driver's maximum texture size, and the elevation model's own ceiling
   still applies.
+- The single-flight build queue is unit-tested too: duplicate requests share one build, a request
+  that arrives mid-build supersedes the one in flight, rapid changes collapse to the newest target,
+  a failed build is not cached, and `reset` starts over.
 - The 8K day map was checked against the 2K it replaced: its best alignment is a zero-pixel shift at
   42 dB PSNR — the same projection and longitude origin, so it lines up with the terrain and every
   texture offset — and it carries about 2.4× the fine detail of a 4× upscale of the 2K, so it is

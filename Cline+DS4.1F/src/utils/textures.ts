@@ -3,6 +3,7 @@ import type { QualityLevel } from '../types'
 import type { TextureId } from '../data/visuals'
 import { TEXTURE_IDS, TEXTURE_SOURCES } from './textureSources'
 import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
+import { createBuildQueue } from './buildQueue'
 import { maxTextureSize } from './webgl'
 import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
 
@@ -1416,15 +1417,42 @@ function colorSpaceFor(id: TextureId): Texture['colorSpace'] {
   return DATA_MAPS.includes(id) ? NoColorSpace : SRGBColorSpace
 }
 
-function mapTexture(canvas: HTMLCanvasElement, id: TextureId): Texture {
-  return toTexture(canvas, colorSpaceFor(id))
+/** A decoded image or a freshly painted canvas — whatever a map is built from. */
+type MapSource = HTMLCanvasElement | HTMLImageElement
+
+/**
+ * Installs a freshly built map.
+ *
+ * When the map is being rebuilt for a new quality tier the existing texture
+ * object is updated in place rather than replaced. Every material, shader
+ * uniform and terrain uniform holds a *reference* to its texture, so swapping
+ * the image underneath keeps all of them valid and simply asks the GPU to
+ * re-upload — no scene remount, no new WebGL context, no camera reset.
+ */
+function commitMap(id: TextureId, source: MapSource): void {
+  const colorSpace = colorSpaceFor(id)
+  const existing = cache.get(id)
+  if (existing) {
+    existing.image = source
+    existing.colorSpace = colorSpace
+    // The GPU storage is sized to the image it was first uploaded from. On
+    // WebGL 2 three.js allocates immutable storage once and then uploads with
+    // `texSubImage2D`, so an in-place update would try to squeeze a larger map
+    // (say 8K) into the smaller allocation and quietly fail. Disposing drops the
+    // storage; the next frame re-creates it at the new size, and every material
+    // that holds this same texture object simply samples the new one.
+    existing.dispose()
+    existing.needsUpdate = true
+    return
+  }
+  cache.set(id, toTexture(source, colorSpace))
 }
 
 /**
  * Builds one map: the shipped real map when there is one, otherwise the painter.
  * Returns null only for ids that have neither (the derived ocean roughness).
  */
-async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuild): Promise<Texture | null> {
+async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuild): Promise<MapSource | null> {
   const source = TEXTURE_SOURCES[id]
   if (source) {
     try {
@@ -1437,10 +1465,10 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
       // below 8192×4096, it is also the safe way to spend a resolution the GPU
       // advertises but the canvas would refuse. The Milky Way is the one map that
       // must pass through a canvas, to have its exposure lifted.
-      if (width >= image.naturalWidth && id !== 'nebula') return toTexture(image, colorSpaceFor(id))
+      if (width >= image.naturalWidth && id !== 'nebula') return image
       const canvas = drawScaled(image, width)
       if (id === 'nebula') liftExposure(canvas, MILKY_WAY_GAMMA)
-      return mapTexture(canvas, id)
+      return canvas
     } catch (error) {
       // A missing or corrupt file is not worth failing a launch over: the painter
       // below produces the same body from noise instead.
@@ -1450,19 +1478,19 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
 
   if (id === 'earthRoughness') {
     if (earthWater) {
-      return mapTexture(roughnessFromWater(earthWater.mask, earthWater.width, earthWater.height), id)
+      return roughnessFromWater(earthWater.mask, earthWater.width, earthWater.height)
     }
     const land = sharedLandMask?.landMask
     if (land && shared.width > 0) {
       const mask = Float32Array.from(land, (value) => (value ? 0 : 1))
       const soft = soften(mask, shared.width, shared.height)
-      return mapTexture(roughnessFromWater(soft, shared.width, shared.height), id)
+      return roughnessFromWater(soft, shared.width, shared.height)
     }
-    return mapTexture(plainRoughness(256, 128), id)
+    return plainRoughness(256, 128)
   }
 
   const painter = PAINTER_BY_ID.get(id)
-  return painter ? mapTexture(painter.build(resolutionFor(id, quality), shared), id) : null
+  return painter ? painter.build(resolutionFor(id, quality), shared) : null
 }
 
 /**
@@ -1482,10 +1510,35 @@ export async function generateTextures(
     })
     // Yield first: the browser paints the updated progress bar before we block.
     await nextFrame()
-    const texture = await buildMap(id, quality, shared)
-    if (texture) cache.set(id, texture)
+    const source = await buildMap(id, quality, shared)
+    if (source) commitMap(id, source)
   }
   onProgress({ label: 'loading.ready', ratio: 1 })
+}
+
+/**
+ * Every map build runs through one single-flight queue (see `buildQueue.ts`):
+ * the preloader may ask for a quality twice (React's development double-render)
+ * or change its mind mid-build, and the queue collapses those into the one build
+ * that matters.
+ */
+const mapQueue = createBuildQueue<QualityLevel, TextureProgress>(generateTextures)
+
+/**
+ * The tier the current map set was built for, or null before the first build.
+ * The preloader uses it to tell the very first load (which owns the full loading
+ * screen) from a later rebuild (which must not unmount the scene).
+ */
+export function textureBuildQuality(): QualityLevel | null {
+  return mapQueue.built()
+}
+
+/** Builds the map set for `quality`, coalescing and superseding requests. */
+export function ensureTextures(
+  quality: QualityLevel,
+  onProgress: (progress: TextureProgress) => void,
+): Promise<void> {
+  return mapQueue.ensure(quality, onProgress)
 }
 
 /** Frees GPU memory. Only used when the whole experience is torn down. */
@@ -1496,4 +1549,5 @@ export function disposeTextures(): void {
   fallback = null
   earthWater = null
   sharedLandMask = null
+  mapQueue.reset()
 }
