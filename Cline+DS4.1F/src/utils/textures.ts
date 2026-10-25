@@ -1160,10 +1160,10 @@ function paintCometNucleus(size: MapSize): HTMLCanvasElement {
  * extra source resolution is kept on disk (for a future, finer mesh) but not
  * spent on video memory.
  *
- * Earth's *day* map is deliberately absent from this list. It is the one map
- * whose whole purpose is close-up sharpness, so it is uploaded at the tier's
- * full fraction of its 8192 px source (see `textureUploadWidth`) and only
- * `maxTextureSize` can hold it back.
+ * Earth's *day* and *night* maps are deliberately absent from this list. They
+ * are the maps whose whole purpose is close-up sharpness, so each is uploaded at
+ * the tier's full fraction of its 8192 px source (see `textureUploadWidth`) and
+ * only `maxTextureSize` can hold it back.
  */
 const TEXTURE_MAX_WIDTH: Partial<Record<TextureId, number>> = {
   earthHeightmap: 2048,

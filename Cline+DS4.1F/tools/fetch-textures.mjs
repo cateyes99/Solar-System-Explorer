@@ -17,14 +17,14 @@
  *    USGS SRTM–GTOPO30 relief). It is the one map here that is not a colour
  *    photograph; see below.
  *
- * Earth's day map is fetched at Solar System Scope's "ultra" resolution,
- * 8192×4096, rather than the 2K the rest of the set uses: it is the map that
- * carries Earth's coastlines and terrain colour, and the one a viewer inspects
- * most closely. It is the same product as the 2K map — identical projection,
- * colour and geographic alignment — so it drops straight onto the existing
- * terrain geometry and texture offsets. `src/utils/textureResolution.ts` uploads
- * it at 8K / 4K / 2K by quality tier, so the extra resolution is only spent when
- * it is asked for.
+ * Earth's day and night maps are fetched at Solar System Scope's "ultra"
+ * resolution, 8192×4096, rather than the 2K the rest of the set uses: they carry
+ * the surface a viewer inspects most closely — the coastlines and terrain colour
+ * by day, the city lights by night. They are the same product as the 2K maps —
+ * identical projection, colour and geographic alignment — so they drop straight
+ * onto the existing terrain geometry and texture offsets.
+ * `src/utils/textureResolution.ts` uploads each at 8K / 4K / 2K by quality tier,
+ * so the extra resolution is only spent when it is asked for.
  *
  * Equipment note: the maps are equirectangular (2:1), which is exactly the layout
  * a Three.js SphereGeometry expects, so no re-projection is needed.
@@ -72,7 +72,11 @@ const FILES = [
     url: HEIGHTMAP_URL,
   },
   { file: '2k_earth_clouds.jpg', body: 'Earth clouds', note: 'Cloud-cover layer (black sky, white cloud)' },
-  { file: '2k_earth_nightmap.jpg', body: 'Earth at night', note: 'City lights (NASA Black Marble)' },
+  {
+    file: '8k_earth_nightmap.jpg',
+    body: 'Earth at night',
+    note: 'City lights (NASA Black Marble), 8192×4096',
+  },
   { file: '2k_moon.jpg', body: 'The Moon', note: 'LRO / Clementine albedo mosaic' },
   { file: '2k_mars.jpg', body: 'Mars', note: 'Viking / MOLA true-colour mosaic' },
   { file: '2k_jupiter.jpg', body: 'Jupiter', note: 'Cassini / Voyager belt-and-zone mosaic' },
@@ -155,12 +159,13 @@ writeFileSync(
     '  Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).',
     '- Format: equirectangular (2:1) colour maps, plus one alpha ring strip and one',
     '  grayscale height field.',
-    '- `8k_earth_daymap.jpg` is Solar System Scope’s “ultra resolution” Earth day map,',
-    '  8192×4096 — four times the width of the 2K map it replaced. It is the same',
-    '  product (identical projection, colour and geographic alignment), so it lines up',
-    '  exactly with the elevation model and every texture offset. The app uploads it at',
-    '  8K on High, 4K on Medium and 2K on Low quality, and never above the GPU’s',
-    '  maximum texture size.',
+    '- `8k_earth_daymap.jpg` and `8k_earth_nightmap.jpg` are Solar System Scope’s',
+    '  “ultra resolution” Earth maps, 8192×4096 — four times the width of the 2K maps',
+    '  they replaced. They are the same product (identical projection, colour and',
+    '  geographic alignment), so they line up exactly with each other, with the',
+    '  elevation model and with every texture offset. The app uploads each at 8K on',
+    '  High, 4K on Medium and 2K on Low quality, and never above the GPU’s maximum',
+    '  texture size.',
     '- `earth_heightmap.jpg` is not from Solar System Scope: it is the public-domain',
     '  NASA / USGS SRTM–GTOPO30 global relief map, published by Wikimedia Commons,',
     '  normalised to 8-bit grayscale with sea level at `#0c0c0c`. The app reads that',

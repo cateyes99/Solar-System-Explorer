@@ -24,6 +24,14 @@ test("Earth's 8K day map uploads at 8K, 4K and 2K", () => {
   assert.equal(textureUploadWidth(EIGHT_K, 'low', undefined, 16384), 2048)
 })
 
+test('the 8K night map follows the same tiering as the day map', () => {
+  // The city lights ship at 8192 px with no per-map ceiling either, so they stay
+  // as sharp as the surface at every tier.
+  assert.equal(textureUploadWidth(EIGHT_K, 'high', undefined, 16384), 8192)
+  assert.equal(textureUploadWidth(EIGHT_K, 'medium', undefined, 16384), 4096)
+  assert.equal(textureUploadWidth(EIGHT_K, 'low', undefined, 16384), 2048)
+})
+
 test('the 8K map is reduced to the driver limit on weaker hardware', () => {
   assert.equal(textureUploadWidth(EIGHT_K, 'high', undefined, 4096), 4096)
   assert.equal(textureUploadWidth(EIGHT_K, 'medium', undefined, 4096), 4096)

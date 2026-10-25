@@ -71,9 +71,13 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     credit: 'Global cloud cover',
   },
   earthNight: {
-    file: '2k_earth_nightmap.jpg',
+    // The city lights ship at 8192×4096 as well, so the night side stays as sharp
+    // as the day side at a close zoom. Same product line and identical alignment
+    // as the 2K map it replaced; uploaded at 8K / 4K / 2K by quality tier, exactly
+    // like the day map.
+    file: '8k_earth_nightmap.jpg',
     label: 'Switching on the real city lights',
-    credit: 'NASA Black Marble city lights',
+    credit: 'NASA Black Marble city lights, 8192×4096',
   },
   moon: {
     file: '2k_moon.jpg',
