@@ -39,16 +39,30 @@ const WARM_UP_MS = 5000
 export function SolarSystemScene() {
   const quality = useSimulationStore((state) => state.quality)
   const setQuality = useSimulationStore((state) => state.setQuality)
+  const rebuilding = useSimulationStore((state) => state.rebuilding)
   const warmUpUntil = useRef(0)
 
   useEffect(() => {
     warmUpUntil.current = performance.now() + WARM_UP_MS
   }, [])
 
+  // Rebuilding the maps blocks the main thread for a moment (decoding and
+  // uploading them), which looks exactly like a slow machine. Treat it as
+  // start-up so the monitor cannot mistake it for a reason to drop the quality
+  // the viewer just asked for.
+  useEffect(() => {
+    if (rebuilding) warmUpUntil.current = performance.now() + WARM_UP_MS
+  }, [rebuilding])
+
   const stepQuality = (direction: 1 | -1): void => {
     const current = useSimulationStore.getState().quality
     const ceiling = QUALITY_ORDER.indexOf(DEFAULT_QUALITY)
-    const next = QUALITY_ORDER[clamp(QUALITY_ORDER.indexOf(current) + direction, 0, ceiling)]
+    const index = QUALITY_ORDER.indexOf(current)
+    // The monitor eases the picture down when the machine struggles, but it must
+    // never quietly overrule a viewer who deliberately chose High — and it never
+    // climbs above the designed default on its own.
+    if (direction === 1 && index >= ceiling) return
+    const next = QUALITY_ORDER[clamp(index + direction, 0, QUALITY_ORDER.length - 1)]
     if (next === current) return
     setQuality(next)
     // Say so out loud: an unexplained change of lighting is exactly what makes a
@@ -59,7 +73,10 @@ export function SolarSystemScene() {
   }
 
   const handleDecline = (): void => {
+    // Never trade quality down because of the start-up warm-up or a map rebuild:
+    // both block the main thread in a way that says nothing about the machine.
     if (performance.now() < warmUpUntil.current) return
+    if (useSimulationStore.getState().rebuilding) return
     stepQuality(-1)
   }
 
