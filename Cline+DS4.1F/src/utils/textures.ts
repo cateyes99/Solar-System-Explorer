@@ -1,8 +1,9 @@
-import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBColorSpace } from 'three'
-import type { Texture } from 'three'
+import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBColorSpace, Texture } from 'three'
 import type { QualityLevel } from '../types'
 import type { TextureId } from '../data/visuals'
 import { TEXTURE_IDS, TEXTURE_SOURCES } from './textureSources'
+import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
+import { maxTextureSize } from './webgl'
 import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
 
 /**
@@ -50,12 +51,19 @@ function makeCanvas(width: number, height: number): HTMLCanvasElement {
   return canvas
 }
 
-function toTexture(canvas: HTMLCanvasElement, colorSpace: Texture['colorSpace'] = SRGBColorSpace): Texture {
-  const texture = new CanvasTexture(canvas)
+function toTexture(
+  source: HTMLCanvasElement | HTMLImageElement,
+  colorSpace: Texture['colorSpace'] = SRGBColorSpace,
+): Texture {
+  const texture = source instanceof HTMLCanvasElement ? new CanvasTexture(source) : new Texture(source)
   texture.colorSpace = colorSpace
   texture.wrapS = RepeatWrapping
   texture.wrapT = ClampToEdgeWrapping
-  texture.anisotropy = 4
+  // Ask for the driver's best anisotropic filtering (three.js clamps this to the
+  // hardware maximum). It is what keeps the surface crisp at the grazing angles
+  // a globe is mostly seen from — the limb, where texels compress hardest — and
+  // it matters more the finer the map gets.
+  texture.anisotropy = 16
   texture.generateMipmaps = true
   texture.needsUpdate = true
   return texture
@@ -1142,23 +1150,19 @@ function paintCometNucleus(size: MapSize): HTMLCanvasElement {
  * ------------------------------------------------------------------ */
 
 /**
- * How much of a source map's resolution is uploaded, per quality tier.
+ * A per-map ceiling on the uploaded width, for sources that carry more pixels
+ * than the scene should spend on them.
  *
- * A 2048×1024 map costs 8 MB of video memory per body before mipmaps, and the
- * Solar System has eleven of them. A slower machine is served the same picture at
- * a lower texel density rather than a different map, and the browser's own
- * high-quality downscaler does the work once, at load time.
- */
-const QUALITY_SCALE: Record<QualityLevel, number> = { high: 1, medium: 0.5, low: 0.25 }
-
-/**
- * A ceiling on the width uploaded for the few maps whose source is wider than
- * the rest of the set. Earth's elevation model is published at 3840 px, and at
- * full quality that would be a 29 MB texture — three times the cost of every
- * other map put together. 2048 is the density the whole set is designed around,
- * and it is already finer than the geometry the field displaces, so the extra
- * source resolution is kept on disk (for a future, finer mesh) but not spent on
- * video memory.
+ * Earth's elevation model is published at 3840 px, and at full quality that
+ * would be a 29 MB texture — three times the cost of every other map put
+ * together. 2048 is already finer than the geometry the field displaces, so the
+ * extra source resolution is kept on disk (for a future, finer mesh) but not
+ * spent on video memory.
+ *
+ * Earth's *day* map is deliberately absent from this list. It is the one map
+ * whose whole purpose is close-up sharpness, so it is uploaded at the tier's
+ * full fraction of its 8192 px source (see `textureUploadWidth`) and only
+ * `maxTextureSize` can hold it back.
  */
 const TEXTURE_MAX_WIDTH: Partial<Record<TextureId, number>> = {
   earthHeightmap: 2048,
@@ -1180,10 +1184,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
-/** Draws a decoded map into a canvas at the size the quality tier asked for. */
-function drawScaled(image: HTMLImageElement, scale: number): HTMLCanvasElement {
-  const width = Math.max(2, Math.round(image.naturalWidth * scale))
-  const height = Math.max(1, Math.round(image.naturalHeight * scale))
+/** Draws a decoded map into a canvas at the exact width asked for. */
+function drawScaled(image: HTMLImageElement, targetWidth: number): HTMLCanvasElement {
+  const width = Math.max(2, Math.round(targetWidth))
+  const height = Math.max(1, Math.round((width * image.naturalHeight) / image.naturalWidth))
   const canvas = makeCanvas(width, height)
   const ctx = context2d(canvas)
   ctx.imageSmoothingEnabled = true
@@ -1279,7 +1283,15 @@ function plainRoughness(width: number, height: number): HTMLCanvasElement {
 let earthWater: { mask: Float32Array; width: number; height: number } | null = null
 let sharedLandMask: SharedBuild | null = null
 
-function analyseEarth(canvas: HTMLCanvasElement): void {
+/**
+ * Reads the water out of the day map to build the ocean-roughness and land
+ * masks, at a resolution chosen for the analysis rather than for the display
+ * (see `EARTH_ANALYSIS_WIDTH`). The day map is drawn once more at that size, so
+ * the read-back and the two blur passes stay cheap even when the map itself is
+ * uploaded at 8K.
+ */
+function analyseEarth(image: HTMLImageElement, quality: QualityLevel): void {
+  const canvas = drawScaled(image, Math.min(EARTH_ANALYSIS_WIDTH[quality], maxTextureSize()))
   const { width, height } = canvas
   const mask = soften(waterMaskFromImage(canvas), width, height)
   earthWater = { mask, width, height }
@@ -1399,8 +1411,13 @@ const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness', 'earthHeightmap
  */
 const MILKY_WAY_GAMMA = 0.7
 
+/** Colour maps are photographs (sRGB); data maps carry numbers and must not be gamma-decoded. */
+function colorSpaceFor(id: TextureId): Texture['colorSpace'] {
+  return DATA_MAPS.includes(id) ? NoColorSpace : SRGBColorSpace
+}
+
 function mapTexture(canvas: HTMLCanvasElement, id: TextureId): Texture {
-  return toTexture(canvas, DATA_MAPS.includes(id) ? NoColorSpace : SRGBColorSpace)
+  return toTexture(canvas, colorSpaceFor(id))
 }
 
 /**
@@ -1412,10 +1429,16 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
   if (source) {
     try {
       const image = await loadImage(imageUrl(source.file))
-      const cap = TEXTURE_MAX_WIDTH[id]
-      const scale = cap ? Math.min(QUALITY_SCALE[quality], cap / image.naturalWidth) : QUALITY_SCALE[quality]
-      const canvas = drawScaled(image, scale)
-      if (id === 'earth') analyseEarth(canvas)
+      if (id === 'earth') analyseEarth(image, quality)
+      const width = textureUploadWidth(image.naturalWidth, quality, TEXTURE_MAX_WIDTH[id], maxTextureSize())
+      // When nothing has to be downscaled the decoded image is uploaded directly.
+      // That skips a full-size canvas copy — at Earth's 8K High tier it would be a
+      // 128 MB allocation — and, because some mobile browsers cap canvas area well
+      // below 8192×4096, it is also the safe way to spend a resolution the GPU
+      // advertises but the canvas would refuse. The Milky Way is the one map that
+      // must pass through a canvas, to have its exposure lifted.
+      if (width >= image.naturalWidth && id !== 'nebula') return toTexture(image, colorSpaceFor(id))
+      const canvas = drawScaled(image, width)
       if (id === 'nebula') liftExposure(canvas, MILKY_WAY_GAMMA)
       return mapTexture(canvas, id)
     } catch (error) {

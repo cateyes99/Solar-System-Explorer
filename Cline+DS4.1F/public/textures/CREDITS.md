@@ -8,6 +8,12 @@ These images are **not** hand-drawn: they are real planetary map data.
   Magellan, Mariner 10, Viking, Cassini, Voyager 2, LRO, SDO, ESO).
 - Format: equirectangular (2:1) colour maps, plus one alpha ring strip and one
   grayscale height field.
+- `8k_earth_daymap.jpg` is Solar System Scope’s “ultra resolution” Earth day map,
+  8192×4096 — four times the width of the 2K map it replaced. It is the same
+  product (identical projection, colour and geographic alignment), so it lines up
+  exactly with the elevation model and every texture offset. The app uploads it at
+  8K on High, 4K on Medium and 2K on Low quality, and never above the GPU’s
+  maximum texture size.
 - `earth_heightmap.jpg` is not from Solar System Scope: it is the public-domain
   NASA / USGS SRTM–GTOPO30 global relief map, published by Wikimedia Commons,
   normalised to 8-bit grayscale with sea level at `#0c0c0c`. The app reads that
@@ -23,7 +29,7 @@ These images are **not** hand-drawn: they are real planetary map data.
 | `2k_sun.jpg` | Sun | Photosphere granulation (SDO/NASA imagery) |
 | `2k_mercury.jpg` | Mercury | MESSENGER global mosaic |
 | `2k_venus_atmosphere.jpg` | Venus | Cloud tops as seen by Mariner 10 / Venus Express |
-| `2k_earth_daymap.jpg` | Earth | Blue Marble: land, ocean and vegetation colour |
+| `8k_earth_daymap.jpg` | Earth | Blue Marble: land, ocean and vegetation colour (8192×4096) |
 | `earth_heightmap.jpg` | Earth elevation | NASA / USGS SRTM–GTOPO30 global relief (public domain), sea level at #0c0c0c |
 | `2k_earth_clouds.jpg` | Earth clouds | Cloud-cover layer (black sky, white cloud) |
 | `2k_earth_nightmap.jpg` | Earth at night | City lights (NASA Black Marble) |
