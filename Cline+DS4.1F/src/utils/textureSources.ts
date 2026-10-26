@@ -65,6 +65,15 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     label: 'Raising Earth’s mountains',
     credit: 'NASA / USGS SRTM–GTOPO30 global elevation (public domain)',
   },
+  earthBathymetry: {
+    // A grayscale *depth* field, not a photograph: 0 is sea level, 255 is
+    // 11,000 m deep, on a square-root curve. Built from the public-domain ETOPO
+    // 2022 60″ relief model by `tools/fetch-bathymetry.mjs`; `textures.ts`
+    // uploads it as raw data (no gamma decode) and the shader reads it back.
+    file: 'earth_bathymetry.png',
+    label: 'Sounding the ocean floor',
+    credit: 'ETOPO 2022 60″ bedrock relief (NOAA NCEI, CC0-1.0)',
+  },
   earthClouds: {
     file: '2k_earth_clouds.jpg',
     label: 'Rolling out Earth’s real clouds',
@@ -134,9 +143,11 @@ export const TEXTURE_IDS: TextureId[] = [
   'sun',
   'earth',
   'earthHeightmap',
+  'earthBathymetry',
   'earthClouds',
   'earthNight',
   'earthRoughness',
+  'seafloorRamp',
   'moon',
   'mercury',
   'venus',

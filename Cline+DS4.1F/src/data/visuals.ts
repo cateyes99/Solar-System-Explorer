@@ -7,9 +7,11 @@ export type TextureId =
   | 'venus'
   | 'earth'
   | 'earthHeightmap'
+  | 'earthBathymetry'
   | 'earthClouds'
   | 'earthNight'
   | 'earthRoughness'
+  | 'seafloorRamp'
   | 'mars'
   | 'jupiter'
   | 'saturn'
@@ -77,6 +79,70 @@ export interface TerrainVisuals {
    */
   maxExaggeration: number
 }
+
+/**
+ * Real seafloor depth, driven by a global bathymetry grid.
+ *
+ * Only Earth has one. The map is an equirectangular 8-bit grayscale *depth*
+ * field — **0 is sea level and 255 is `maxDepthMeters` deep** — built from the
+ * public-domain ETOPO 2022 60″ relief model by `tools/fetch-bathymetry.mjs`.
+ * The stored value is not linear in depth: it is a `depthExponent` curve
+ * (`depth = maxDepthMeters · (texel / maxTexel) ^ depthExponent`, with
+ * `depthExponent = 2`), so the shallow continental shelves get most of the
+ * levels and the abyssal plains share the rest. The shader in
+ * `components/3d/terrain.ts` inverts that curve.
+ *
+ * The "Seawater opacity" slider reveals the floor: 100% leaves the ocean exactly
+ * as it was (the floor is neither displaced nor coloured), and 0% drains it. The
+ * relationship is a deliberate, documented *nominal visibility* factor — see the
+ * hint text in the planet panel — not a physical model of underwater light.
+ */
+export interface SeafloorVisuals {
+  /** The depth field (grayscale, equirectangular, aligned with the day map). */
+  bathymetryMapId: TextureId
+  /** A 1-D colour ramp sampled by normalised depth (0 shallow → 1 deepest). */
+  rampMapId: TextureId
+  /** The texel value (0…1) that means sea level. */
+  seaLevelTexel: number
+  /** The texel value (0…1) that means `maxDepthMeters` deep. */
+  maxTexel: number
+  /** The depth (metres, positive downward) that `maxTexel` stands for. */
+  maxDepthMeters: number
+  /** `depth = maxDepth · (texel / maxTexel) ^ depthExponent`. 2 = a sqrt curve. */
+  depthExponent: number
+  /** Vertical exaggeration applied at the full "Seafloor relief" setting. */
+  maxExaggeration: number
+  /** How matte the drained seafloor reads (0 = mirror, 1 = fully rough). */
+  roughness: number
+  /**
+   * A gentle depth-aware term for the *intermediate* slider values: deeper water
+   * hides the floor a little longer as the ocean drains, the way real water
+   * absorbs more light over a longer path. It is exactly zero at 100% and has no
+   * effect at 0% (which always reveals everything), so the endpoints stay
+   * predictable. 0 disables it and leaves a purely linear crossfade.
+   */
+  absorption: number
+}
+
+/**
+ * The seafloor's depth ramp, shallow (0) to deepest (1).
+ *
+ * A cool bathymetric palette — a pale shelf, a mid-blue slope, a near-black
+ * trench. Most of the ocean sits between 3,000 m and 6,000 m, so the stops are
+ * packed into the middle of the range (0.27…0.55) to keep the abyssal plains,
+ * the mid-ocean ridges and the fracture zones visually distinct.
+ */
+export const SEAFLOOR_RAMP: [number, string][] = [
+  [0, '#a9d6e5'],
+  [0.06, '#78bcd6'],
+  [0.15, '#4d97bb'],
+  [0.27, '#2f7aa0'],
+  [0.4, '#226588'],
+  [0.55, '#184f70'],
+  [0.72, '#113a57'],
+  [0.87, '#0b2740'],
+  [1, '#06182b'],
+]
 
 export interface RingVisuals {
   textureId: TextureId
@@ -152,6 +218,11 @@ export interface BodyVisuals {
    * sphere (see `TerrainVisuals`).
    */
   terrain?: TerrainVisuals
+  /**
+   * Real seafloor depth, when the body has any. Present only for Earth (see
+   * `SeafloorVisuals`); revealed by the "Seawater opacity" slider.
+   */
+  seafloor?: SeafloorVisuals
   atmosphere?: AtmosphereVisuals
   clouds?: CloudVisuals
   nightLights?: NightLightsVisuals
@@ -227,6 +298,22 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       peakTexel: 218 / 255,
       peakElevationM: 8_848,
       maxExaggeration: 160,
+    },
+    // The seafloor, from the public-domain ETOPO 2022 60″ bathymetry grid (see
+    // `tools/fetch-bathymetry.mjs`). Texel 0 is sea level and 255 is 11,000 m
+    // deep, on a square-root curve so the shallow shelves keep their detail.
+    // Its own relief slider (independent of "Terrain relief") sets the
+    // exaggeration, so the drained ocean can be dialled in on its own.
+    seafloor: {
+      bathymetryMapId: 'earthBathymetry',
+      rampMapId: 'seafloorRamp',
+      seaLevelTexel: 0,
+      maxTexel: 1,
+      maxDepthMeters: 11_000,
+      depthExponent: 2,
+      maxExaggeration: 160,
+      roughness: 0.92,
+      absorption: 1,
     },
     flattening: 0.00335,
     textureOffsetU: 0.55,

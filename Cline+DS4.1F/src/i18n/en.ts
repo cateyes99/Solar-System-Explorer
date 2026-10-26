@@ -169,6 +169,14 @@ export const en = {
   'planet.terrainRelief': 'Terrain relief',
   'planet.terrainReliefHint':
     'How far the real surface rises out of the globe. Earth’s continents are pushed up by a global NASA / USGS elevation model, so mountain ranges, plateaus and canyons are genuinely three-dimensional. The height is exaggerated — the real thing is only 0.14% of Earth’s radius — and this slider sets how much.',
+  'planet.earthSeafloor': 'Earth’s seafloor',
+  'planet.seafloorHint': '100% = the usual ocean',
+  'planet.seawaterOpacity': 'Seawater opacity',
+  'planet.seawaterOpacityHint':
+    'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
+  'planet.seafloorRelief': 'Seafloor relief',
+  'planet.seafloorReliefHint':
+    'How far the seafloor is pushed down out of the globe. The real ocean is only about 0.17% of Earth’s radius deep, so the drop is exaggerated to make the topography visible; this slider sets how much, independently of the land’s relief.',
   'planet.diameter': 'Diameter',
   'planet.distanceFromSun': 'Distance from Sun',
   'planet.average': 'average',
@@ -552,6 +560,8 @@ export const en = {
   'texture.source.venus': 'Peeling back Venus’s clouds',
   'texture.source.earth': 'Unfolding the Blue Marble',
   'texture.source.earthHeightmap': 'Reading Earth’s real elevation',
+  'texture.source.earthBathymetry': 'Sounding the ocean floor',
+  'texture.seafloorRamp': 'Tinting the ocean floor',
   'texture.source.earthClouds': 'Rolling out Earth’s real clouds',
   'texture.source.earthNight': 'Switching on the real city lights',
   'texture.source.moon': 'Surveying the Moon',

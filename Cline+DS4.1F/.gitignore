@@ -24,3 +24,6 @@ Thumbs.db
 
 # Temp artifacts used while verifying the build
 .tmp
+
+# Cached source data for tools/fetch-bathymetry.mjs (the derived texture is committed)
+.cache
