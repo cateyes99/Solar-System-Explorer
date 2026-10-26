@@ -1,8 +1,11 @@
-import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBColorSpace } from 'three'
-import type { Texture } from 'three'
+import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBColorSpace, Texture } from 'three'
 import type { QualityLevel } from '../types'
+import { SEAFLOOR_RAMP } from '../data/visuals'
 import type { TextureId } from '../data/visuals'
 import { TEXTURE_IDS, TEXTURE_SOURCES } from './textureSources'
+import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
+import { createBuildQueue } from './buildQueue'
+import { maxTextureSize } from './webgl'
 import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
 
 /**
@@ -50,12 +53,19 @@ function makeCanvas(width: number, height: number): HTMLCanvasElement {
   return canvas
 }
 
-function toTexture(canvas: HTMLCanvasElement, colorSpace: Texture['colorSpace'] = SRGBColorSpace): Texture {
-  const texture = new CanvasTexture(canvas)
+function toTexture(
+  source: HTMLCanvasElement | HTMLImageElement,
+  colorSpace: Texture['colorSpace'] = SRGBColorSpace,
+): Texture {
+  const texture = source instanceof HTMLCanvasElement ? new CanvasTexture(source) : new Texture(source)
   texture.colorSpace = colorSpace
   texture.wrapS = RepeatWrapping
   texture.wrapT = ClampToEdgeWrapping
-  texture.anisotropy = 4
+  // Ask for the driver's best anisotropic filtering (three.js clamps this to the
+  // hardware maximum). It is what keeps the surface crisp at the grazing angles
+  // a globe is mostly seen from — the limb, where texels compress hardest — and
+  // it matters more the finer the map gets.
+  texture.anisotropy = 16
   texture.generateMipmaps = true
   texture.needsUpdate = true
   return texture
@@ -404,6 +414,72 @@ function paintEarth(size: MapSize, shared: SharedBuild): HTMLCanvasElement {
   return canvas
 }
 
+/**
+ * The texel values the real DEM uses for sea level and for the highest land
+ * (see `TerrainVisuals` in `data/visuals.ts`). The fallback below writes its
+ * height field with the same encoding, so a missing file degrades to invented
+ * mountains rather than to a flat globe — and never to a mismatch with the
+ * displacement maths, which reads these numbers.
+ */
+const HEIGHTMAP_SEA_LEVEL_BYTE = 12
+const HEIGHTMAP_PEAK_BYTE = 218
+
+/**
+ * A stand-in for the real elevation model, used only when the shipped height
+ * map is missing or fails to decode.
+ *
+ * It is deliberately shaped like terrain rather than like noise: a broad
+ * fractal field for the general rise of the land, ridged noise for the
+ * mountain chains, and the day map's own land mask so the invented mountains
+ * still stand on the real continents instead of in the middle of the Pacific.
+ */
+function paintEarthHeightmap(size: MapSize, shared: SharedBuild): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const { width, height } = size
+  const ground = sampleField(width, height, {
+    radius: 3.1,
+    height: 2,
+    octaves: 6,
+    seed: 2024,
+    warp: 0.08,
+  })
+  const ridges = sampleField(width, height, {
+    radius: 9,
+    height: 5,
+    octaves: 5,
+    seed: 8081,
+    warp: 0.05,
+  })
+  // The real day map's land mask when it loaded, or the painted one otherwise.
+  // The two can be different sizes, so the lookup below resamples by position
+  // rather than indexing straight into the mask.
+  const land = sharedLandMask?.landMask
+    ? { mask: sharedLandMask.landMask, maskWidth: sharedLandMask.width, maskHeight: sharedLandMask.height }
+    : shared.landMask
+      ? { mask: shared.landMask, maskWidth: shared.width, maskHeight: shared.height }
+      : null
+  colorize(canvas, ground, (value, _u, _v, x, y) => {
+    const isLand = land
+      ? land.mask[
+          Math.min(land.maskHeight - 1, Math.floor((y / height) * land.maskHeight)) * land.maskWidth +
+            Math.min(land.maskWidth - 1, Math.floor((x / width) * land.maskWidth))
+        ] === 1
+      : value > 0.5
+    if (!isLand) {
+      return [HEIGHTMAP_SEA_LEVEL_BYTE, HEIGHTMAP_SEA_LEVEL_BYTE, HEIGHTMAP_SEA_LEVEL_BYTE]
+    }
+    // Ridged noise (1 − |2n − 1|) makes sharp crests; the broad field decides
+    // whether a region is a plain or a plateau.
+    const ridge = 1 - Math.abs(ridges[y * width + x] * 2 - 1)
+    const elevation = clamp(value * 0.45 + ridge * 0.55, 0, 1)
+    const byte = Math.round(
+      lerp(HEIGHTMAP_SEA_LEVEL_BYTE, HEIGHTMAP_PEAK_BYTE, Math.pow(elevation, 1.35)),
+    )
+    return [byte, byte, byte]
+  })
+  return canvas
+}
+
 function paintEarthClouds(size: MapSize): HTMLCanvasElement {
   const canvas = makeCanvas(size.width, size.height)
   const field = sampleField(size.width, size.height, {
@@ -451,6 +527,37 @@ function paintEarthNight(size: MapSize, shared: SharedBuild): HTMLCanvasElement 
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fill()
   }
+  return canvas
+}
+
+/** Parses `#rrggbb` into an [r, g, b] triple. */
+function hexToRgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.slice(1), 16)
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+}
+
+/**
+ * The seafloor's depth ramp: a 1-D strip whose x axis is normalised depth (0 at
+ * the shallowest shelf, 1 at the deepest trench). The shader samples it with the
+ * decoded depth of each fragment, so the palette lives in `data/visuals.ts`.
+ */
+function paintSeafloorRamp(size: MapSize): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const ctx = context2d(canvas)
+  const stops: Stop[] = SEAFLOOR_RAMP.map(([position, hex]) => [position, hexToRgb(hex)])
+  const image = ctx.createImageData(size.width, size.height)
+  const data = image.data
+  for (let y = 0; y < size.height; y += 1) {
+    for (let x = 0; x < size.width; x += 1) {
+      const [r, g, b] = ramp(stops, size.width > 1 ? x / (size.width - 1) : 0)
+      const offset = (y * size.width + x) * 4
+      data[offset] = r
+      data[offset + 1] = g
+      data[offset + 2] = b
+      data[offset + 3] = 255
+    }
+  }
+  ctx.putImageData(image, 0, 0)
   return canvas
 }
 
@@ -1076,14 +1183,23 @@ function paintCometNucleus(size: MapSize): HTMLCanvasElement {
  * ------------------------------------------------------------------ */
 
 /**
- * How much of a source map's resolution is uploaded, per quality tier.
+ * A per-map ceiling on the uploaded width, for sources that carry more pixels
+ * than the scene should spend on them.
  *
- * A 2048×1024 map costs 8 MB of video memory per body before mipmaps, and the
- * Solar System has eleven of them. A slower machine is served the same picture at
- * a lower texel density rather than a different map, and the browser's own
- * high-quality downscaler does the work once, at load time.
+ * Earth's elevation model is published at 3840 px, and at full quality that
+ * would be a 29 MB texture — three times the cost of every other map put
+ * together. 2048 is already finer than the geometry the field displaces, so the
+ * extra source resolution is kept on disk (for a future, finer mesh) but not
+ * spent on video memory.
+ *
+ * Earth's *day* and *night* maps are deliberately absent from this list. They
+ * are the maps whose whole purpose is close-up sharpness, so each is uploaded at
+ * the tier's full fraction of its 8192 px source (see `textureUploadWidth`) and
+ * only `maxTextureSize` can hold it back.
  */
-const QUALITY_SCALE: Record<QualityLevel, number> = { high: 1, medium: 0.5, low: 0.25 }
+const TEXTURE_MAX_WIDTH: Partial<Record<TextureId, number>> = {
+  earthHeightmap: 2048,
+}
 
 function imageUrl(file: string): string {
   const base = import.meta.env.BASE_URL || '/'
@@ -1101,10 +1217,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
-/** Draws a decoded map into a canvas at the size the quality tier asked for. */
-function drawScaled(image: HTMLImageElement, scale: number): HTMLCanvasElement {
-  const width = Math.max(2, Math.round(image.naturalWidth * scale))
-  const height = Math.max(1, Math.round(image.naturalHeight * scale))
+/** Draws a decoded map into a canvas at the exact width asked for. */
+function drawScaled(image: HTMLImageElement, targetWidth: number): HTMLCanvasElement {
+  const width = Math.max(2, Math.round(targetWidth))
+  const height = Math.max(1, Math.round((width * image.naturalHeight) / image.naturalWidth))
   const canvas = makeCanvas(width, height)
   const ctx = context2d(canvas)
   ctx.imageSmoothingEnabled = true
@@ -1165,6 +1281,12 @@ function soften(mask: Float32Array, width: number, height: number): Float32Array
  * what puts a sun glint on the oceans — the most recognisable thing about a
  * photograph of Earth from space, and the reason the real planet is not
  * uniformly matte.
+ *
+ * The *alpha* channel carries the raw water mask itself (1 = open water, 0 =
+ * land). The standard material ignores a roughness map's alpha, so this costs
+ * nothing and gives the seafloor shader an exact, encoding-independent water
+ * mask to reveal the floor through — no second texture and no guessing from the
+ * roughness value.
  */
 function roughnessFromWater(mask: Float32Array, width: number, height: number): HTMLCanvasElement {
   const canvas = makeCanvas(width, height)
@@ -1176,18 +1298,31 @@ function roughnessFromWater(mask: Float32Array, width: number, height: number): 
     data[i * 4] = roughness
     data[i * 4 + 1] = roughness
     data[i * 4 + 2] = roughness
-    data[i * 4 + 3] = 255
+    // Water mask in the alpha channel: white = water. Alpha 0 keeps the seafloor
+    // hidden if the day map never loaded (see `plainRoughness`).
+    data[i * 4 + 3] = Math.round(clamp(mask[i], 0, 1) * 255)
   }
   ctx.putImageData(image, 0, 0)
   return canvas
 }
 
-/** A flat, mid-rough surface: used when nothing better can be worked out. */
+/**
+ * A flat, mid-rough surface: used when nothing better can be worked out. Its
+ * alpha is 0, so with no day map there is no water mask and the seafloor stays
+ * hidden rather than covering the whole globe.
+ */
 function plainRoughness(width: number, height: number): HTMLCanvasElement {
   const canvas = makeCanvas(width, height)
   const ctx = context2d(canvas)
-  ctx.fillStyle = '#b4b4b4'
-  ctx.fillRect(0, 0, width, height)
+  const image = ctx.createImageData(width, height)
+  const data = image.data
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 180
+    data[i + 1] = 180
+    data[i + 2] = 180
+    data[i + 3] = 0
+  }
+  ctx.putImageData(image, 0, 0)
   return canvas
 }
 
@@ -1200,7 +1335,15 @@ function plainRoughness(width: number, height: number): HTMLCanvasElement {
 let earthWater: { mask: Float32Array; width: number; height: number } | null = null
 let sharedLandMask: SharedBuild | null = null
 
-function analyseEarth(canvas: HTMLCanvasElement): void {
+/**
+ * Reads the water out of the day map to build the ocean-roughness and land
+ * masks, at a resolution chosen for the analysis rather than for the display
+ * (see `EARTH_ANALYSIS_WIDTH`). The day map is drawn once more at that size, so
+ * the read-back and the two blur passes stay cheap even when the map itself is
+ * uploaded at 8K.
+ */
+function analyseEarth(image: HTMLImageElement, quality: QualityLevel): void {
+  const canvas = drawScaled(image, Math.min(EARTH_ANALYSIS_WIDTH[quality], maxTextureSize()))
   const { width, height } = canvas
   const mask = soften(waterMaskFromImage(canvas), width, height)
   earthWater = { mask, width, height }
@@ -1229,6 +1372,8 @@ const PAINTERS: Painter[] = [
   { id: 'glow', label: 'Kindling the Sun’s glow', build: (size) => paintGlow(size) },
   { id: 'sun', label: 'Stirring the Sun’s plasma', build: (size) => paintSun(size) },
   { id: 'earth', label: 'Building Earth’s continents', build: (size, shared) => paintEarth(size, shared) },
+  { id: 'earthHeightmap', label: 'Raising Earth’s mountains', build: (size, shared) => paintEarthHeightmap(size, shared) },
+  { id: 'seafloorRamp', label: 'Tinting the ocean floor', build: (size) => paintSeafloorRamp(size) },
   { id: 'earthClouds', label: 'Rolling out Earth’s clouds', build: (size) => paintEarthClouds(size) },
   { id: 'earthNight', label: 'Switching on the city lights', build: (size) => paintEarthNight(size, sharedLandMask ?? { landMask: null, width: 0, height: 0 }) },
   { id: 'moon', label: 'Pocking the Moon with craters', build: (size) => paintMoon(size) },
@@ -1248,7 +1393,16 @@ const PAINTERS: Painter[] = [
 
 const PAINTER_BY_ID = new Map<TextureId, Painter>(PAINTERS.map((painter) => [painter.id, painter]))
 
-const LARGE_MAPS: TextureId[] = ['earth', 'earthClouds', 'earthNight', 'jupiter', 'saturn', 'sun', 'nebula']
+const LARGE_MAPS: TextureId[] = [
+  'earth',
+  'earthHeightmap',
+  'earthClouds',
+  'earthNight',
+  'jupiter',
+  'saturn',
+  'sun',
+  'nebula',
+]
 
 function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'star') return { width: 64, height: 64 }
@@ -1257,6 +1411,9 @@ function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'cometNucleus') return { width: 256, height: 128 }
   if (id === 'saturnRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
   if (id === 'uranusRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
+  // The seafloor's colour ramp is a 1-D strip, so its width is the only axis
+  // that matters; 256 stops are already smoother than the eye can see.
+  if (id === 'seafloorRamp') return { width: 256, height: 1 }
 
   const large = LARGE_MAPS.includes(id)
   if (quality === 'high') return large ? { width: 1024, height: 512 } : { width: 512, height: 256 }
@@ -1285,6 +1442,18 @@ export function hasTextures(): boolean {
   return cache.size === TEXTURE_IDS.length
 }
 
+/**
+ * Whether a map was actually loaded for `id`, rather than the shared fallback.
+ *
+ * The seafloor uses this: if `earth_bathymetry.png` is missing or fails to
+ * decode, `getTexture` returns the grey fallback and the feature is switched off
+ * entirely (see `uBathyEnabled`), so the ocean simply stays as it was. The app
+ * never invents seafloor topography it does not have.
+ */
+export function hasTexture(id: TextureId): boolean {
+  return cache.has(id)
+}
+
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame === 'function') {
@@ -1297,10 +1466,16 @@ function nextFrame(): Promise<void> {
 
 /**
  * Maps that carry numbers rather than colour — a cloud-coverage mask, an ocean
- * roughness value — must not be gamma-decoded by the GPU on the way in, so they
- * are uploaded as raw data. Everything else is a photograph and is treated as sRGB.
+ * roughness value, and the elevation model that displaces Earth's surface —
+ * must not be gamma-decoded by the GPU on the way in, so they are uploaded as
+ * raw data. Everything else is a photograph and is treated as sRGB.
  */
-const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness']
+const DATA_MAPS: TextureId[] = [
+  'earthClouds',
+  'earthRoughness',
+  'earthHeightmap',
+  'earthBathymetry',
+]
 
 /**
  * How far the Milky Way panorama's exposure is lifted before it is uploaded (see
@@ -1309,23 +1484,63 @@ const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness']
  */
 const MILKY_WAY_GAMMA = 0.7
 
-function mapTexture(canvas: HTMLCanvasElement, id: TextureId): Texture {
-  return toTexture(canvas, DATA_MAPS.includes(id) ? NoColorSpace : SRGBColorSpace)
+/** Colour maps are photographs (sRGB); data maps carry numbers and must not be gamma-decoded. */
+function colorSpaceFor(id: TextureId): Texture['colorSpace'] {
+  return DATA_MAPS.includes(id) ? NoColorSpace : SRGBColorSpace
+}
+
+/** A decoded image or a freshly painted canvas — whatever a map is built from. */
+type MapSource = HTMLCanvasElement | HTMLImageElement
+
+/**
+ * Installs a freshly built map.
+ *
+ * When the map is being rebuilt for a new quality tier the existing texture
+ * object is updated in place rather than replaced. Every material, shader
+ * uniform and terrain uniform holds a *reference* to its texture, so swapping
+ * the image underneath keeps all of them valid and simply asks the GPU to
+ * re-upload — no scene remount, no new WebGL context, no camera reset.
+ */
+function commitMap(id: TextureId, source: MapSource): void {
+  const colorSpace = colorSpaceFor(id)
+  const existing = cache.get(id)
+  if (existing) {
+    existing.image = source
+    existing.colorSpace = colorSpace
+    // The GPU storage is sized to the image it was first uploaded from. On
+    // WebGL 2 three.js allocates immutable storage once and then uploads with
+    // `texSubImage2D`, so an in-place update would try to squeeze a larger map
+    // (say 8K) into the smaller allocation and quietly fail. Disposing drops the
+    // storage; the next frame re-creates it at the new size, and every material
+    // that holds this same texture object simply samples the new one.
+    existing.dispose()
+    existing.needsUpdate = true
+    return
+  }
+  cache.set(id, toTexture(source, colorSpace))
 }
 
 /**
  * Builds one map: the shipped real map when there is one, otherwise the painter.
  * Returns null only for ids that have neither (the derived ocean roughness).
  */
-async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuild): Promise<Texture | null> {
+async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuild): Promise<MapSource | null> {
   const source = TEXTURE_SOURCES[id]
   if (source) {
     try {
       const image = await loadImage(imageUrl(source.file))
-      const canvas = drawScaled(image, QUALITY_SCALE[quality])
-      if (id === 'earth') analyseEarth(canvas)
+      if (id === 'earth') analyseEarth(image, quality)
+      const width = textureUploadWidth(image.naturalWidth, quality, TEXTURE_MAX_WIDTH[id], maxTextureSize())
+      // When nothing has to be downscaled the decoded image is uploaded directly.
+      // That skips a full-size canvas copy — at Earth's 8K High tier it would be a
+      // 128 MB allocation — and, because some mobile browsers cap canvas area well
+      // below 8192×4096, it is also the safe way to spend a resolution the GPU
+      // advertises but the canvas would refuse. The Milky Way is the one map that
+      // must pass through a canvas, to have its exposure lifted.
+      if (width >= image.naturalWidth && id !== 'nebula') return image
+      const canvas = drawScaled(image, width)
       if (id === 'nebula') liftExposure(canvas, MILKY_WAY_GAMMA)
-      return mapTexture(canvas, id)
+      return canvas
     } catch (error) {
       // A missing or corrupt file is not worth failing a launch over: the painter
       // below produces the same body from noise instead.
@@ -1335,19 +1550,19 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
 
   if (id === 'earthRoughness') {
     if (earthWater) {
-      return mapTexture(roughnessFromWater(earthWater.mask, earthWater.width, earthWater.height), id)
+      return roughnessFromWater(earthWater.mask, earthWater.width, earthWater.height)
     }
     const land = sharedLandMask?.landMask
     if (land && shared.width > 0) {
       const mask = Float32Array.from(land, (value) => (value ? 0 : 1))
       const soft = soften(mask, shared.width, shared.height)
-      return mapTexture(roughnessFromWater(soft, shared.width, shared.height), id)
+      return roughnessFromWater(soft, shared.width, shared.height)
     }
-    return mapTexture(plainRoughness(256, 128), id)
+    return plainRoughness(256, 128)
   }
 
   const painter = PAINTER_BY_ID.get(id)
-  return painter ? mapTexture(painter.build(resolutionFor(id, quality), shared), id) : null
+  return painter ? painter.build(resolutionFor(id, quality), shared) : null
 }
 
 /**
@@ -1367,10 +1582,35 @@ export async function generateTextures(
     })
     // Yield first: the browser paints the updated progress bar before we block.
     await nextFrame()
-    const texture = await buildMap(id, quality, shared)
-    if (texture) cache.set(id, texture)
+    const source = await buildMap(id, quality, shared)
+    if (source) commitMap(id, source)
   }
   onProgress({ label: 'loading.ready', ratio: 1 })
+}
+
+/**
+ * Every map build runs through one single-flight queue (see `buildQueue.ts`):
+ * the preloader may ask for a quality twice (React's development double-render)
+ * or change its mind mid-build, and the queue collapses those into the one build
+ * that matters.
+ */
+const mapQueue = createBuildQueue<QualityLevel, TextureProgress>(generateTextures)
+
+/**
+ * The tier the current map set was built for, or null before the first build.
+ * The preloader uses it to tell the very first load (which owns the full loading
+ * screen) from a later rebuild (which must not unmount the scene).
+ */
+export function textureBuildQuality(): QualityLevel | null {
+  return mapQueue.built()
+}
+
+/** Builds the map set for `quality`, coalescing and superseding requests. */
+export function ensureTextures(
+  quality: QualityLevel,
+  onProgress: (progress: TextureProgress) => void,
+): Promise<void> {
+  return mapQueue.ensure(quality, onProgress)
 }
 
 /** Frees GPU memory. Only used when the whole experience is torn down. */
@@ -1381,4 +1621,5 @@ export function disposeTextures(): void {
   fallback = null
   earthWater = null
   sharedLandMask = null
+  mapQueue.reset()
 }

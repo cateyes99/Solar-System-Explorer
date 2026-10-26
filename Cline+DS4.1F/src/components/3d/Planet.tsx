@@ -9,13 +9,32 @@ import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
 import { bodyRadius, orbitRadiusFor, sceneFromEclipticKm } from '../../utils/scale'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
-import { getTexture } from '../../utils/textures'
+import { getTexture, hasTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { smoothstep } from '../../utils/random'
 import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
-import { SPHERE_LODS, sphereTierForApparentSize, createRingGeometry } from './geometry'
+import {
+  SPHERE_LODS,
+  sphereTierForApparentSize,
+  terrainTierForApparentSize,
+  createRingGeometry,
+} from './geometry'
+import {
+  SEAFLOOR_COLOR_BLEND,
+  SEAFLOOR_FRAGMENT_PARS,
+  SEAFLOOR_NORMAL_BUMP,
+  SEAFLOOR_ROUGHNESS_BLEND,
+  SEAFLOOR_VERTEX_DISPLACE,
+  SEAFLOOR_VERTEX_PARS,
+  TERRAIN_VERTEX_DISPLACE,
+  TERRAIN_VERTEX_PARS,
+  createTerrainUniforms,
+  seafloorDisplacement,
+  terrainDisplacement,
+  type SeafloorBinding,
+} from './terrain'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
 import { NightLights } from './NightLights'
@@ -99,6 +118,20 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const cloudCoverage = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthCloudCoverage : 0.5,
   )
+  // How much of the real elevation model is applied. Only a body that has one
+  // reads it, so every other world keeps the constant 0 and never re-renders.
+  const terrainRelief = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthTerrainRelief : 0,
+  )
+  // The seafloor has its own relief dial and its own seawater-opacity dial. Like
+  // the others, the selectors return inert constants for every other world, so
+  // only Earth re-renders when these move.
+  const seafloorRelief = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthSeafloorRelief : 0,
+  )
+  const seawaterOpacity = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthSeawaterOpacity : 1,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -141,9 +174,73 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
   // The sphere rung follows how large the body is on screen (see geometry.ts):
   // a distant speck needs few segments, a world filling the view needs many.
+  // A displaced surface climbs two rungs further, because relief needs vertices
+  // to live in and a sphere fine enough to keep a circle round is nowhere near
+  // fine enough to hold a mountain range.
   const [sphereTier, setSphereTier] = useState(0)
   const sphereTierRef = useRef(0)
-  const maxSphereTier = quality === 'low' ? 2 : 3
+  const maxSphereTier = visuals.terrain
+    ? quality === 'low'
+      ? 3
+      : quality === 'medium'
+        ? 4
+        : 5
+    : quality === 'low'
+      ? 2
+      : 3
+
+  /**
+   * The relief numbers for this frame's relief setting. `peakRadius` is what
+   * everything around the surface has to clear; `scale`/`bias` are the pair the
+   * material and the city lights apply to the height map.
+   */
+  const terrain = useMemo(
+    () => (visuals.terrain ? terrainDisplacement(visuals.terrain, terrainRelief) : null),
+    [visuals.terrain, terrainRelief],
+  )
+  /**
+   * The bump strength, which is not the same number as the displacement scale:
+   * three.js measures the shading slope against the surface's *view-space*
+   * position, so the height it compares against has to be in view-space units
+   * too. The mesh's own scale turns the object-space displacement into those
+   * units. (Because both sides scale with the planet, the shading looks the
+   * same whether Earth is drawn large or small.)
+   */
+  const bumpScale = terrain ? radius * terrain.scale : 0
+
+  /**
+   * The elevation model's shader uniforms. They are built once per body and
+   * shared with the city lights, so the glow lies on exactly the ground the
+   * surface is displaced to.
+   */
+  const terrainUniforms = useMemo(() => {
+    if (!visuals.terrain) return null
+    const state = useSimulationStore.getState()
+    // The seafloor is bound once and then dialled through its uniforms, so the
+    // sliders never rebuild the material or recompile the shader. A body without
+    // a bathymetry map simply gets `null` and the shader stays inert.
+    const seafloor: SeafloorBinding | null = visuals.seafloor
+      ? {
+          visuals: visuals.seafloor,
+          maps: {
+            bathymetry: getTexture(visuals.seafloor.bathymetryMapId),
+            // The water mask rides in the ocean roughness map's alpha channel.
+            waterMask: getTexture('earthRoughness'),
+            ramp: getTexture(visuals.seafloor.rampMapId),
+          },
+          relief: state.earthSeafloorRelief,
+          opacity: state.earthSeawaterOpacity,
+          enabled: hasTexture(visuals.seafloor.bathymetryMapId),
+        }
+      : null
+    return createTerrainUniforms(
+      visuals.terrain,
+      getTexture(visuals.terrain.heightMapId),
+      state.earthTerrainRelief,
+      visuals.textureOffsetU,
+      seafloor,
+    )
+  }, [visuals])
 
   const surfaceMaterial = useMemo(() => {
     const texture = getTexture(visuals.textureId)
@@ -154,11 +251,8 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     // are handed the same shift as a uniform instead (see `uvOffsetU` below).
     texture.offset.x = visuals.textureOffsetU
     if (visuals.roughnessMapId) getTexture(visuals.roughnessMapId).offset.x = visuals.textureOffsetU
-    return new MeshStandardMaterial({
+    const material = new MeshStandardMaterial({
       map: texture,
-      // Real maps double as relief: a darker texel sits lower than a bright one.
-      bumpMap: visuals.bumpScale ? texture : null,
-      bumpScale: visuals.bumpScale ?? 0,
       roughness: visuals.roughness,
       metalness: visuals.metalness,
       // Earth varies its roughness across the surface — glassy ocean, dusty land —
@@ -167,7 +261,88 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       emissive: new Color(visuals.accent),
       emissiveIntensity: 0,
     })
-  }, [visuals])
+
+    if (visuals.terrain && terrainUniforms) {
+      // The real thing: the ground is genuinely three-dimensional.
+      //
+      //  - **Shading** comes from the material's own bump map reading the same
+      //    elevation model. three.js takes the slope from the map's screen-space
+      //    gradient, so the relief is lit even where the mesh is too coarse to
+      //    hold it — which is what keeps the mountains visible from orbit.
+      //  - **Geometry** is displaced a few lines further down the vertex shader.
+      //    It is injected by hand rather than left to `material.displacementMap`
+      //    so that the surface and the city lights share one set of uniforms and
+      //    one definition of where the ground is.
+      const heightMap = terrainUniforms.map
+      heightMap.offset.x = visuals.textureOffsetU
+      material.bumpMap = heightMap
+      material.bumpScale = radius * terrainUniforms.uniforms.uTerrainScale.value
+      material.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, terrainUniforms.uniforms)
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            '#include <common>',
+            `#include <common>\n${TERRAIN_VERTEX_PARS}\n${SEAFLOOR_VERTEX_PARS}`,
+          )
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>\n${TERRAIN_VERTEX_DISPLACE}\n${SEAFLOOR_VERTEX_DISPLACE}`,
+          )
+        // The seafloor's colour and roughness blends only ever *add* to the
+        // standard shader: while the seawater is opaque (`uSeawaterOpacity` = 1)
+        // both branches are skipped and the surface is byte-for-byte what it was.
+        shader.fragmentShader = shader.fragmentShader
+          // The seafloor helpers read `vNormal` and `vViewPosition`, which the
+          // standard material declares in `normal_pars_fragment`; injecting after
+          // it (rather than after `common`) is what makes the view-aware water
+          // model possible.
+          .replace(
+            '#include <normal_pars_fragment>',
+            `#include <normal_pars_fragment>\n${SEAFLOOR_FRAGMENT_PARS}`,
+          )
+          .replace('#include <map_fragment>', `#include <map_fragment>\n${SEAFLOOR_COLOR_BLEND}`)
+          .replace(
+            '#include <roughnessmap_fragment>',
+            `#include <roughnessmap_fragment>\n${SEAFLOOR_ROUGHNESS_BLEND}`,
+          )
+          .replace(
+            '#include <normal_fragment_maps>',
+            `#include <normal_fragment_maps>\n${SEAFLOOR_NORMAL_BUMP}`,
+          )
+      }
+    } else {
+      // Everything else keeps the old trick: a real map doubles as relief,
+      // because a darker texel sits lower than a bright one.
+      material.bumpMap = visuals.bumpScale ? texture : null
+      material.bumpScale = visuals.bumpScale ?? 0
+    }
+    return material
+  }, [visuals, terrainUniforms])
+
+  // Relief is a live uniform, so moving the slider — or the scale preset, which
+  // changes how large the planet is drawn — retunes the mountains without
+  // rebuilding (and recompiling) the surface material.
+  useEffect(() => {
+    if (!terrain || !terrainUniforms) return
+    terrainUniforms.uniforms.uTerrainScale.value = terrain.scale
+    terrainUniforms.uniforms.uTerrainBias.value = terrain.bias
+    surfaceMaterial.bumpScale = bumpScale
+  }, [surfaceMaterial, terrain, terrainUniforms, bumpScale])
+
+  // The two seafloor dials are live uniforms too: dragging either slider is a
+  // couple of number writes, never a material rebuild. `uBathyEnabled` is
+  // re-checked so a late-arriving (or missing) bathymetry map is handled.
+  useEffect(() => {
+    if (!terrainUniforms || !visuals.seafloor) return
+    const { uniforms } = terrainUniforms
+    const floor = seafloorDisplacement(visuals.seafloor, seafloorRelief)
+    uniforms.uSeawaterOpacity.value = seawaterOpacity
+    uniforms.uSeafloorScale.value = floor.maxDepthRadius
+    // Like the land's `material.bumpScale`, the seafloor's bump strength is the
+    // object-space depth scaled by the planet's drawn radius.
+    uniforms.uSeafloorBumpScale.value = radius * floor.maxDepthRadius
+    uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
+  }, [terrainUniforms, visuals.seafloor, seawaterOpacity, seafloorRelief, radius])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)
@@ -236,8 +411,11 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       detailRef.current.visible = apparentSize > detailThreshold
     }
     // Match the sphere's tessellation to the body's apparent size so a close-up
-    // silhouette stays round. Only a threshold crossing re-renders React.
-    const wantedTier = sphereTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
+    // silhouette stays round — and, for a displaced surface, so the terrain has
+    // enough vertices to be there at all. Only a threshold crossing re-renders.
+    const wantedTier = visuals.terrain
+      ? terrainTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
+      : sphereTierForApparentSize(apparentSize, maxSphereTier, sphereTierRef.current)
     if (wantedTier !== sphereTierRef.current) {
       sphereTierRef.current = wantedTier
       setSphereTier(wantedTier)
@@ -309,6 +487,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
 
           {visuals.clouds ? (
             <Clouds
+              // The deck is a smooth shell, not a displaced surface: it is the
+              // weather *above* the ground, so it keeps the round sphere and is
+              // simply lifted clear of the highest terrain instead of following it.
               geometry={sphereGeometry}
               radius={radius}
               visuals={visuals.clouds}
@@ -319,6 +500,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               coverage={cloudCoverage}
               reducedMotion={reducedMotion}
               uvOffsetU={visuals.textureOffsetU}
+              shellLift={terrain?.peakRadius ?? 0}
             />
           ) : null}
         </group>
@@ -335,6 +517,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               visuals={visuals.atmosphere}
               sunPosition={SUN_POSITION}
               opacity={atmosphereOpacity}
+              shellLift={terrain?.peakRadius ?? 0}
             />
           ) : null}
           {visuals.nightLights ? (
@@ -344,6 +527,10 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
                 visuals={visuals.nightLights}
                 sunPosition={SUN_POSITION}
                 uvOffsetU={visuals.textureOffsetU}
+                // The lights are painted on the ground, so they ride the same
+                // displaced surface as the terrain instead of hovering over it.
+                geometry={sphereGeometry}
+                terrain={terrainUniforms}
               />
             </group>
           ) : null}

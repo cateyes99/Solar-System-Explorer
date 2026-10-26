@@ -7,7 +7,8 @@
   //
   // Every setting is optional. Anything missing, misspelled or out of range is
   // ignored and the built-in default is used instead, so the app always starts.
-  // The numbers are fractions from 0 (0%) to 1 (100%).
+  // The haze, cloud and opacity numbers are fractions from 0 (0%) to 1 (100%);
+  // the spacecraft size is a whole-number level from 1 to 100.
   //
   // The same values are also live in the UI: the sliders in the planet panel
   // and the two side-panel opacity sliders, so you can preview a change and
@@ -32,9 +33,35 @@
   // 1 = the liveliest.
   "Earth Cloud Dynamics": 0.5,
 
+  // --- Earth's terrain -----------------------------------------------------
+  // How much of the real elevation model (a global NASA / USGS height map) is
+  // applied to the surface itself. 0 = a smooth globe, 1 = the full vertical
+  // exaggeration (160x), which is what makes mountain ranges, plateaus and
+  // canyons stand out of the sphere. The relief is exaggerated because the true
+  // thing is only 0.14% of Earth's radius — a fraction of a pixel from orbit.
+  "Earth Terrain Relief": 0.25,
+
+  // --- Earth's seafloor ----------------------------------------------------
+  // How far the real seafloor is displaced below sea level, from 0 (a flat
+  // floor) to 1 (the full vertical exaggeration). This is independent of the
+  // land's "Earth Terrain Relief", so the drained ocean can be dialled in on its
+  // own. The depth comes from the public-domain ETOPO 2022 bathymetry grid.
+  "Earth Seafloor Relief": 0.4,
+  // How opaque the ocean is: 1 keeps the shipped ocean exactly as it looks, and
+  // 0 drains it to reveal the seafloor. It is a nominal visibility control, not
+  // a physical model of underwater light. The planet panel's slider is the live
+  // version of this value.
+  "Earth Seawater Opacity": 1,
+
   // --- Side panels ---------------------------------------------------------
   // Opacity of the left "Controls" panel and the right information panel.
   // 0 = invisible (its header controls stay usable), 1 = fully opaque.
   "SimulationControls Opacity": 0.75,
-  "PlanetPanel Opacity": 0.75
+  "PlanetPanel Opacity": 0.75,
+
+  // --- Spacecraft ----------------------------------------------------------
+  // The ship's size, as one of a hundred levels: 1 is the smallest (1% of the
+  // model) and 100 is the model's full size, with each level at n/100 of that
+  // size. 10 (10% of full size) is the default. The model itself never changes.
+  "Spacecraft Size": 10
 }

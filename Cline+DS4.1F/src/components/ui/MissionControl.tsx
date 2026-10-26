@@ -6,15 +6,16 @@ import { useSimulationStore } from '../../store/simulationStore'
 import { useMissionReadout } from '../../hooks/useMissionReadout'
 import { useFormatters } from '../../utils/format'
 import { kmPerUnit } from '../../utils/scale'
-import { Chip, DraggableSheet, SectionTitle, Stat, ToggleRow, ToolbarButton } from './primitives'
-import { RocketIcon } from './icons'
+import { Chip, DraggableSheet, IconButton, SectionTitle, Stat, ToggleRow, ToolbarButton } from './primitives'
+import { QuestionIcon, RocketIcon } from './icons'
 
 /**
  * Mission Control.
  *
  * Choose a destination and the autopilot flies the ship there; or switch the
- * autopilot off and fly it by hand with W/A/S/D, R to climb, F to dive and
- * Shift to boost. Live telemetry comes from the flight model at 5 Hz.
+ * autopilot off and fly it by hand — A/D turn left and right, R/F pitch the nose
+ * up and down, W/S thrust forward and back along the nose, and Shift boosts.
+ * Live telemetry comes from the flight model at 5 Hz.
  */
 export function MissionControl() {
   const { t, language } = useTranslation()
@@ -26,6 +27,11 @@ export function MissionControl() {
   const setDestination = useSimulationStore((state) => state.setDestination)
   const autopilot = useSimulationStore((state) => state.autopilot)
   const setAutopilot = useSimulationStore((state) => state.setAutopilot)
+  const chaseCamera = useSimulationStore((state) => state.chaseCamera)
+  const setChaseCamera = useSimulationStore((state) => state.setChaseCamera)
+  const chaseAutoFrame = useSimulationStore((state) => state.chaseAutoFrame)
+  const setChaseAutoFrame = useSimulationStore((state) => state.setChaseAutoFrame)
+  const toggleSpacecraftHelp = useSimulationStore((state) => state.toggleSpacecraftHelp)
   const showToast = useSimulationStore((state) => state.showToast)
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
@@ -59,7 +65,16 @@ export function MissionControl() {
               <h2 className="text-sm font-semibold uppercase tracking-[0.18em]">{t('mission.title')}</h2>
             </div>
           }
-          headerActions={<Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>}
+          headerActions={
+            <>
+              <Chip tone={readout.status === 'arrived' ? 'ice' : 'neutral'}>{statusLabel}</Chip>
+              <IconButton
+                label={t('mission.controlsHelp')}
+                icon={<QuestionIcon />}
+                onClick={() => toggleSpacecraftHelp(true)}
+              />
+            </>
+          }
         >
           <div className="mt-1 grid grid-cols-2 gap-2">
             <Stat
@@ -130,6 +145,21 @@ export function MissionControl() {
               checked={autopilot}
               onChange={() => setAutopilot(!autopilot)}
             />
+            <ToggleRow
+              label={t('mission.chaseCamera')}
+              description={t('mission.chaseCameraDesc')}
+              checked={chaseCamera}
+              onChange={() => setChaseCamera(!chaseCamera)}
+            />
+            {/* Only meaningful while the chase camera is on, so it appears with it. */}
+            {chaseCamera ? (
+              <ToggleRow
+                label={t('mission.chaseAutoFrame')}
+                description={t('mission.chaseAutoFrameDesc')}
+                checked={chaseAutoFrame}
+                onChange={() => setChaseAutoFrame(!chaseAutoFrame)}
+              />
+            ) : null}
           </div>
 
           <p className="mt-2 text-[0.68rem] leading-relaxed text-mist/80">{t('mission.manual')}</p>

@@ -12,6 +12,7 @@ import type {
   WhatIfId,
 } from '../types'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
+import { clampSpacecraftSize, DEFAULT_SPACECRAFT_SIZE } from '../utils/spacecraftSize'
 import { pickFact } from '../data/facts'
 import { findClosestSpeed, DEFAULT_SPEED_INDEX, TIME_SPEEDS } from '../data/missions'
 import { audio } from '../utils/audio'
@@ -32,8 +33,13 @@ export interface SettingsPatch {
   earthCloudCoverage?: number
   earthCloudOpacity?: number
   earthCloudDynamics?: number
+  earthTerrainRelief?: number
+  earthSeafloorRelief?: number
+  earthSeawaterOpacity?: number
   leftPanelOpacity?: number
   rightPanelOpacity?: number
+  /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
+  spacecraftSize?: number
 }
 
 export interface Toast {
@@ -50,9 +56,13 @@ interface UiState {
   factCardOpen: boolean
   welcomeVisible: boolean
   helpOpen: boolean
+  /** Mission Control's own "Spacecraft controls" popup. */
+  spacecraftHelpOpen: boolean
   /** The left (controls) and right (information) side panels fold away independently. */
   leftPanelCollapsed: boolean
   rightPanelCollapsed: boolean
+  /** The bottom time-and-travel console folds away on its own too. */
+  bottomBarCollapsed: boolean
   /** 0…1 opacity of each side panel's body (its header controls never fade). */
   leftPanelOpacity: number
   rightPanelOpacity: number
@@ -78,6 +88,16 @@ export interface SimulationState {
   cameraMode: CameraMode
   followTargetId: FocusTargetId | null
   cameraRequest: CameraRequest | null
+  /**
+   * When true, following the spacecraft keeps the view behind its nose instead
+   * of holding a fixed world-space offset. Only affects the ship, never planets.
+   */
+  chaseCamera: boolean
+  /**
+   * When true (and the chase camera is on), engaging the chase flies the camera
+   * in to a close, framed distance once, then leaves the zoom to the user.
+   */
+  chaseAutoFrame: boolean
 
   /* Layers */
   showOrbits: boolean
@@ -107,6 +127,26 @@ export interface SimulationState {
    * near-continuous sheet. Only Earth has clouds, so only Earth reads it.
    */
   earthCloudCoverage: number
+  /**
+   * How much of Earth's real elevation model is applied: 0 = a smooth globe,
+   * 1 = the full vertical exaggeration. Earth is the only body with a terrain
+   * model, so no other body reads it. See `TerrainVisuals` for the exaggeration
+   * it scales.
+   */
+  earthTerrainRelief: number
+  /**
+   * How far the real seafloor is displaced below sea level: 0 = a flat floor,
+   * 1 = the full vertical exaggeration. It is deliberately separate from
+   * `earthTerrainRelief`, so the drained ocean can be dialled in on its own.
+   * Earth is the only body with a bathymetry model, so no other body reads it.
+   */
+  earthSeafloorRelief: number
+  /**
+   * How opaque Earth's ocean is: 1 = fully opaque (the shipped look), 0 = the
+   * ocean is drained and the seafloor is revealed. A *nominal* visibility
+   * control, not a physical model of underwater light (see `utils/seawater.ts`).
+   */
+  earthSeawaterOpacity: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -124,6 +164,8 @@ export interface SimulationState {
   missionActive: boolean
   destinationId: BodyId | null
   autopilot: boolean
+  /** The ship's size level, 1…100. Level 100 is the model's authored size. */
+  spacecraftSize: number
 
   /* Settings */
   soundEnabled: boolean
@@ -145,6 +187,12 @@ export interface SimulationState {
   assetsProgress: number
   assetsLabel: string
   ready: boolean
+  /**
+   * True while the surface maps are being rebuilt for a new quality tier. The
+   * scene stays mounted throughout (only the maps are swapped), so this drives
+   * the loading overlay without unmounting the canvas.
+   */
+  rebuilding: boolean
 }
 
 export interface SimulationActions {
@@ -162,6 +210,8 @@ export interface SimulationActions {
   focusBody: (id: FocusTargetId, mode?: CameraMode, distanceScale?: number) => void
   resetView: () => void
   setCameraMode: (mode: CameraMode) => void
+  setChaseCamera: (enabled: boolean) => void
+  setChaseAutoFrame: (enabled: boolean) => void
 
   toggleOrbits: () => void
   toggleLabels: () => void
@@ -172,6 +222,9 @@ export interface SimulationActions {
   setEarthCloudOpacity: (value: number) => void
   setEarthCloudDynamics: (value: number) => void
   setEarthCloudCoverage: (value: number) => void
+  setEarthTerrainRelief: (value: number) => void
+  setEarthSeafloorRelief: (value: number) => void
+  setEarthSeawaterOpacity: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -211,15 +264,19 @@ export interface SimulationActions {
   clearToast: () => void
   dismissWelcome: () => void
   toggleHelp: (open?: boolean) => void
+  /** Opens or closes Mission Control's "Spacecraft controls" popup. */
+  toggleSpacecraftHelp: (open?: boolean) => void
   openSettings: (open?: boolean) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
+  toggleBottomBar: () => void
   setLeftPanelOpacity: (value: number) => void
   setRightPanelOpacity: (value: number) => void
 
   setWebglSupported: (supported: boolean) => void
   setAssetsProgress: (progress: number, label: string) => void
   setReady: (ready: boolean) => void
+  setRebuilding: (rebuilding: boolean) => void
 }
 
 export type SimulationStore = SimulationState & SimulationActions
@@ -247,6 +304,8 @@ const initialState: SimulationState = {
   cameraMode: 'system',
   followTargetId: null,
   cameraRequest: null,
+  chaseCamera: false,
+  chaseAutoFrame: true,
 
   showOrbits: true,
   showLabels: true,
@@ -266,6 +325,16 @@ const initialState: SimulationState = {
   earthCloudDynamics: 0.5,
   // Half the sky filled by default: a balanced mix of clear and cloudy regions.
   earthCloudCoverage: 0.5,
+  // Half the maximum vertical exaggeration — the default a relief globe would
+  // ship with: mountains read clearly from orbit without turning Earth into a
+  // pincushion when the camera comes close.
+  earthTerrainRelief: 0.5,
+  // A touch less than the land's default, so a drained ocean reads as deep
+  // basins and long ridges rather than a pincushion.
+  earthSeafloorRelief: 0.4,
+  // Fully opaque by default: the ocean looks exactly as it always has until the
+  // viewer chooses to drain it.
+  earthSeawaterOpacity: 1,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -281,8 +350,10 @@ const initialState: SimulationState = {
     factCardOpen: false,
     welcomeVisible: true,
     helpOpen: false,
+    spacecraftHelpOpen: false,
     leftPanelCollapsed: false,
     rightPanelCollapsed: false,
+    bottomBarCollapsed: false,
     leftPanelOpacity: 1,
     rightPanelOpacity: 1,
   },
@@ -291,6 +362,7 @@ const initialState: SimulationState = {
   missionActive: false,
   destinationId: 'earth',
   autopilot: false,
+  spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
 
   soundEnabled: false,
   volume: 0.4,
@@ -308,6 +380,7 @@ const initialState: SimulationState = {
   assetsProgress: 0,
   assetsLabel: 'loading.preparing',
   ready: false,
+  rebuilding: false,
 }
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   ...initialState,
@@ -375,6 +448,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       followTargetId: mode === 'follow' ? (state.followTargetId ?? state.selectedId) : null,
     })),
 
+  // Turning the chase camera on always re-engages the ship while a mission is
+  // active. The switch is the reliable way back to tracking after any camera
+  // change — "return to the full Solar System view" (R) or focusing another
+  // body — because those leave the camera pointed somewhere else while the flag
+  // stays on. `followTargetId` cannot be trusted here: focusing a body with a
+  // non-follow mode keeps the previous target, so it does not mean "following".
+  setChaseCamera: (enabled) =>
+    set((state) => {
+      if (!enabled) return { chaseCamera: false }
+      if (!state.missionActive) return { chaseCamera: true }
+      return { chaseCamera: true, cameraMode: 'follow', followTargetId: 'spacecraft' }
+    }),
+
+  setChaseAutoFrame: (enabled) => set({ chaseAutoFrame: enabled }),
+
   toggleOrbits: () => set((state) => ({ showOrbits: !state.showOrbits })),
   toggleLabels: () => set((state) => ({ showLabels: !state.showLabels })),
   toggleAsteroidBelt: () => set((state) => ({ showAsteroidBelt: !state.showAsteroidBelt })),
@@ -392,6 +480,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthCloudCoverage: (value) =>
     set({ earthCloudCoverage: Math.max(0, Math.min(1, value)) }),
+
+  setEarthTerrainRelief: (value) =>
+    set({ earthTerrainRelief: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSeafloorRelief: (value) =>
+    set({ earthSeafloorRelief: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSeawaterOpacity: (value) =>
+    set({ earthSeawaterOpacity: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')
@@ -426,8 +523,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         factCardOpen: false,
         welcomeVisible: false,
         helpOpen: false,
+        spacecraftHelpOpen: false,
         leftPanelCollapsed: false,
         rightPanelCollapsed: false,
+        bottomBarCollapsed: false,
         leftPanelOpacity: 1,
         rightPanelOpacity: 1,
       },
@@ -490,7 +589,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     audio.play('click')
     set((state) => ({
       missionActive: true,
-      autopilot: false,
+      // A mission starts on autopilot (see Spacecraft), so the switch opens ON.
+      autopilot: true,
       cameraMode: 'follow',
       followTargetId: 'spacecraft',
       ui: { ...state.ui, welcomeVisible: false, factCardOpen: false },
@@ -504,7 +604,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       cameraMode: 'system',
       followTargetId: null,
       selectedId: null,
-      ui: { ...state.ui, welcomeVisible: false, factCardOpen: false },
+      ui: { ...state.ui, welcomeVisible: false, factCardOpen: false, spacecraftHelpOpen: false },
     }))
     get().resetView()
   },
@@ -550,6 +650,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthCloudCoverage: clamp01(patch.earthCloudCoverage, state.earthCloudCoverage),
       earthCloudOpacity: clamp01(patch.earthCloudOpacity, state.earthCloudOpacity),
       earthCloudDynamics: clamp01(patch.earthCloudDynamics, state.earthCloudDynamics),
+      earthTerrainRelief: clamp01(patch.earthTerrainRelief, state.earthTerrainRelief),
+      earthSeafloorRelief: clamp01(patch.earthSeafloorRelief, state.earthSeafloorRelief),
+      earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
+      spacecraftSize: clampSpacecraftSize(patch.spacecraftSize ?? state.spacecraftSize),
       ui: {
         ...state.ui,
         leftPanelOpacity: clamp01(patch.leftPanelOpacity, state.ui.leftPanelOpacity),
@@ -590,6 +694,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   toggleHelp: (open) => set((state) => ({ ui: { ...state.ui, helpOpen: open ?? !state.ui.helpOpen } })),
 
+  toggleSpacecraftHelp: (open) =>
+    set((state) => ({ ui: { ...state.ui, spacecraftHelpOpen: open ?? !state.ui.spacecraftHelpOpen } })),
+
   openSettings: (open) =>
     set((state) => ({
       ui: {
@@ -607,6 +714,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   toggleRightPanel: () =>
     set((state) => ({ ui: { ...state.ui, rightPanelCollapsed: !state.ui.rightPanelCollapsed } })),
 
+  toggleBottomBar: () =>
+    set((state) => ({ ui: { ...state.ui, bottomBarCollapsed: !state.ui.bottomBarCollapsed } })),
+
   setLeftPanelOpacity: (value) =>
     set((state) => ({
       ui: { ...state.ui, leftPanelOpacity: Math.max(0, Math.min(1, value)) },
@@ -620,6 +730,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setWebglSupported: (webglSupported) => set({ webglSupported }),
   setAssetsProgress: (assetsProgress, assetsLabel) => set({ assetsProgress, assetsLabel }),
   setReady: (ready) => set({ ready }),
+  setRebuilding: (rebuilding) => set({ rebuilding }),
 }))
 
 /** Current simulation speed in days per second, including direction. */

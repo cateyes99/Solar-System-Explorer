@@ -207,6 +207,12 @@ interface CloudsProps {
   reducedMotion: boolean
   /** Longitude shift applied to the surface, in UV turns (matches the day map). */
   uvOffsetU?: number
+  /**
+   * Extra height for the cloud shell, in planet radii, on top of the deck's own
+   * 1.2%. Earth's surface is displaced by real relief, so the deck has to clear
+   * the highest ground rather than the mean radius.
+   */
+  shellLift?: number
 }
 
 export function Clouds({
@@ -220,6 +226,7 @@ export function Clouds({
   coverage,
   reducedMotion,
   uvOffsetU = 0,
+  shellLift = 0,
 }: CloudsProps) {
   const meshRef = useRef<Mesh>(null)
 
@@ -276,5 +283,7 @@ export function Clouds({
     }
   })
 
-  return <mesh ref={meshRef} geometry={geometry} material={material} scale={radius * 1.012} />
+  return (
+    <mesh ref={meshRef} geometry={geometry} material={material} scale={radius * (1.012 + shellLift)} />
+  )
 }

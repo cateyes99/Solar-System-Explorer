@@ -6,9 +6,12 @@ export type TextureId =
   | 'mercury'
   | 'venus'
   | 'earth'
+  | 'earthHeightmap'
+  | 'earthBathymetry'
   | 'earthClouds'
   | 'earthNight'
   | 'earthRoughness'
+  | 'seafloorRamp'
   | 'mars'
   | 'jupiter'
   | 'saturn'
@@ -48,6 +51,114 @@ export interface NightLightsVisuals {
   intensity: number
   color: string
 }
+
+/**
+ * Real terrain relief, driven by a global digital elevation model.
+ *
+ * Only Earth has one. The map is an equirectangular 8-bit grayscale height
+ * field, and the four numbers below are what turn those texels back into
+ * metres — the two texel values that mean "sea level" and "the highest land",
+ * and the real height of that land. Everything else (the displacement, the
+ * shading normals, how far above the surface the cloud deck has to sit) is
+ * derived from them, so a different DEM only needs a new file and a new
+ * encoding here.
+ */
+export interface TerrainVisuals {
+  heightMapId: TextureId
+  /** The texel value (0…1) that means sea level in this map. */
+  seaLevelTexel: number
+  /** The texel value (0…1) that means the highest land in this map. */
+  peakTexel: number
+  /** How high that highest land really is, in metres. */
+  peakElevationM: number
+  /**
+   * Vertical exaggeration applied at the full "Terrain relief" setting. The
+   * true relief is 0.14% of Earth's radius, which is a fraction of a pixel on
+   * a globe that fills the screen, so relief globes have always stretched it;
+   * this is the stretch, and the UI says so.
+   */
+  maxExaggeration: number
+}
+
+/**
+ * Real seafloor depth, driven by a global bathymetry grid.
+ *
+ * Only Earth has one. The map is an equirectangular 8-bit grayscale *depth*
+ * field — **0 is sea level and 255 is `maxDepthMeters` deep** — built from the
+ * public-domain ETOPO 2022 60″ relief model by `tools/fetch-bathymetry.mjs`.
+ * The stored value is not linear in depth: it is a `depthExponent` curve
+ * (`depth = maxDepthMeters · (texel / maxTexel) ^ depthExponent`, with
+ * `depthExponent = 2`), so the shallow continental shelves get most of the
+ * levels and the abyssal plains share the rest. The shader in
+ * `components/3d/terrain.ts` inverts that curve.
+ *
+ * The "Seawater opacity" slider reveals the floor: 100% leaves the ocean exactly
+ * as it was (the floor is neither displaced nor coloured), and 0% drains it. The
+ * relationship is a deliberate, documented *nominal visibility* factor — see the
+ * hint text in the planet panel — not a physical model of underwater light.
+ */
+export interface SeafloorVisuals {
+  /** The depth field (grayscale, equirectangular, aligned with the day map). */
+  bathymetryMapId: TextureId
+  /** A 1-D colour ramp sampled by normalised depth (0 shallow → 1 deepest). */
+  rampMapId: TextureId
+  /** The texel value (0…1) that means sea level. */
+  seaLevelTexel: number
+  /** The texel value (0…1) that means `maxDepthMeters` deep. */
+  maxTexel: number
+  /** The depth (metres, positive downward) that `maxTexel` stands for. */
+  maxDepthMeters: number
+  /** `depth = maxDepth · (texel / maxTexel) ^ depthExponent`. 2 = a sqrt curve. */
+  depthExponent: number
+  /** Vertical exaggeration applied at the full "Seafloor relief" setting. */
+  maxExaggeration: number
+  /** How matte the drained seafloor reads (0 = mirror, 1 = fully rough). */
+  roughness: number
+  /**
+   * The water's per-channel Beer–Lambert extinction (R, G, B), at full opacity
+   * and a straight-down view. Red is absorbed first — which is why deep water
+   * reads blue — and the whole scale is deliberately compressed so the seafloor
+   * stays visible through it. It is a *visual* model, not a calibrated optical
+   * one, and it has no effect at 100% (opaque ocean) or 0% (fully drained).
+   */
+  absorption: [number, number, number]
+  /**
+   * The colour light takes on as it scatters through the water column — what the
+   * floor fades toward where the water is deep, or seen at a grazing angle.
+   */
+  waterTint: string
+  /**
+   * The reveal curve's exponent: the floor's visibility is
+   * `(1 − opacity) ^ revealGamma`, applied to *both* the geometry and the colour
+   * so they stay in step.
+   *
+   * 1 is the plain inverse-linear relationship; below 1 reveals the floor faster
+   * in the middle of the slider, so a half-drained ocean already reads as
+   * drained. It is a presentation curve, not physics — the note on the panel
+   * says the slider is not a model of real underwater visibility.
+   */
+  revealGamma: number
+}
+
+/**
+ * The seafloor's depth ramp, shallow (0) to deepest (1).
+ *
+ * A cool bathymetric palette — a pale shelf, a mid-blue slope, a near-black
+ * trench. Most of the ocean sits between 3,000 m and 6,000 m, so the stops are
+ * packed into the middle of the range (0.27…0.55) to keep the abyssal plains,
+ * the mid-ocean ridges and the fracture zones visually distinct.
+ */
+export const SEAFLOOR_RAMP: [number, string][] = [
+  [0, '#d9c9a0'],
+  [0.05, '#b9b492'],
+  [0.12, '#7fa294'],
+  [0.22, '#46889f'],
+  [0.35, '#2a6c90'],
+  [0.5, '#1b5075'],
+  [0.68, '#113a5a'],
+  [0.85, '#0a2740'],
+  [1, '#04121f'],
+]
 
 export interface RingVisuals {
   textureId: TextureId
@@ -117,6 +228,17 @@ export interface BodyVisuals {
   flattening?: number
   /** Rotation offset so features (like the Great Red Spot) face nicely at start. */
   textureOffsetU: number
+  /**
+   * Real elevation data, when the body has any. Present only for Earth, whose
+   * surface is genuinely displaced by a global DEM instead of being a smooth
+   * sphere (see `TerrainVisuals`).
+   */
+  terrain?: TerrainVisuals
+  /**
+   * Real seafloor depth, when the body has any. Present only for Earth (see
+   * `SeafloorVisuals`); revealed by the "Seawater opacity" slider.
+   */
+  seafloor?: SeafloorVisuals
   atmosphere?: AtmosphereVisuals
   clouds?: CloudVisuals
   nightLights?: NightLightsVisuals
@@ -179,7 +301,38 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     roughness: 1,
     metalness: 0,
     roughnessMapId: 'earthRoughness',
-    bumpScale: 0.008,
+    // Earth has no `bumpScale`: its relief is real, so it comes from the
+    // elevation model below rather than from a fake shading trick on the map.
+    //
+    // The DEM is the NASA / USGS SRTM–GTOPO30 height field, normalised to 8-bit
+    // grayscale. In that normalisation sea level is texel 12 and the highest
+    // land — Everest, 8,848 m — is texel 218, which is what the two texel
+    // values below record.
+    terrain: {
+      heightMapId: 'earthHeightmap',
+      seaLevelTexel: 12 / 255,
+      peakTexel: 218 / 255,
+      peakElevationM: 8_848,
+      maxExaggeration: 160,
+    },
+    // The seafloor, from the public-domain ETOPO 2022 60″ bathymetry grid (see
+    // `tools/fetch-bathymetry.mjs`). Texel 0 is sea level and 255 is 11,000 m
+    // deep, on a square-root curve so the shallow shelves keep their detail.
+    // Its own relief slider (independent of "Terrain relief") sets the
+    // exaggeration, so the drained ocean can be dialled in on its own.
+    seafloor: {
+      bathymetryMapId: 'earthBathymetry',
+      rampMapId: 'seafloorRamp',
+      seaLevelTexel: 0,
+      maxTexel: 1,
+      maxDepthMeters: 11_000,
+      depthExponent: 2,
+      maxExaggeration: 160,
+      roughness: 0.92,
+      absorption: [3.4, 1.7, 1],
+      waterTint: '#0a2b4d',
+      revealGamma: 0.65,
+    },
     flattening: 0.00335,
     textureOffsetU: 0.55,
     atmosphere: {

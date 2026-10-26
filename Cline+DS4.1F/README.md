@@ -22,6 +22,7 @@ npm run dev        # start the dev server (http://localhost:5173)
 npm run build      # type-check and build for production (output in dist/)
 npm run preview    # serve the production build (http://localhost:4173)
 npm run typecheck  # TypeScript only, no build
+npm test           # run the unit tests (Node's built-in runner)
 ```
 
 Node.js 20.19+ (or 22.12+) is required by Vite 8. The 3D scene needs **WebGL 2**; if it is
@@ -60,8 +61,12 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 **Fly**
 
 - **Mission Control**: pick a destination, let the autopilot cruise there, or switch the autopilot
-  off and fly the spacecraft yourself (W/A/S/D, R to climb, F to dive, Shift to boost) with live
-  telemetry.
+  off and fly the spacecraft yourself — `A`/`D` turn left and right, `R`/`F` pitch the nose up and
+  down, `W`/`S` thrust forward and back along the nose, and `Shift` boosts. Turning and thrust build
+  up smoothly the longer a key is held, and movement always follows the ship's own heading rather
+  than the screen. A **Chase camera** switch (off by default) keeps the view easing round behind the
+  nose as you turn, and its **Auto framing** option holds a close, fixed distance behind the ship
+  while it is on (turn it off to zoom freely). Live telemetry updates as you fly.
 
 **Hidden fun**
 
@@ -89,7 +94,13 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 | `M` | Mute / unmute |
 | `S` | Settings |
 | `H` | Help (the full list is also in the app) |
-| `W A S D` `R` `F` `Shift` | Fly the spacecraft |
+| `W` `S` | Spacecraft: thrust forward / back |
+| `A` `D` | Spacecraft: turn left / right |
+| `R` `F` | Spacecraft: pitch the nose up / down |
+| `Shift` | Spacecraft: boost |
+
+While you are flying the spacecraft by hand, the ship's keys take priority over the global
+shortcuts above, so `S` will not open Settings and `R` will not reset the view mid-turn.
 
 Every control is also reachable with a mouse or a finger, has a visible focus ring, an accessible
 name and a 44 px touch target on phones.
@@ -160,9 +171,10 @@ src/
   store/      simulationStore.ts — one Zustand store for all shared UI state
   utils/      astronomy.ts (Keplerian positions) · scale.ts (the four scale modes)
               textures.ts (map loader + procedural painters) · textureSources.ts
-              (where each real map comes from) · simulationClock.ts
-              spacecraftSim.ts · bodyRegistry.ts · audio.ts · format.ts
-              input.ts · random.ts · webgl.ts
+              (where each real map comes from) · textureResolution.ts (how much of
+              each map reaches the GPU) · buildQueue.ts (single-flight map builds)
+              simulationClock.ts · spacecraftSim.ts · bodyRegistry.ts · audio.ts
+              format.ts · input.ts · random.ts · webgl.ts
   hooks/      useSimulationTime · useMissionReadout · useAssetPreloader
               useKeyboardControls
   components/
@@ -176,7 +188,7 @@ src/
               Overlays · primitives · icons
   scenes/     SolarSystemScene.tsx — the Canvas, lighting and quality tiers
 public/
-  textures/   Real map data (equirectangular 2:1) + CREDITS.md
+  textures/   Real map data (equirectangular 2:1; Earth's day + night at 8K) + CREDITS.md
 tools/
   fetch-textures.mjs — re-downloads the maps and rewrites CREDITS.md
 ```
@@ -186,6 +198,11 @@ A few decisions worth knowing about:
 - **Data is separate from presentation.** Every number shown in the UI comes from `src/data`; a
   component never hard-codes a fact. Adding a new world means adding an entry (and, if it needs one,
   a visual recipe).
+- **Tunable settings live in one file.** `public/config.jsonc` (JSON with comments) holds the display
+  language, Earth's haze and clouds, the two side-panel opacities and the spacecraft size — a hundred
+  levels from 1 (1% of the model) to 100 (full size), defaulting to 10. It is fetched and
+  validated before the first render, so a missing file or a bad value can never stop the app
+  starting.
 - **Two kinds of state.** Anything the interface *renders* lives in the Zustand store. Anything that
   changes every frame (the clock, the spacecraft) lives in a plain mutable module singleton that the
   render loop reads and the HUD samples about five times a second. Orbiting planets never re-render
@@ -198,9 +215,26 @@ A few decisions worth knowing about:
 - **Real maps, baked in.** `public/textures` holds real equirectangular map data — NASA / JPL /
   USGS imagery via Solar System Scope, CC BY 4.0, listed in `public/textures/CREDITS.md` — and
   `utils/textures.ts` decodes it into GPU textures before the scene mounts, reporting progress on
-  the loading screen. Whatever has no real counterpart (the Sun's corona, the star and comet
-  sprites, Earth's ocean-roughness map, Uranus's ring strip) is still painted procedurally, and if
-  a file is ever missing the same painter covers for it, so no world can render blank.
+  the loading screen. Earth's day and night maps are kept at full 8K (8192×4096): they are the maps a
+  viewer inspects most closely — coastlines and terrain by day, city lights by night — and the
+  terrain relief only makes their limits more obvious. Whatever has no real counterpart (the Sun's
+  corona, the star and comet sprites, Earth's ocean-roughness map, Uranus's ring strip) is still
+  painted procedurally, and if a file is ever missing the same painter covers for it, so no world
+  can render blank.
+- **Resolution is spent where it is seen.** `utils/textureResolution.ts` decides how much of each
+  source reaches the GPU: a tier's fraction of the source (High = full, Medium = half, Low =
+  quarter), reduced by any per-map ceiling and never above the driver's `MAX_TEXTURE_SIZE`. Earth's
+  8K day and night maps therefore upload at 8K on High, 4K on Medium and 2K on Low, while the
+  ocean-roughness mask derived from the day map is analysed at 2K regardless, so an 8K surface never
+  turns into a quarter of a gigabyte of scratch memory. Mipmaps and the driver's best anisotropic
+  filtering keep every zoom level clean.
+- **Changing quality rebuilds the maps live.** The Graphics-quality buttons are not just a geometry
+  setting: they rebuild the surface maps at the new resolution. The maps are swapped *in place* —
+  every material, shader uniform and terrain uniform holds a reference to its texture, so updating
+  the image underneath keeps them all valid — which means no scene remount, no new WebGL context and
+  no camera reset. A single-flight queue (`utils/buildQueue.ts`) collapses React's development
+  double-render and rapid clicks into the one build that matters, and the performance monitor treats
+  the rebuild as start-up so it cannot drop the tier the viewer just chose.
 - **Measured, not guessed.** Every material setting comes from a measurement rather than a taste:
   the IAU polar flattening squashes Jupiter (6.5%) and Saturn (9.8%), the ring discs begin and end
   at the published ring radii, the Sun's disc is dimmed toward the limb by the Eddington
@@ -208,9 +242,10 @@ A few decisions worth knowing about:
   puts a sun glint on the real planet.
 - **Quality is adaptive — and recoverable.** A performance monitor inside the scene reduces star, rock
   and segment counts (and drops post-processing) when the frame rate stays low, but it ignores the
-  start-up warm-up, never climbs above the default look on its own, and steps back up as soon as the
-  machine proves comfortable — so a brief dip can no longer leave the scene permanently darker.
-  Lighting is never part of the trade: the Sun burns just as brightly at every tier.
+  start-up warm-up and any map rebuild, never climbs above the default look on its own, and never
+  overrules a viewer who deliberately chose High — so a brief dip can no longer leave the scene
+  permanently darker. Lighting is never part of the trade: the Sun burns just as brightly at every
+  tier.
 - **Failure is graceful.** WebGL 2 is probed before the scene is created; if it is unavailable (or the
   context is lost later) a React error boundary swaps in a 2D orrery built from the same data.
 
@@ -218,6 +253,16 @@ A few decisions worth knowing about:
 
 - `npm run typecheck` and `npm run build` are clean (strict TypeScript, no `any` in application code;
   about 1.5 MB of JavaScript, 420 kB gzipped, including three.js).
+- The texture-resolution policy is unit-tested (`npm test`): Earth's 8K day and night maps upload at
+  8K / 4K / 2K by tier, are clamped to the driver's maximum texture size, and the elevation model's
+  own ceiling still applies.
+- The single-flight build queue is unit-tested too: duplicate requests share one build, a request
+  that arrives mid-build supersedes the one in flight, rapid changes collapse to the newest target,
+  a failed build is not cached, and `reset` starts over.
+- The 8K day map was checked against the 2K it replaced: its best alignment is a zero-pixel shift at
+  42 dB PSNR — the same projection and longitude origin, so it lines up with the terrain and every
+  texture offset — and it carries about 2.4× the fine detail of a 4× upscale of the 2K, so it is
+  genuinely higher resolution rather than enlarged.
 - The shipped build was driven through headless Chrome in WebGL 2 (SwiftShader) with an empty console:
   startup and the quick-travel HUD, planet selection and the information panel, the cinematic tour,
   every lesson, the What If experiments, Mission Control, the desktop HUD and the phone layout.
