@@ -292,7 +292,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
         // standard shader: while the seawater is opaque (`uSeawaterOpacity` = 1)
         // both branches are skipped and the surface is byte-for-byte what it was.
         shader.fragmentShader = shader.fragmentShader
-          .replace('#include <common>', `#include <common>\n${SEAFLOOR_FRAGMENT_PARS}`)
+          // The seafloor helpers read `vNormal` and `vViewPosition`, which the
+          // standard material declares in `normal_pars_fragment`; injecting after
+          // it (rather than after `common`) is what makes the view-aware water
+          // model possible.
+          .replace(
+            '#include <normal_pars_fragment>',
+            `#include <normal_pars_fragment>\n${SEAFLOOR_FRAGMENT_PARS}`,
+          )
           .replace('#include <map_fragment>', `#include <map_fragment>\n${SEAFLOOR_COLOR_BLEND}`)
           .replace(
             '#include <roughnessmap_fragment>',

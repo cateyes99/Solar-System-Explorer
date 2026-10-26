@@ -173,7 +173,7 @@ export const en = {
   'planet.seafloorHint': '100% = the usual ocean',
   'planet.seawaterOpacity': 'Seawater opacity',
   'planet.seawaterOpacityHint':
-    'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
+    'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
   'planet.seafloorRelief': 'Seafloor relief',
   'planet.seafloorReliefHint':
     'How far the seafloor is pushed down out of the globe. The real ocean is only about 0.17% of Earth’s radius deep, so the drop is exaggerated to make the topography visible; this slider sets how much, independently of the land’s relief.',

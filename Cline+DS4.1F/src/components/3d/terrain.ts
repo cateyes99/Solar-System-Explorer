@@ -1,3 +1,4 @@
+import { Color, Vector3 } from 'three'
 import type { Texture } from 'three'
 import type { SeafloorVisuals, TerrainVisuals } from '../../data/visuals'
 import { EARTH_RADIUS_M, seafloorDepthRadius } from '../../utils/seawater'
@@ -98,7 +99,10 @@ export interface TerrainUniforms {
     uSeawaterOpacity: { value: number }
     uSeafloorRoughness: { value: number }
     uSeafloorBumpScale: { value: number }
-    uSeafloorAbsorption: { value: number }
+    /** Per-channel Beer–Lambert extinction (linear RGB). */
+    uSeafloorAbsorption: { value: Vector3 }
+    /** The colour the water column scatters toward. */
+    uSeafloorWaterTint: { value: Color }
     uBathyEnabled: { value: number }
   }
 }
@@ -151,7 +155,12 @@ export function createTerrainUniforms(
       // The bump strength needs the planet's drawn radius, which only the caller
       // knows, so it is set alongside `material.bumpScale` (see `Planet.tsx`).
       uSeafloorBumpScale: { value: 0 },
-      uSeafloorAbsorption: { value: seafloor?.visuals.absorption ?? 0 },
+      uSeafloorAbsorption: {
+        value: seafloor
+          ? new Vector3(...seafloor.visuals.absorption)
+          : new Vector3(0, 0, 0),
+      },
+      uSeafloorWaterTint: { value: new Color(seafloor?.visuals.waterTint ?? '#000000') },
       uBathyEnabled: { value: seafloor?.enabled ? 1 : 0 },
     },
   }
@@ -212,21 +221,39 @@ uniform float uSeafloorExponent;
 uniform float uSeawaterOpacity;
 uniform float uSeafloorRoughness;
 uniform float uSeafloorBumpScale;
-uniform float uSeafloorAbsorption;
+uniform vec3 uSeafloorAbsorption;
+uniform vec3 uSeafloorWaterTint;
 uniform float uBathyEnabled;
 uniform float uTerrainUvOffset;
 varying vec2 vSeaUv;
 
-// How much of the seafloor shows through at this fragment: 0 hidden (land, or a
-// fully opaque ocean), 1 fully revealed. The water mask's alpha is 1 over water.
-// The absorption term makes deeper water hold its floor a little longer as the
-// ocean drains, but it is exactly 1 at opacity 0 — so 0% always reveals
-// everything, and 100% reveals nothing.
+// The depth fraction at a seafloor UV: 0 at sea level, 1 at the deepest point.
+float seafloorDepthAt(vec2 seaUv) {
+  return pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
+}
+
+// How much of this pixel is ocean showing the floor through it: 0 on land and 0
+// at 100% opacity, 1 where the water is fully drained.
 float seafloorReveal(vec2 seaUv) {
   float water = texture2D(uWaterMask, seaUv).a;
-  float seaDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
-  float attenuation = exp(-uSeafloorAbsorption * seaDepth * uSeawaterOpacity);
-  return clamp(water * (1.0 - uSeawaterOpacity) * attenuation, 0.0, 1.0);
+  return clamp(water * (1.0 - uSeawaterOpacity), 0.0, 1.0);
+}
+
+// Beer–Lambert transmittance of the water column, per channel. The optical path
+// grows toward the limb — a grazing view crosses far more water — and red is
+// absorbed first, so the floor fades to a blue haze both with depth and at the
+// edge of the disc. The coefficients are scaled for visibility, not calibrated.
+vec3 seafloorTransmittance(vec2 seaUv) {
+  float seaDepth = seafloorDepthAt(seaUv);
+  float cosTheta = clamp(dot(normalize(vViewPosition), normalize(vNormal)), 0.12, 1.0);
+  vec3 opticalDepth = uSeafloorAbsorption * seaDepth * uSeawaterOpacity / cosTheta;
+  return exp(-opticalDepth);
+}
+
+// How much of the floor survives the water, as one 0…1 weight for the shading
+// terms (the colour blend uses the full per-channel transmittance instead).
+float seafloorVisibility(vec2 seaUv) {
+  return clamp(dot(seafloorTransmittance(seaUv), vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
 }
 `
 
@@ -238,9 +265,12 @@ float seafloorReveal(vec2 seaUv) {
 export const SEAFLOOR_COLOR_BLEND = /* glsl */ `
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
-  float seaDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
-  vec3 seafloorColor = texture2D(uSeafloorRamp, vec2(seaDepth, 0.5)).rgb;
-  diffuseColor.rgb = mix(diffuseColor.rgb, seafloorColor, seafloorReveal(seaUv));
+  vec3 transmittance = seafloorTransmittance(seaUv);
+  vec3 seafloorColor = texture2D(uSeafloorRamp, vec2(seafloorDepthAt(seaUv), 0.5)).rgb;
+  // What the eye actually receives: the floor, attenuated, plus the light the
+  // water column itself scatters back toward the camera.
+  vec3 throughWater = seafloorColor * transmittance + uSeafloorWaterTint * (1.0 - transmittance);
+  diffuseColor.rgb = mix(diffuseColor.rgb, throughWater, seafloorReveal(seaUv));
 }
 `
 
@@ -252,7 +282,11 @@ if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
 export const SEAFLOOR_ROUGHNESS_BLEND = /* glsl */ `
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
-  roughnessFactor = mix(roughnessFactor, uSeafloorRoughness, seafloorReveal(seaUv));
+  roughnessFactor = mix(
+    roughnessFactor,
+    uSeafloorRoughness,
+    seafloorReveal(seaUv) * seafloorVisibility(seaUv)
+  );
 }
 `
 
@@ -268,17 +302,19 @@ export const SEAFLOOR_NORMAL_BUMP = /* glsl */ `
 #ifdef USE_BUMPMAP
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
-  float reveal = seafloorReveal(seaUv);
-  if (reveal > 0.002) {
+  // The relief fades with the light that survives the water, so a deep or
+  // grazing view of the floor is as smooth as it looks.
+  float strength = seafloorReveal(seaUv) * seafloorVisibility(seaUv);
+  if (strength > 0.002) {
     vec2 dSTdx = dFdx(seaUv);
     vec2 dSTdy = dFdy(seaUv);
-    float h0 = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
-    float hx = pow(texture2D(uBathyMap, seaUv + dSTdx).r, uSeafloorExponent);
-    float hy = pow(texture2D(uBathyMap, seaUv + dSTdy).r, uSeafloorExponent);
+    float h0 = seafloorDepthAt(seaUv);
+    float hx = seafloorDepthAt(seaUv + dSTdx);
+    float hy = seafloorDepthAt(seaUv + dSTdy);
     // The surface's *outward* relief is the negative of the stored depth.
     vec2 gradient = -vec2(hx - h0, hy - h0) * uSeafloorBumpScale;
     vec3 bumped = perturbNormalArb(-vViewPosition, normal, gradient, faceDirection);
-    normal = normalize(mix(normal, bumped, reveal));
+    normal = normalize(mix(normal, bumped, strength));
   }
 }
 #endif
