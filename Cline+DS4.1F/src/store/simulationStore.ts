@@ -34,6 +34,8 @@ export interface SettingsPatch {
   earthCloudOpacity?: number
   earthCloudDynamics?: number
   earthTerrainRelief?: number
+  earthSeafloorRelief?: number
+  earthSeawaterOpacity?: number
   leftPanelOpacity?: number
   rightPanelOpacity?: number
   /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
@@ -132,6 +134,19 @@ export interface SimulationState {
    * it scales.
    */
   earthTerrainRelief: number
+  /**
+   * How far the real seafloor is displaced below sea level: 0 = a flat floor,
+   * 1 = the full vertical exaggeration. It is deliberately separate from
+   * `earthTerrainRelief`, so the drained ocean can be dialled in on its own.
+   * Earth is the only body with a bathymetry model, so no other body reads it.
+   */
+  earthSeafloorRelief: number
+  /**
+   * How opaque Earth's ocean is: 1 = fully opaque (the shipped look), 0 = the
+   * ocean is drained and the seafloor is revealed. A *nominal* visibility
+   * control, not a physical model of underwater light (see `utils/seawater.ts`).
+   */
+  earthSeawaterOpacity: number
 
   /* Scale */
   scaleMode: ScaleMode
@@ -208,6 +223,8 @@ export interface SimulationActions {
   setEarthCloudDynamics: (value: number) => void
   setEarthCloudCoverage: (value: number) => void
   setEarthTerrainRelief: (value: number) => void
+  setEarthSeafloorRelief: (value: number) => void
+  setEarthSeawaterOpacity: (value: number) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -312,6 +329,12 @@ const initialState: SimulationState = {
   // ship with: mountains read clearly from orbit without turning Earth into a
   // pincushion when the camera comes close.
   earthTerrainRelief: 0.5,
+  // A touch less than the land's default, so a drained ocean reads as deep
+  // basins and long ridges rather than a pincushion.
+  earthSeafloorRelief: 0.4,
+  // Fully opaque by default: the ocean looks exactly as it always has until the
+  // viewer chooses to drain it.
+  earthSeawaterOpacity: 1,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -460,6 +483,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthTerrainRelief: (value) =>
     set({ earthTerrainRelief: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSeafloorRelief: (value) =>
+    set({ earthSeafloorRelief: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSeawaterOpacity: (value) =>
+    set({ earthSeawaterOpacity: Math.max(0, Math.min(1, value)) }),
 
   setScaleMode: (mode) => {
     audio.play('click')
@@ -622,6 +651,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthCloudOpacity: clamp01(patch.earthCloudOpacity, state.earthCloudOpacity),
       earthCloudDynamics: clamp01(patch.earthCloudDynamics, state.earthCloudDynamics),
       earthTerrainRelief: clamp01(patch.earthTerrainRelief, state.earthTerrainRelief),
+      earthSeafloorRelief: clamp01(patch.earthSeafloorRelief, state.earthSeafloorRelief),
+      earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
       spacecraftSize: clampSpacecraftSize(patch.spacecraftSize ?? state.spacecraftSize),
       ui: {
         ...state.ui,

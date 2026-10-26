@@ -36,6 +36,10 @@ export function PlanetPanel() {
   const setEarthCloudCoverage = useSimulationStore((state) => state.setEarthCloudCoverage)
   const earthTerrainRelief = useSimulationStore((state) => state.earthTerrainRelief)
   const setEarthTerrainRelief = useSimulationStore((state) => state.setEarthTerrainRelief)
+  const earthSeafloorRelief = useSimulationStore((state) => state.earthSeafloorRelief)
+  const setEarthSeafloorRelief = useSimulationStore((state) => state.setEarthSeafloorRelief)
+  const earthSeawaterOpacity = useSimulationStore((state) => state.earthSeawaterOpacity)
+  const setEarthSeawaterOpacity = useSimulationStore((state) => state.setEarthSeawaterOpacity)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
   const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
@@ -135,6 +139,34 @@ export function PlanetPanel() {
                   onChange={setEarthTerrainRelief}
                   format={(value) => `${Math.round(value * 100)}%`}
                   hint={t('planet.terrainReliefHint')}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {body.id === 'earth' ? (
+            <div className="mt-4">
+              <SectionTitle hint={t('planet.seafloorHint')}>{t('planet.earthSeafloor')}</SectionTitle>
+              <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+                <SliderRow
+                  label={t('planet.seawaterOpacity')}
+                  value={earthSeawaterOpacity}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthSeawaterOpacity}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint={t('planet.seawaterOpacityHint')}
+                />
+                <SliderRow
+                  label={t('planet.seafloorRelief')}
+                  value={earthSeafloorRelief}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={setEarthSeafloorRelief}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  hint={t('planet.seafloorReliefHint')}
                 />
               </div>
             </div>
