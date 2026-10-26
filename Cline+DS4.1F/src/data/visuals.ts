@@ -115,13 +115,18 @@ export interface SeafloorVisuals {
   /** How matte the drained seafloor reads (0 = mirror, 1 = fully rough). */
   roughness: number
   /**
-   * A gentle depth-aware term for the *intermediate* slider values: deeper water
-   * hides the floor a little longer as the ocean drains, the way real water
-   * absorbs more light over a longer path. It is exactly zero at 100% and has no
-   * effect at 0% (which always reveals everything), so the endpoints stay
-   * predictable. 0 disables it and leaves a purely linear crossfade.
+   * The water's per-channel Beer–Lambert extinction (R, G, B), at full opacity
+   * and a straight-down view. Red is absorbed first — which is why deep water
+   * reads blue — and the whole scale is deliberately compressed so the seafloor
+   * stays visible through it. It is a *visual* model, not a calibrated optical
+   * one, and it has no effect at 100% (opaque ocean) or 0% (fully drained).
    */
-  absorption: number
+  absorption: [number, number, number]
+  /**
+   * The colour light takes on as it scatters through the water column — what the
+   * floor fades toward where the water is deep, or seen at a grazing angle.
+   */
+  waterTint: string
 }
 
 /**
@@ -313,7 +318,8 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       depthExponent: 2,
       maxExaggeration: 160,
       roughness: 0.92,
-      absorption: 1,
+      absorption: [2.6, 1.4, 0.9],
+      waterTint: '#0e3355',
     },
     flattening: 0.00335,
     textureOffsetU: 0.55,
