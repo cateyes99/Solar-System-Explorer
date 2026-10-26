@@ -114,10 +114,22 @@ export function Atmosphere({ radius, visuals, opacity = 1, sunPosition, shellLif
   })
 
   return (
+    // `renderOrder` keeps the haze above the transparent ocean layer, which sits
+    // at the same planet origin and would otherwise sort unpredictably against it.
     <group ref={meshRef}>
-      <mesh geometry={HIGH_DETAIL_SPHERE} material={material} scale={radius * (1.045 + shellLift)} />
+      <mesh
+        geometry={HIGH_DETAIL_SPHERE}
+        material={material}
+        scale={radius * (1.045 + shellLift)}
+        renderOrder={4}
+      />
       {hazeMaterial ? (
-        <mesh geometry={HIGH_DETAIL_SPHERE} material={hazeMaterial} scale={radius * (1.14 + shellLift)} />
+        <mesh
+          geometry={HIGH_DETAIL_SPHERE}
+          material={hazeMaterial}
+          scale={radius * (1.14 + shellLift)}
+          renderOrder={4}
+        />
       ) : null}
     </group>
   )
