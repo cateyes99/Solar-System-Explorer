@@ -4,6 +4,22 @@ import { keyboard } from '../utils/input'
 import { TIME_SPEEDS } from '../data/missions'
 
 /**
+ * Keys the spacecraft owns while it is being flown by hand. The global
+ * shortcuts step aside for these, so pressing S does not open Settings and R
+ * does not reset the view in the middle of a turn.
+ */
+const SHIP_KEY_CODES = new Set([
+  'KeyW',
+  'KeyA',
+  'KeyS',
+  'KeyD',
+  'KeyR',
+  'KeyF',
+  'ShiftLeft',
+  'ShiftRight',
+])
+
+/**
  * Global keyboard shortcuts.
  *
  * Everything is also reachable with the mouse or a finger, but a child with a
@@ -29,6 +45,9 @@ export function useKeyboardControls(): void {
       if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey) return
       const store = useSimulationStore.getState()
 
+      // Hand the ship its own keys while the pilot is flying by hand.
+      if (store.missionActive && !store.autopilot && SHIP_KEY_CODES.has(event.code)) return
+
       switch (event.code) {
         case 'Space':
           event.preventDefault()
@@ -44,6 +63,7 @@ export function useKeyboardControls(): void {
           break
         case 'Escape': {
           if (store.cinematic.active) store.exitTour()
+          else if (store.ui.spacecraftHelpOpen) store.toggleSpacecraftHelp(false)
           else if (store.missionActive) store.endMission()
           else if (store.ui.educationOpen) store.closeEducation()
           else if (store.ui.whatIfOpen) store.toggleWhatIf(false)

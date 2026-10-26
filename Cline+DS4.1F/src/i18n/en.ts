@@ -42,6 +42,9 @@ export const en = {
   /* ---------------------------------------------------------- bottom bar */
   'bottom.quickTravel': 'Quick travel to a world',
   'bottom.timeControls': 'Time controls',
+  'bottom.title': 'Time & travel',
+  'bottom.collapse': 'Collapse the time and travel console',
+  'bottom.expand': 'Expand the time and travel console',
   'bottom.paused': 'Simulation paused',
   'bottom.running': 'Simulation running',
   'bottom.positions': 'positions from mean orbital elements',
@@ -161,6 +164,19 @@ export const en = {
   'planet.cloudDynamics': 'Cloud dynamics',
   'planet.cloudDynamicsHint':
     'How much the cloud shapes swirl and re-form. 0% freezes them mid-drift (the deck still slips across the surface); 100% is the liveliest.',
+  'planet.earthTerrain': 'Earth’s terrain',
+  'planet.terrainHint': '0% = a smooth globe',
+  'planet.terrainRelief': 'Terrain relief',
+  'planet.terrainReliefHint':
+    'How far the real surface rises out of the globe. Earth’s continents are pushed up by a global NASA / USGS elevation model, so mountain ranges, plateaus and canyons are genuinely three-dimensional. The height is exaggerated — the real thing is only 0.14% of Earth’s radius — and this slider sets how much.',
+  'planet.earthSeafloor': 'Earth’s seafloor',
+  'planet.seafloorHint': '100% = the usual ocean',
+  'planet.seawaterOpacity': 'Seawater opacity',
+  'planet.seawaterOpacityHint':
+    'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
+  'planet.seafloorRelief': 'Seafloor relief',
+  'planet.seafloorReliefHint':
+    'How far the seafloor is pushed down out of the globe. The real ocean is only about 0.17% of Earth’s radius deep, so the drop is exaggerated to make the topography visible; this slider sets how much, independently of the land’s relief.',
   'planet.diameter': 'Diameter',
   'planet.distanceFromSun': 'Distance from Sun',
   'planet.average': 'average',
@@ -222,7 +238,7 @@ export const en = {
   'settings.quality.medium': 'Medium',
   'settings.quality.high': 'High',
   'settings.qualityNote':
-    'Surface textures are generated once when the page loads at the quality level detected at that moment. Changing quality afterwards adjusts geometry detail, star counts and post-processing.',
+    'Changing quality rebuilds the surface maps at the new resolution and adjusts geometry detail, star counts and post-processing. Higher settings load larger maps and use more graphics memory.',
   'settings.scaleSection': 'Scale, layers and camera',
   'settings.scaleSectionHint': 'also on the left on bigger screens',
   'settings.explore': 'Explore',
@@ -279,10 +295,41 @@ export const en = {
     ' Radio messages from Earth would take about {minutes} minutes to arrive.',
   'mission.autopilotLabel': 'Autopilot',
   'mission.autopilotDesc': 'Fly to the destination automatically',
+  'mission.chaseCamera': 'Chase camera',
+  'mission.chaseCameraDesc': "Keep the camera behind the ship's nose while flying",
+  'mission.chaseAutoFrame': 'Auto framing',
+  'mission.chaseAutoFrameDesc': 'Hold a close, fixed distance behind the ship',
   'mission.manual':
-    'Manual flight: W/A/S/D move relative to the camera, R climbs, F dives and Shift boosts. Turn the autopilot off to take the controls. Speeds and distances are converted from scene units, so they show the scale of the journey rather than a real spacecraft trajectory.',
+    'Manual flight: W and S thrust forward and back along the nose, A and D turn left and right, R and F pitch the nose up and down, and Shift boosts. Turning and thrust build up smoothly the longer a key is held. Turn the autopilot off to take the controls. Speeds and distances are converted from scene units, so they show the scale of the journey rather than a real spacecraft trajectory.',
   'mission.headHome': 'Head home to Earth',
   'mission.end': 'End mission',
+  'mission.controlsHelp': 'Controls & shortcuts',
+
+  /* ----------------------------------------------- spacecraft help */
+  'spacecraftHelp.eyebrow': 'Mission Control',
+  'spacecraftHelp.title': 'Spacecraft controls',
+  'spacecraftHelp.intro': 'Switch the autopilot off to fly the ship by hand.',
+  'spacecraftHelp.key.forward': 'W',
+  'spacecraftHelp.key.back': 'S',
+  'spacecraftHelp.key.left': 'A',
+  'spacecraftHelp.key.right': 'D',
+  'spacecraftHelp.key.pitchUp': 'R',
+  'spacecraftHelp.key.pitchDown': 'F',
+  'spacecraftHelp.key.boost': 'Shift',
+  'spacecraftHelp.desc.forward': 'Thrust forward',
+  'spacecraftHelp.desc.back': 'Thrust backward',
+  'spacecraftHelp.desc.left': 'Turn left',
+  'spacecraftHelp.desc.right': 'Turn right',
+  'spacecraftHelp.desc.pitchUp': 'Pitch the nose up',
+  'spacecraftHelp.desc.pitchDown': 'Pitch the nose down',
+  'spacecraftHelp.desc.boost': 'Boost',
+  'spacecraftHelp.note.autopilot': 'The ship only answers these keys while the autopilot is off.',
+  'spacecraftHelp.note.ramp': 'Turning and thrust build up smoothly the longer a key is held.',
+  'spacecraftHelp.note.reset':
+    'R returns to the full Solar System view only while the autopilot is on; when you fly by hand it pitches the nose up.',
+  'spacecraftHelp.note.camera':
+    'Drag to look around, scroll to zoom, and use the Chase camera to keep the view behind the nose.',
+  'spacecraftHelp.close': 'Close the controls help',
 
   /* ---------------------------------------------------------- tour */
   'tour.label': 'Cinematic tour',
@@ -360,7 +407,7 @@ export const en = {
   'help.desc.m': 'Mute or unmute the sound',
   'help.desc.s': 'Open settings',
   'help.desc.h': 'Show or hide this help',
-  'help.desc.wasd': 'Fly the spacecraft during a mission',
+  'help.desc.wasd': 'Turn and thrust the spacecraft during a mission',
 
   /* -------------------------------------------------------- loading */
   'loading.preparing': 'Preparing the Solar System…',
@@ -491,6 +538,7 @@ export const en = {
   'texture.glow': 'Kindling the Sun’s glow',
   'texture.sun': 'Stirring the Sun’s plasma',
   'texture.earth': 'Building Earth’s continents',
+  'texture.earthHeightmap': 'Raising Earth’s mountains',
   'texture.earthClouds': 'Rolling out Earth’s clouds',
   'texture.earthNight': 'Switching on the city lights',
   'texture.earthRoughness': 'Working out the ocean glint',
@@ -511,6 +559,9 @@ export const en = {
   'texture.source.mercury': 'Mapping Mercury’s craters',
   'texture.source.venus': 'Peeling back Venus’s clouds',
   'texture.source.earth': 'Unfolding the Blue Marble',
+  'texture.source.earthHeightmap': 'Reading Earth’s real elevation',
+  'texture.source.earthBathymetry': 'Sounding the ocean floor',
+  'texture.seafloorRamp': 'Tinting the ocean floor',
   'texture.source.earthClouds': 'Rolling out Earth’s real clouds',
   'texture.source.earthNight': 'Switching on the real city lights',
   'texture.source.moon': 'Surveying the Moon',

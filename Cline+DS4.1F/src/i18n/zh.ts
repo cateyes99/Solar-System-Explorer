@@ -41,6 +41,9 @@ export const zh: Record<TranslationKey, string> = {
   /* ---------------------------------------------------------- bottom bar */
   'bottom.quickTravel': '快速前往某个星球',
   'bottom.timeControls': '时间控制',
+  'bottom.title': '时间与航行',
+  'bottom.collapse': '收起时间与航行控制台',
+  'bottom.expand': '展开时间与航行控制台',
   'bottom.paused': '模拟已暂停',
   'bottom.running': '模拟运行中',
   'bottom.positions': '位置基于平均轨道要素',
@@ -160,6 +163,19 @@ export const zh: Record<TranslationKey, string> = {
   'planet.cloudDynamics': '云的运动',
   'planet.cloudDynamicsHint':
     '云朵的形状翻卷、重组的程度。0% 让它们在飘移途中静止（云层仍会掠过地表）；100% 则最生动活泼。',
+  'planet.earthTerrain': '地球的地形',
+  'planet.terrainHint': '0% = 光滑的球体',
+  'planet.terrainRelief': '地形起伏',
+  'planet.terrainReliefHint':
+    '真实地表从球面上隆起的程度。地球的陆地由 NASA / USGS 的全球高程模型顶起，因此山脉、高原和峡谷都是真正的三维形状。高度经过夸张处理——真实起伏只有地球半径的 0.14%——这个滑块决定夸张多少。',
+  'planet.earthSeafloor': '地球的海底',
+  'planet.seafloorHint': '100% = 平常的海洋',
+  'planet.seawaterOpacity': '海水不透明度',
+  'planet.seawaterOpacityHint':
+    '能透过海水看到多少。100% 时海洋与原来完全一样；滑向 0% 就会排干海水，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。水越深、视线越贴近海面，海底就越被水遮住，就像真实的海水一样。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',
+  'planet.seafloorRelief': '海底起伏',
+  'planet.seafloorReliefHint':
+    '海底从球面向下压入的深度。真实海洋的深度只有地球半径的约 0.17%，所以这里的下陷经过夸张处理，好让地形看得见；这个滑块决定夸张多少，与陆地起伏相互独立。',
   'planet.diameter': '直径',
   'planet.distanceFromSun': '与太阳的距离',
   'planet.average': '平均',
@@ -221,7 +237,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.quality.medium': '中',
   'settings.quality.high': '高',
   'settings.qualityNote':
-    '表面纹理会根据页面加载那一刻检测到的质量级别生成一次。之后再更改质量，只会调整几何细节、星星数量和后期处理。',
+    '更改质量会按新的分辨率重建表面纹理，并调整几何细节、星星数量和后期处理。更高的设置会加载更大的纹理，占用更多显存。',
   'settings.scaleSection': '比例、图层和镜头',
   'settings.scaleSectionHint': '在更大的屏幕上也会出现在左侧',
   'settings.explore': '探索',
@@ -277,10 +293,40 @@ export const zh: Record<TranslationKey, string> = {
   'mission.radioDelay': ' 来自地球的无线电讯息大约需要 {minutes} 分钟才能到达。',
   'mission.autopilotLabel': '自动驾驶',
   'mission.autopilotDesc': '自动飞往目的地',
+  'mission.chaseCamera': '追尾镜头',
+  'mission.chaseCameraDesc': '飞行时让镜头始终跟在飞船机头后方',
+  'mission.chaseAutoFrame': '自动取景',
+  'mission.chaseAutoFrameDesc': '始终与飞船保持固定的近距离',
   'mission.manual':
-    '手动飞行：W/A/S/D 相对镜头移动，R 上升，F 下潜，Shift 加速。关闭自动驾驶即可亲自操控。速度和距离由场景单位换算而来，因此它们展示的是这段旅程的规模，而不是真实航天器的飞行轨迹。',
+    '手动飞行：W/S 沿机头方向前进与后退，A/D 左右转向，R/F 抬头与低头，Shift 加速。按键持续越久，转向与推进就越快。关闭自动驾驶即可亲自操控。速度和距离由场景单位换算而来，因此它们展示的是这段旅程的规模，而不是真实航天器的飞行轨迹。',
   'mission.headHome': '返回地球家园',
   'mission.end': '结束任务',
+  'mission.controlsHelp': '操控与快捷键',
+
+  /* ----------------------------------------------- spacecraft help */
+  'spacecraftHelp.eyebrow': '任务控制中心',
+  'spacecraftHelp.title': '飞船操控',
+  'spacecraftHelp.intro': '关闭自动驾驶即可手动驾驶飞船。',
+  'spacecraftHelp.key.forward': 'W',
+  'spacecraftHelp.key.back': 'S',
+  'spacecraftHelp.key.left': 'A',
+  'spacecraftHelp.key.right': 'D',
+  'spacecraftHelp.key.pitchUp': 'R',
+  'spacecraftHelp.key.pitchDown': 'F',
+  'spacecraftHelp.key.boost': 'Shift',
+  'spacecraftHelp.desc.forward': '向前推进',
+  'spacecraftHelp.desc.back': '向后推进',
+  'spacecraftHelp.desc.left': '向左转向',
+  'spacecraftHelp.desc.right': '向右转向',
+  'spacecraftHelp.desc.pitchUp': '抬起机头',
+  'spacecraftHelp.desc.pitchDown': '压低机头',
+  'spacecraftHelp.desc.boost': '加速',
+  'spacecraftHelp.note.autopilot': '只有在关闭自动驾驶时，飞船才会响应这些按键。',
+  'spacecraftHelp.note.ramp': '按键持续越久，转向与推进就越快。',
+  'spacecraftHelp.note.reset':
+    '只有在自动驾驶开启时，R 才会返回完整太阳系视图；手动驾驶时它用于抬起机头。',
+  'spacecraftHelp.note.camera': '拖动可环视，滚动可缩放；使用追尾镜头可让视角始终跟在机头后方。',
+  'spacecraftHelp.close': '关闭操控说明',
 
   /* ---------------------------------------------------------- tour */
   'tour.label': '电影式导览',
@@ -358,7 +404,7 @@ export const zh: Record<TranslationKey, string> = {
   'help.desc.m': '静音或取消静音',
   'help.desc.s': '打开设置',
   'help.desc.h': '显示或隐藏这份帮助',
-  'help.desc.wasd': '在任务中驾驶飞船',
+  'help.desc.wasd': '在任务中操控飞船转向与推进',
 
   /* -------------------------------------------------------- loading */
   'loading.preparing': '正在准备太阳系…',
@@ -488,6 +534,7 @@ export const zh: Record<TranslationKey, string> = {
   'texture.glow': '点燃太阳的光晕',
   'texture.sun': '搅拌太阳的等离子体',
   'texture.earth': '构建地球的大陆',
+  'texture.earthHeightmap': '隆起地球的山脉',
   'texture.earthClouds': '铺开地球的云层',
   'texture.earthNight': '点亮城市的灯光',
   'texture.earthRoughness': '计算海面的反光',
@@ -508,6 +555,9 @@ export const zh: Record<TranslationKey, string> = {
   'texture.source.mercury': '测绘水星的环形山',
   'texture.source.venus': '揭开金星的云层',
   'texture.source.earth': '展开蓝色弹珠',
+  'texture.source.earthHeightmap': '读取地球真实的高程',
+  'texture.source.earthBathymetry': '探测海底深度',
+  'texture.seafloorRamp': '为海底着色',
   'texture.source.earthClouds': '铺开地球真实的云',
   'texture.source.earthNight': '点亮真实的城市灯光',
   'texture.source.moon': '勘测月球',
