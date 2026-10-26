@@ -127,6 +127,17 @@ export interface SeafloorVisuals {
    * floor fades toward where the water is deep, or seen at a grazing angle.
    */
   waterTint: string
+  /**
+   * The reveal curve's exponent: the floor's visibility is
+   * `(1 − opacity) ^ revealGamma`, applied to *both* the geometry and the colour
+   * so they stay in step.
+   *
+   * 1 is the plain inverse-linear relationship; below 1 reveals the floor faster
+   * in the middle of the slider, so a half-drained ocean already reads as
+   * drained. It is a presentation curve, not physics — the note on the panel
+   * says the slider is not a model of real underwater visibility.
+   */
+  revealGamma: number
 }
 
 /**
@@ -138,15 +149,15 @@ export interface SeafloorVisuals {
  * the mid-ocean ridges and the fracture zones visually distinct.
  */
 export const SEAFLOOR_RAMP: [number, string][] = [
-  [0, '#a9d6e5'],
-  [0.06, '#78bcd6'],
-  [0.15, '#4d97bb'],
-  [0.27, '#2f7aa0'],
-  [0.4, '#226588'],
-  [0.55, '#184f70'],
-  [0.72, '#113a57'],
-  [0.87, '#0b2740'],
-  [1, '#06182b'],
+  [0, '#d9c9a0'],
+  [0.05, '#b9b492'],
+  [0.12, '#7fa294'],
+  [0.22, '#46889f'],
+  [0.35, '#2a6c90'],
+  [0.5, '#1b5075'],
+  [0.68, '#113a5a'],
+  [0.85, '#0a2740'],
+  [1, '#04121f'],
 ]
 
 export interface RingVisuals {
@@ -318,8 +329,9 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       depthExponent: 2,
       maxExaggeration: 160,
       roughness: 0.92,
-      absorption: [2.6, 1.4, 0.9],
-      waterTint: '#0e3355',
+      absorption: [3.4, 1.7, 1],
+      waterTint: '#0a2b4d',
+      revealGamma: 0.65,
     },
     flattening: 0.00335,
     textureOffsetU: 0.55,
