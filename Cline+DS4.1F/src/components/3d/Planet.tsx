@@ -37,6 +37,7 @@ import {
 } from './terrain'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
+import { Ocean } from './Ocean'
 import { NightLights } from './NightLights'
 import { Rings } from './Rings'
 import { Moon } from './Moon'
@@ -123,14 +124,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const terrainRelief = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthTerrainRelief : 0,
   )
-  // The seafloor has its own relief dial and its own seawater-opacity dial. Like
-  // the others, the selectors return inert constants for every other world, so
-  // only Earth re-renders when these move.
+  // The seafloor has its own relief dial; like the others, the selector returns
+  // an inert constant for every other world, so only Earth re-renders when it
+  // moves. (The seawater-opacity dial belongs to the water layer, which reads it
+  // itself — see `Water.tsx` — so the planet never re-renders for it.)
   const seafloorRelief = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthSeafloorRelief : 0,
-  )
-  const seawaterOpacity = useSimulationStore((state) =>
-    body.id === 'earth' ? state.earthSeawaterOpacity : 1,
   )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
@@ -229,7 +228,6 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             ramp: getTexture(visuals.seafloor.rampMapId),
           },
           relief: state.earthSeafloorRelief,
-          opacity: state.earthSeawaterOpacity,
           enabled: hasTexture(visuals.seafloor.bathymetryMapId),
         }
       : null
@@ -288,14 +286,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             '#include <begin_vertex>',
             `#include <begin_vertex>\n${TERRAIN_VERTEX_DISPLACE}\n${SEAFLOOR_VERTEX_DISPLACE}`,
           )
-        // The seafloor's colour and roughness blends only ever *add* to the
-        // standard shader: while the seawater is opaque (`uSeawaterOpacity` = 1)
-        // both branches are skipped and the surface is byte-for-byte what it was.
+        // The seafloor's colour, roughness and bump blends only ever *add* to
+        // the standard shader: they paint the ocean's texels as the drained floor
+        // and leave the land untouched. The water itself is a separate layer.
         shader.fragmentShader = shader.fragmentShader
           // The seafloor helpers read `vNormal` and `vViewPosition`, which the
-          // standard material declares in `normal_pars_fragment`; injecting after
-          // it (rather than after `common`) is what makes the view-aware water
-          // model possible.
+          // standard material declares in `normal_pars_fragment`.
           .replace(
             '#include <normal_pars_fragment>',
             `#include <normal_pars_fragment>\n${SEAFLOOR_FRAGMENT_PARS}`,
@@ -329,20 +325,19 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     surfaceMaterial.bumpScale = bumpScale
   }, [surfaceMaterial, terrain, terrainUniforms, bumpScale])
 
-  // The two seafloor dials are live uniforms too: dragging either slider is a
-  // couple of number writes, never a material rebuild. `uBathyEnabled` is
-  // re-checked so a late-arriving (or missing) bathymetry map is handled.
+  // The seafloor-relief dial is a live uniform too: dragging it is a couple of
+  // number writes, never a material rebuild. `uBathyEnabled` is re-checked so a
+  // late-arriving (or missing) bathymetry map is handled.
   useEffect(() => {
     if (!terrainUniforms || !visuals.seafloor) return
     const { uniforms } = terrainUniforms
     const floor = seafloorDisplacement(visuals.seafloor, seafloorRelief)
-    uniforms.uSeawaterOpacity.value = seawaterOpacity
     uniforms.uSeafloorScale.value = floor.maxDepthRadius
     // Like the land's `material.bumpScale`, the seafloor's bump strength is the
     // object-space depth scaled by the planet's drawn radius.
     uniforms.uSeafloorBumpScale.value = radius * floor.maxDepthRadius
     uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
-  }, [terrainUniforms, visuals.seafloor, seawaterOpacity, seafloorRelief, radius])
+  }, [terrainUniforms, visuals.seafloor, seafloorRelief, radius])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)
@@ -484,6 +479,20 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               focusBody(body.id, 'follow', 5)
             }}
           />
+
+          {/* The ocean, when the body has one: a transparent layer at sea level
+              through which the seafloor below is seen (see `Water.tsx`). */}
+          {visuals.water && visuals.seafloor && hasTexture(visuals.seafloor.bathymetryMapId) ? (
+            <Ocean
+              geometry={sphereGeometry}
+              radius={radius}
+              visuals={visuals.water}
+              bathymetry={getTexture(visuals.seafloor.bathymetryMapId)}
+              waterMask={getTexture('earthRoughness')}
+              depthExponent={visuals.seafloor.depthExponent}
+              uvOffset={visuals.textureOffsetU}
+            />
+          ) : null}
 
           {visuals.clouds ? (
             <Clouds
