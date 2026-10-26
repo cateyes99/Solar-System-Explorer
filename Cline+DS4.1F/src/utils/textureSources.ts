@@ -46,9 +46,33 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     credit: 'Venus cloud tops (Mariner 10 / Venus Express)',
   },
   earth: {
-    file: '2k_earth_daymap.jpg',
+    // The day map ships at 8192×4096 so a close-up of Earth stays sharp. It is
+    // the same product line as the old 2K map (identical projection, colour and
+    // geographic alignment — verified pixel-for-pixel against the 2K file), just
+    // at four times the width; `textures.ts` uploads it at 8K / 4K / 2K by
+    // quality tier so the extra resolution is only spent when it is asked for.
+    file: '8k_earth_daymap.jpg',
     label: 'Unfolding the Blue Marble',
-    credit: 'NASA Blue Marble land and ocean colour',
+    credit: 'NASA Blue Marble land and ocean colour, 8192×4096',
+  },
+  earthHeightmap: {
+    // The only map here that is not a colour photograph: it is a grayscale
+    // height field, and the only one larger than 2k, because 3840×1920 is the
+    // resolution the public dataset is published at. `textures.ts` caps what
+    // reaches the GPU by quality tier like every other map, so 'high' gets the
+    // full field and 'medium' the same 2k density as the rest of the set.
+    file: 'earth_heightmap.jpg',
+    label: 'Raising Earth’s mountains',
+    credit: 'NASA / USGS SRTM–GTOPO30 global elevation (public domain)',
+  },
+  earthBathymetry: {
+    // A grayscale *depth* field, not a photograph: 0 is sea level, 255 is
+    // 11,000 m deep, on a square-root curve. Built from the public-domain ETOPO
+    // 2022 60″ relief model by `tools/fetch-bathymetry.mjs`; `textures.ts`
+    // uploads it as raw data (no gamma decode) and the shader reads it back.
+    file: 'earth_bathymetry.png',
+    label: 'Sounding the ocean floor',
+    credit: 'ETOPO 2022 60″ bedrock relief (NOAA NCEI, CC0-1.0)',
   },
   earthClouds: {
     file: '2k_earth_clouds.jpg',
@@ -56,9 +80,13 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     credit: 'Global cloud cover',
   },
   earthNight: {
-    file: '2k_earth_nightmap.jpg',
+    // The city lights ship at 8192×4096 as well, so the night side stays as sharp
+    // as the day side at a close zoom. Same product line and identical alignment
+    // as the 2K map it replaced; uploaded at 8K / 4K / 2K by quality tier, exactly
+    // like the day map.
+    file: '8k_earth_nightmap.jpg',
     label: 'Switching on the real city lights',
-    credit: 'NASA Black Marble city lights',
+    credit: 'NASA Black Marble city lights, 8192×4096',
   },
   moon: {
     file: '2k_moon.jpg',
@@ -114,9 +142,12 @@ export const TEXTURE_IDS: TextureId[] = [
   'glow',
   'sun',
   'earth',
+  'earthHeightmap',
+  'earthBathymetry',
   'earthClouds',
   'earthNight',
   'earthRoughness',
+  'seafloorRamp',
   'moon',
   'mercury',
   'venus',

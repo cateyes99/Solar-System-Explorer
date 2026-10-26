@@ -36,3 +36,37 @@ export function detectWebGL(): WebGLCapability {
     return { supported: false, renderer: null }
   }
 }
+
+/** Cached answer from the first probe, so a context is created at most once. */
+let cachedMaxTextureSize: number | null = null
+
+/**
+ * The largest texture the GPU will accept on a side.
+ *
+ * A high-resolution map can exceed a driver's limit — older hardware caps at
+ * 4096, and WebGL does not quietly downscale an oversized texture: it fails the
+ * upload and leaves the material sampling an incomplete texture. The texture
+ * loader asks once, caches the answer, and never uploads a map wider than this.
+ * The conservative fallback is the 4096 every WebGL 2 implementation must
+ * support.
+ */
+export function maxTextureSize(): number {
+  if (cachedMaxTextureSize !== null) return cachedMaxTextureSize
+  let size = 4096
+  if (typeof document !== 'undefined') {
+    try {
+      const canvas = document.createElement('canvas')
+      const context =
+        canvas.getContext('webgl2') ?? (canvas.getContext('webgl') as WebGLRenderingContext | null)
+      if (context) {
+        const reported = context.getParameter(context.MAX_TEXTURE_SIZE)
+        if (typeof reported === 'number' && reported >= 512) size = reported
+        context.getExtension('WEBGL_lose_context')?.loseContext()
+      }
+    } catch {
+      // Keep the conservative default.
+    }
+  }
+  cachedMaxTextureSize = size
+  return size
+}

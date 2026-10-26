@@ -52,9 +52,16 @@ interface AtmosphereProps {
   /** Multiplier allows fades for focus changes and the "What If?" experiments. */
   opacity?: number
   sunPosition: Vector3
+  /**
+   * How far above the planet's mean radius the haze has to start, in planet
+   * radii. A displaced surface is taller than a sphere, so Earth's haze is
+   * lifted by the height of its highest ground — otherwise the mountains would
+   * stand outside the atmosphere they are supposed to be inside.
+   */
+  shellLift?: number
 }
 
-export function Atmosphere({ radius, visuals, opacity = 1, sunPosition }: AtmosphereProps) {
+export function Atmosphere({ radius, visuals, opacity = 1, sunPosition, shellLift = 0 }: AtmosphereProps) {
   const meshRef = useRef<Mesh>(null)
 
   const material = useMemo(() => {
@@ -108,9 +115,9 @@ export function Atmosphere({ radius, visuals, opacity = 1, sunPosition }: Atmosp
 
   return (
     <group ref={meshRef}>
-      <mesh geometry={HIGH_DETAIL_SPHERE} material={material} scale={radius * 1.045} />
+      <mesh geometry={HIGH_DETAIL_SPHERE} material={material} scale={radius * (1.045 + shellLift)} />
       {hazeMaterial ? (
-        <mesh geometry={HIGH_DETAIL_SPHERE} material={hazeMaterial} scale={radius * 1.14} />
+        <mesh geometry={HIGH_DETAIL_SPHERE} material={hazeMaterial} scale={radius * (1.14 + shellLift)} />
       ) : null}
     </group>
   )
