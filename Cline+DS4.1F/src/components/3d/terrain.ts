@@ -99,6 +99,8 @@ export interface TerrainUniforms {
     uSeawaterOpacity: { value: number }
     uSeafloorRoughness: { value: number }
     uSeafloorBumpScale: { value: number }
+    /** The reveal curve's exponent (`(1 − opacity) ^ gamma`). */
+    uSeafloorRevealGamma: { value: number }
     /** Per-channel Beer–Lambert extinction (linear RGB). */
     uSeafloorAbsorption: { value: Vector3 }
     /** The colour the water column scatters toward. */
@@ -155,6 +157,7 @@ export function createTerrainUniforms(
       // The bump strength needs the planet's drawn radius, which only the caller
       // knows, so it is set alongside `material.bumpScale` (see `Planet.tsx`).
       uSeafloorBumpScale: { value: 0 },
+      uSeafloorRevealGamma: { value: seafloor?.visuals.revealGamma ?? 1 },
       uSeafloorAbsorption: {
         value: seafloor
           ? new Vector3(...seafloor.visuals.absorption)
@@ -191,6 +194,7 @@ export const SEAFLOOR_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uBathyMap;
 uniform float uSeafloorScale;
 uniform float uSeafloorExponent;
+uniform float uSeafloorRevealGamma;
 uniform float uSeawaterOpacity;
 uniform float uBathyEnabled;
 varying vec2 vSeaUv;
@@ -202,13 +206,17 @@ varying vec2 vSeaUv;
  * so the ocean is the same flat sphere it has always been; at 0% the floor drops
  * to its true (exaggerated) depth. Land texels are zero, so the continents never
  * move.
+ *
+ * The drop follows the same `(1 − opacity) ^ revealGamma` curve as the colour,
+ * so the geometry and the shading always agree on how drained the ocean is.
  */
 export const SEAFLOOR_VERTEX_DISPLACE = /* glsl */ `
 vSeaUv = uv;
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   float bathyTexel = texture2D(uBathyMap, uv + vec2(uTerrainUvOffset, 0.0)).r;
   float seaDepth = pow(bathyTexel, uSeafloorExponent);
-  transformed += normalize(position) * (-seaDepth * uSeafloorScale * (1.0 - uSeawaterOpacity));
+  float drained = pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma);
+  transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained);
 }
 `
 
@@ -221,6 +229,7 @@ uniform float uSeafloorExponent;
 uniform float uSeawaterOpacity;
 uniform float uSeafloorRoughness;
 uniform float uSeafloorBumpScale;
+uniform float uSeafloorRevealGamma;
 uniform vec3 uSeafloorAbsorption;
 uniform vec3 uSeafloorWaterTint;
 uniform float uBathyEnabled;
@@ -233,10 +242,12 @@ float seafloorDepthAt(vec2 seaUv) {
 }
 
 // How much of this pixel is ocean showing the floor through it: 0 on land and 0
-// at 100% opacity, 1 where the water is fully drained.
+// at 100% opacity, 1 where the water is fully drained. The revealGamma curve
+// bends the middle of the slider (see SeafloorVisuals), and is exactly 0 and 1
+// at the endpoints either way.
 float seafloorReveal(vec2 seaUv) {
   float water = texture2D(uWaterMask, seaUv).a;
-  return clamp(water * (1.0 - uSeawaterOpacity), 0.0, 1.0);
+  return clamp(water * pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma), 0.0, 1.0);
 }
 
 // Beer–Lambert transmittance of the water column, per channel. The optical path
