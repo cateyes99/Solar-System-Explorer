@@ -12,6 +12,7 @@ export type TextureId =
   | 'earthNight'
   | 'earthRoughness'
   | 'seafloorRamp'
+  | 'waterNormal'
   | 'mars'
   | 'jupiter'
   | 'saturn'
@@ -114,29 +115,47 @@ export interface SeafloorVisuals {
   maxExaggeration: number
   /** How matte the drained seafloor reads (0 = mirror, 1 = fully rough). */
   roughness: number
-  /**
-   * The water's per-channel Beer–Lambert extinction (R, G, B), at full opacity
-   * and a straight-down view. Red is absorbed first — which is why deep water
-   * reads blue — and the whole scale is deliberately compressed so the seafloor
-   * stays visible through it. It is a *visual* model, not a calibrated optical
-   * one, and it has no effect at 100% (opaque ocean) or 0% (fully drained).
-   */
+}
+
+/**
+ * The ocean **surface**: a genuinely transparent water layer drawn on top of the
+ * seafloor, not a fade of it (see `components/3d/Water.tsx`).
+ *
+ * It is its own mesh at sea level, so the floor stays where it belongs — at the
+ * bottom of the water column — and you look *through* the water at it, with the
+ * parallax that comes from the two surfaces being at different radii. The layer
+ * carries three things a liquid surface needs:
+ *
+ *  - **Beer's-law body colour.** `absorption` is the per-channel extinction of
+ *    the water itself, so a shallow shelf keeps the bright day-map blue while the
+ *    abyss falls away through teal to navy, driven by the real depth under each
+ *    pixel.
+ *  - **A rippled normal map**, so the surface has waves that catch the sun.
+ *  - **A proper specular response**, from a low `roughness` — the glint that
+ *    tells you this is a liquid surface and not a painted texture.
+ *
+ * `revealGamma` shapes how fast the slider thins the water: the layer's alpha is
+ * `1 − (1 − opacity) ^ revealGamma`, so a half-way slider already shows most of
+ * the floor. It is a presentation curve, and the panel note says the slider is
+ * not a model of real underwater visibility.
+ */
+export interface WaterVisuals {
+  /** A tiling ripple normal map for the surface. */
+  normalMapId: TextureId
+  /** How far the ripples tilt the surface normal. */
+  normalScale: number
+  /** Ripple repeats around the globe and from pole to pole. */
+  normalRepeat: [number, number]
+  /** Ripple drift, in UV turns per real second. */
+  drift: [number, number]
+  /** Surface roughness: low is glassy. */
+  roughness: number
+  metalness: number
+  /** Beer's-law extinction of the water body, linear RGB. */
   absorption: [number, number, number]
-  /**
-   * The colour light takes on as it scatters through the water column — what the
-   * floor fades toward where the water is deep, or seen at a grazing angle.
-   */
+  /** The colour the water scatters back where it is deep. */
   waterTint: string
-  /**
-   * The reveal curve's exponent: the floor's visibility is
-   * `(1 − opacity) ^ revealGamma`, applied to *both* the geometry and the colour
-   * so they stay in step.
-   *
-   * 1 is the plain inverse-linear relationship; below 1 reveals the floor faster
-   * in the middle of the slider, so a half-drained ocean already reads as
-   * drained. It is a presentation curve, not physics — the note on the panel
-   * says the slider is not a model of real underwater visibility.
-   */
+  /** The reveal curve's exponent (see above). */
   revealGamma: number
 }
 
@@ -239,6 +258,11 @@ export interface BodyVisuals {
    * `SeafloorVisuals`); revealed by the "Seawater opacity" slider.
    */
   seafloor?: SeafloorVisuals
+  /**
+   * The ocean surface, when the body has one. Present only for Earth (see
+   * `WaterVisuals`); drawn as a transparent layer above the seafloor.
+   */
+  water?: WaterVisuals
   atmosphere?: AtmosphereVisuals
   clouds?: CloudVisuals
   nightLights?: NightLightsVisuals
@@ -329,9 +353,20 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       depthExponent: 2,
       maxExaggeration: 160,
       roughness: 0.92,
-      absorption: [3.4, 1.7, 1],
+    },
+    // The ocean surface itself: a transparent, rippled, specular water layer at
+    // sea level, through which the seafloor above is seen. Its own absorption
+    // runs the shallows bright and the abyss navy.
+    water: {
+      normalMapId: 'waterNormal',
+      normalScale: 0.45,
+      normalRepeat: [9, 5],
+      drift: [0.006, 0.002],
+      roughness: 0.12,
+      metalness: 0,
+      absorption: [0.95, 0.5, 0.32],
       waterTint: '#0a2b4d',
-      revealGamma: 0.65,
+      revealGamma: 0.7,
     },
     flattening: 0.00335,
     textureOffsetU: 0.55,

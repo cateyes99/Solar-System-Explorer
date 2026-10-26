@@ -148,6 +148,7 @@ export const TEXTURE_IDS: TextureId[] = [
   'earthNight',
   'earthRoughness',
   'seafloorRamp',
+  'waterNormal',
   'moon',
   'mercury',
   'venus',

@@ -558,6 +558,7 @@ export const zh: Record<TranslationKey, string> = {
   'texture.source.earthHeightmap': '读取地球真实的高程',
   'texture.source.earthBathymetry': '探测海底深度',
   'texture.seafloorRamp': '为海底着色',
+  'texture.waterNormal': '让海面泛起波纹',
   'texture.source.earthClouds': '铺开地球真实的云',
   'texture.source.earthNight': '点亮真实的城市灯光',
   'texture.source.moon': '勘测月球',
