@@ -9,7 +9,7 @@ import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
 import { bodyRadius, orbitRadiusFor, sceneFromEclipticKm } from '../../utils/scale'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
-import { getTexture } from '../../utils/textures'
+import { getTexture, hasTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
@@ -22,10 +22,18 @@ import {
   createRingGeometry,
 } from './geometry'
 import {
+  SEAFLOOR_COLOR_BLEND,
+  SEAFLOOR_FRAGMENT_PARS,
+  SEAFLOOR_NORMAL_BUMP,
+  SEAFLOOR_ROUGHNESS_BLEND,
+  SEAFLOOR_VERTEX_DISPLACE,
+  SEAFLOOR_VERTEX_PARS,
   TERRAIN_VERTEX_DISPLACE,
   TERRAIN_VERTEX_PARS,
   createTerrainUniforms,
+  seafloorDisplacement,
   terrainDisplacement,
+  type SeafloorBinding,
 } from './terrain'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
@@ -115,6 +123,15 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const terrainRelief = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthTerrainRelief : 0,
   )
+  // The seafloor has its own relief dial and its own seawater-opacity dial. Like
+  // the others, the selectors return inert constants for every other world, so
+  // only Earth re-renders when these move.
+  const seafloorRelief = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthSeafloorRelief : 0,
+  )
+  const seawaterOpacity = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthSeawaterOpacity : 1,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -196,18 +213,34 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
    * shared with the city lights, so the glow lies on exactly the ground the
    * surface is displaced to.
    */
-  const terrainUniforms = useMemo(
-    () =>
-      visuals.terrain
-        ? createTerrainUniforms(
-            visuals.terrain,
-            getTexture(visuals.terrain.heightMapId),
-            useSimulationStore.getState().earthTerrainRelief,
-            visuals.textureOffsetU,
-          )
-        : null,
-    [visuals],
-  )
+  const terrainUniforms = useMemo(() => {
+    if (!visuals.terrain) return null
+    const state = useSimulationStore.getState()
+    // The seafloor is bound once and then dialled through its uniforms, so the
+    // sliders never rebuild the material or recompile the shader. A body without
+    // a bathymetry map simply gets `null` and the shader stays inert.
+    const seafloor: SeafloorBinding | null = visuals.seafloor
+      ? {
+          visuals: visuals.seafloor,
+          maps: {
+            bathymetry: getTexture(visuals.seafloor.bathymetryMapId),
+            // The water mask rides in the ocean roughness map's alpha channel.
+            waterMask: getTexture('earthRoughness'),
+            ramp: getTexture(visuals.seafloor.rampMapId),
+          },
+          relief: state.earthSeafloorRelief,
+          opacity: state.earthSeawaterOpacity,
+          enabled: hasTexture(visuals.seafloor.bathymetryMapId),
+        }
+      : null
+    return createTerrainUniforms(
+      visuals.terrain,
+      getTexture(visuals.terrain.heightMapId),
+      state.earthTerrainRelief,
+      visuals.textureOffsetU,
+      seafloor,
+    )
+  }, [visuals])
 
   const surfaceMaterial = useMemo(() => {
     const texture = getTexture(visuals.textureId)
@@ -247,10 +280,27 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       material.onBeforeCompile = (shader) => {
         Object.assign(shader.uniforms, terrainUniforms.uniforms)
         shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', `#include <common>\n${TERRAIN_VERTEX_PARS}`)
+          .replace(
+            '#include <common>',
+            `#include <common>\n${TERRAIN_VERTEX_PARS}\n${SEAFLOOR_VERTEX_PARS}`,
+          )
           .replace(
             '#include <begin_vertex>',
-            `#include <begin_vertex>\n${TERRAIN_VERTEX_DISPLACE}`,
+            `#include <begin_vertex>\n${TERRAIN_VERTEX_DISPLACE}\n${SEAFLOOR_VERTEX_DISPLACE}`,
+          )
+        // The seafloor's colour and roughness blends only ever *add* to the
+        // standard shader: while the seawater is opaque (`uSeawaterOpacity` = 1)
+        // both branches are skipped and the surface is byte-for-byte what it was.
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', `#include <common>\n${SEAFLOOR_FRAGMENT_PARS}`)
+          .replace('#include <map_fragment>', `#include <map_fragment>\n${SEAFLOOR_COLOR_BLEND}`)
+          .replace(
+            '#include <roughnessmap_fragment>',
+            `#include <roughnessmap_fragment>\n${SEAFLOOR_ROUGHNESS_BLEND}`,
+          )
+          .replace(
+            '#include <normal_fragment_maps>',
+            `#include <normal_fragment_maps>\n${SEAFLOOR_NORMAL_BUMP}`,
           )
       }
     } else {
@@ -271,6 +321,21 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     terrainUniforms.uniforms.uTerrainBias.value = terrain.bias
     surfaceMaterial.bumpScale = bumpScale
   }, [surfaceMaterial, terrain, terrainUniforms, bumpScale])
+
+  // The two seafloor dials are live uniforms too: dragging either slider is a
+  // couple of number writes, never a material rebuild. `uBathyEnabled` is
+  // re-checked so a late-arriving (or missing) bathymetry map is handled.
+  useEffect(() => {
+    if (!terrainUniforms || !visuals.seafloor) return
+    const { uniforms } = terrainUniforms
+    const floor = seafloorDisplacement(visuals.seafloor, seafloorRelief)
+    uniforms.uSeawaterOpacity.value = seawaterOpacity
+    uniforms.uSeafloorScale.value = floor.maxDepthRadius
+    // Like the land's `material.bumpScale`, the seafloor's bump strength is the
+    // object-space depth scaled by the planet's drawn radius.
+    uniforms.uSeafloorBumpScale.value = radius * floor.maxDepthRadius
+    uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
+  }, [terrainUniforms, visuals.seafloor, seawaterOpacity, seafloorRelief, radius])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)

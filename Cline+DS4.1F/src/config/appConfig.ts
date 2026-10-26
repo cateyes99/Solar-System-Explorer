@@ -43,6 +43,16 @@ export interface AppConfig {
    * `earthTerrainRelief`). 0 is a smooth globe, 1 is the full exaggeration.
    */
   earthTerrainRelief: number
+  /**
+   * How far the real seafloor is displaced, 0…1 (store: `earthSeafloorRelief`).
+   * 0 is a flat floor, 1 is the full exaggeration.
+   */
+  earthSeafloorRelief: number
+  /**
+   * How opaque Earth's ocean is, 0…1 (store: `earthSeawaterOpacity`). 1 keeps the
+   * shipped ocean; 0 drains it and reveals the seafloor.
+   */
+  earthSeawaterOpacity: number
   /** Opacity of the left controls panel, 0…1 (store: `ui.leftPanelOpacity`). */
   leftPanelOpacity: number
   /** Opacity of the right information panel, 0…1 (store: `ui.rightPanelOpacity`). */
@@ -66,6 +76,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthCloudOpacity: 0.5,
   earthCloudDynamics: 0.5,
   earthTerrainRelief: 0.5,
+  earthSeafloorRelief: 0.4,
+  earthSeawaterOpacity: 1,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
   spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
@@ -89,6 +101,8 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Cloud Opacity', min: 0, max: 1, set: (c, v) => { c.earthCloudOpacity = v } },
   { key: 'Earth Cloud Dynamics', min: 0, max: 1, set: (c, v) => { c.earthCloudDynamics = v } },
   { key: 'Earth Terrain Relief', min: 0, max: 1, set: (c, v) => { c.earthTerrainRelief = v } },
+  { key: 'Earth Seafloor Relief', min: 0, max: 1, set: (c, v) => { c.earthSeafloorRelief = v } },
+  { key: 'Earth Seawater Opacity', min: 0, max: 1, set: (c, v) => { c.earthSeawaterOpacity = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -254,6 +268,8 @@ export function applyAppConfig(config: AppConfig): void {
     earthCloudOpacity: config.earthCloudOpacity,
     earthCloudDynamics: config.earthCloudDynamics,
     earthTerrainRelief: config.earthTerrainRelief,
+    earthSeafloorRelief: config.earthSeafloorRelief,
+    earthSeawaterOpacity: config.earthSeawaterOpacity,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
     spacecraftSize: config.spacecraftSize,

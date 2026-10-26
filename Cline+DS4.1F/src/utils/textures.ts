@@ -1,5 +1,6 @@
 import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBColorSpace, Texture } from 'three'
 import type { QualityLevel } from '../types'
+import { SEAFLOOR_RAMP } from '../data/visuals'
 import type { TextureId } from '../data/visuals'
 import { TEXTURE_IDS, TEXTURE_SOURCES } from './textureSources'
 import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
@@ -526,6 +527,37 @@ function paintEarthNight(size: MapSize, shared: SharedBuild): HTMLCanvasElement 
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fill()
   }
+  return canvas
+}
+
+/** Parses `#rrggbb` into an [r, g, b] triple. */
+function hexToRgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.slice(1), 16)
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+}
+
+/**
+ * The seafloor's depth ramp: a 1-D strip whose x axis is normalised depth (0 at
+ * the shallowest shelf, 1 at the deepest trench). The shader samples it with the
+ * decoded depth of each fragment, so the palette lives in `data/visuals.ts`.
+ */
+function paintSeafloorRamp(size: MapSize): HTMLCanvasElement {
+  const canvas = makeCanvas(size.width, size.height)
+  const ctx = context2d(canvas)
+  const stops: Stop[] = SEAFLOOR_RAMP.map(([position, hex]) => [position, hexToRgb(hex)])
+  const image = ctx.createImageData(size.width, size.height)
+  const data = image.data
+  for (let y = 0; y < size.height; y += 1) {
+    for (let x = 0; x < size.width; x += 1) {
+      const [r, g, b] = ramp(stops, size.width > 1 ? x / (size.width - 1) : 0)
+      const offset = (y * size.width + x) * 4
+      data[offset] = r
+      data[offset + 1] = g
+      data[offset + 2] = b
+      data[offset + 3] = 255
+    }
+  }
+  ctx.putImageData(image, 0, 0)
   return canvas
 }
 
@@ -1249,6 +1281,12 @@ function soften(mask: Float32Array, width: number, height: number): Float32Array
  * what puts a sun glint on the oceans — the most recognisable thing about a
  * photograph of Earth from space, and the reason the real planet is not
  * uniformly matte.
+ *
+ * The *alpha* channel carries the raw water mask itself (1 = open water, 0 =
+ * land). The standard material ignores a roughness map's alpha, so this costs
+ * nothing and gives the seafloor shader an exact, encoding-independent water
+ * mask to reveal the floor through — no second texture and no guessing from the
+ * roughness value.
  */
 function roughnessFromWater(mask: Float32Array, width: number, height: number): HTMLCanvasElement {
   const canvas = makeCanvas(width, height)
@@ -1260,18 +1298,31 @@ function roughnessFromWater(mask: Float32Array, width: number, height: number): 
     data[i * 4] = roughness
     data[i * 4 + 1] = roughness
     data[i * 4 + 2] = roughness
-    data[i * 4 + 3] = 255
+    // Water mask in the alpha channel: white = water. Alpha 0 keeps the seafloor
+    // hidden if the day map never loaded (see `plainRoughness`).
+    data[i * 4 + 3] = Math.round(clamp(mask[i], 0, 1) * 255)
   }
   ctx.putImageData(image, 0, 0)
   return canvas
 }
 
-/** A flat, mid-rough surface: used when nothing better can be worked out. */
+/**
+ * A flat, mid-rough surface: used when nothing better can be worked out. Its
+ * alpha is 0, so with no day map there is no water mask and the seafloor stays
+ * hidden rather than covering the whole globe.
+ */
 function plainRoughness(width: number, height: number): HTMLCanvasElement {
   const canvas = makeCanvas(width, height)
   const ctx = context2d(canvas)
-  ctx.fillStyle = '#b4b4b4'
-  ctx.fillRect(0, 0, width, height)
+  const image = ctx.createImageData(width, height)
+  const data = image.data
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 180
+    data[i + 1] = 180
+    data[i + 2] = 180
+    data[i + 3] = 0
+  }
+  ctx.putImageData(image, 0, 0)
   return canvas
 }
 
@@ -1322,6 +1373,7 @@ const PAINTERS: Painter[] = [
   { id: 'sun', label: 'Stirring the Sun’s plasma', build: (size) => paintSun(size) },
   { id: 'earth', label: 'Building Earth’s continents', build: (size, shared) => paintEarth(size, shared) },
   { id: 'earthHeightmap', label: 'Raising Earth’s mountains', build: (size, shared) => paintEarthHeightmap(size, shared) },
+  { id: 'seafloorRamp', label: 'Tinting the ocean floor', build: (size) => paintSeafloorRamp(size) },
   { id: 'earthClouds', label: 'Rolling out Earth’s clouds', build: (size) => paintEarthClouds(size) },
   { id: 'earthNight', label: 'Switching on the city lights', build: (size) => paintEarthNight(size, sharedLandMask ?? { landMask: null, width: 0, height: 0 }) },
   { id: 'moon', label: 'Pocking the Moon with craters', build: (size) => paintMoon(size) },
@@ -1359,6 +1411,9 @@ function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'cometNucleus') return { width: 256, height: 128 }
   if (id === 'saturnRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
   if (id === 'uranusRings') return { width: quality === 'low' ? 512 : 1024, height: 16 }
+  // The seafloor's colour ramp is a 1-D strip, so its width is the only axis
+  // that matters; 256 stops are already smoother than the eye can see.
+  if (id === 'seafloorRamp') return { width: 256, height: 1 }
 
   const large = LARGE_MAPS.includes(id)
   if (quality === 'high') return large ? { width: 1024, height: 512 } : { width: 512, height: 256 }
@@ -1387,6 +1442,18 @@ export function hasTextures(): boolean {
   return cache.size === TEXTURE_IDS.length
 }
 
+/**
+ * Whether a map was actually loaded for `id`, rather than the shared fallback.
+ *
+ * The seafloor uses this: if `earth_bathymetry.png` is missing or fails to
+ * decode, `getTexture` returns the grey fallback and the feature is switched off
+ * entirely (see `uBathyEnabled`), so the ocean simply stays as it was. The app
+ * never invents seafloor topography it does not have.
+ */
+export function hasTexture(id: TextureId): boolean {
+  return cache.has(id)
+}
+
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame === 'function') {
@@ -1403,7 +1470,12 @@ function nextFrame(): Promise<void> {
  * must not be gamma-decoded by the GPU on the way in, so they are uploaded as
  * raw data. Everything else is a photograph and is treated as sRGB.
  */
-const DATA_MAPS: TextureId[] = ['earthClouds', 'earthRoughness', 'earthHeightmap']
+const DATA_MAPS: TextureId[] = [
+  'earthClouds',
+  'earthRoughness',
+  'earthHeightmap',
+  'earthBathymetry',
+]
 
 /**
  * How far the Milky Way panorama's exposure is lifted before it is uploaded (see

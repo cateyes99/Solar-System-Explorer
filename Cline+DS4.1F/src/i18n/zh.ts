@@ -168,6 +168,14 @@ export const zh: Record<TranslationKey, string> = {
   'planet.terrainRelief': '地形起伏',
   'planet.terrainReliefHint':
     '真实地表从球面上隆起的程度。地球的陆地由 NASA / USGS 的全球高程模型顶起，因此山脉、高原和峡谷都是真正的三维形状。高度经过夸张处理——真实起伏只有地球半径的 0.14%——这个滑块决定夸张多少。',
+  'planet.earthSeafloor': '地球的海底',
+  'planet.seafloorHint': '100% = 平常的海洋',
+  'planet.seawaterOpacity': '海水不透明度',
+  'planet.seawaterOpacityHint':
+    '能透过海水看到多少。100% 时海洋与原来完全一样；滑向 0% 就会排干海水，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',
+  'planet.seafloorRelief': '海底起伏',
+  'planet.seafloorReliefHint':
+    '海底从球面向下压入的深度。真实海洋的深度只有地球半径的约 0.17%，所以这里的下陷经过夸张处理，好让地形看得见；这个滑块决定夸张多少，与陆地起伏相互独立。',
   'planet.diameter': '直径',
   'planet.distanceFromSun': '与太阳的距离',
   'planet.average': '平均',
@@ -548,6 +556,8 @@ export const zh: Record<TranslationKey, string> = {
   'texture.source.venus': '揭开金星的云层',
   'texture.source.earth': '展开蓝色弹珠',
   'texture.source.earthHeightmap': '读取地球真实的高程',
+  'texture.source.earthBathymetry': '探测海底深度',
+  'texture.seafloorRamp': '为海底着色',
   'texture.source.earthClouds': '铺开地球真实的云',
   'texture.source.earthNight': '点亮真实的城市灯光',
   'texture.source.moon': '勘测月球',
