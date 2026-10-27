@@ -52,6 +52,11 @@
   // a physical model of underwater light. The planet panel's slider is the live
   // version of this value.
   "Earth Seawater Opacity": 1,
+  // How full the ocean is in the "volumetric" mode: 1 = the water surface sits
+  // at mean sea level (the full depth), 0 = it has dropped to the deepest floor
+  // and the seafloor is fully exposed. It is independent of "Earth Seawater
+  // Opacity": the level moves the surface, the opacity thins the water.
+  "Earth Sea Level": 1,
   // Which ocean implementation draws the sea. "surface" (the default) fades the
   // single painted ocean surface in place to reveal the seafloor; "volumetric"
   // draws a real transparent water layer over the drained seafloor, which looks

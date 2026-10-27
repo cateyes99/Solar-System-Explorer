@@ -25,6 +25,14 @@ export interface WaterUniforms {
     uSeafloorExponent: { value: number }
     uUvOffset: { value: number }
     uWaterAlpha: { value: number }
+    /**
+     * How far the sea surface has dropped, as a fraction of the ocean's full
+     * depth (see `utils/seawater.ts`). It is the geometry counterpart of
+     * `uWaterAlpha`: the mesh is also scaled to match, and this value both trims
+     * the Beer's-law path to the remaining column and exposes the floor above
+     * the new waterline.
+     */
+    uSeaLevelDrop: { value: number }
     uWaterAbsorption: { value: Vector3 }
     uWaterTint: { value: Color }
   }
@@ -40,6 +48,8 @@ export interface WaterBinding {
   uvOffset: number
   /** The seawater-opacity slider, 0…1. */
   opacity: number
+  /** How far the sea surface has dropped, 0…1 (see `utils/seawater.ts`). */
+  seaLevelDrop: number
 }
 
 /**
@@ -61,6 +71,7 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uSeafloorExponent: { value: binding.depthExponent },
       uUvOffset: { value: binding.uvOffset },
       uWaterAlpha: { value: waterAlpha(binding.opacity, binding.visuals.revealGamma) },
+      uSeaLevelDrop: { value: binding.seaLevelDrop },
       uWaterAbsorption: { value: new Vector3(...binding.visuals.absorption) },
       uWaterTint: { value: new Color(binding.visuals.waterTint) },
     },
@@ -82,6 +93,7 @@ uniform sampler2D uBathyMap;
 uniform float uSeafloorExponent;
 uniform float uUvOffset;
 uniform float uWaterAlpha;
+uniform float uSeaLevelDrop;
 uniform vec3 uWaterAbsorption;
 uniform vec3 uWaterTint;
 varying vec2 vSeaUv;
@@ -92,13 +104,23 @@ varying vec2 vSeaUv;
  * own ocean colour — the water keeps the planet's real hue and simply attenuates
  * it with depth. The alpha is the water mask (1 over open water, fading out
  * across the coast) times the slider's alpha.
+ *
+ * The sea-level drop trims the water column: `waterDepth` becomes the *filled*
+ * depth, so the Beer's-law tint is measured through the water that is actually
+ * there, and anything above the new waterline (where the floor now stands proud
+ * of the lowered surface) is discarded, exposing the seafloor mesh beneath.
  */
 export const WATER_FRAGMENT_BODY = /* glsl */ `
 {
   vec2 seaUv = vSeaUv + vec2(uUvOffset, 0.0);
   float waterMask = texture2D(uWaterMask, seaUv).a;
   if (waterMask * uWaterAlpha < 0.004) discard;
-  float waterDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
+  // The depth fraction under this pixel, minus how far the surface has dropped:
+  // 0 exactly at the waterline, 1 where the column is still at full depth.
+  float waterDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent) - uSeaLevelDrop;
+  // Above the waterline the floor is exposed; the opaque seafloor mesh already
+  // covers these pixels, so the water steps aside.
+  if (waterDepth <= 0.0) discard;
   // Beer's law, per channel: the water body absorbs its own colour with depth,
   // so a shallow shelf stays the bright day-map blue while the abyss falls away
   // through teal to navy — driven by the real depth under each pixel.

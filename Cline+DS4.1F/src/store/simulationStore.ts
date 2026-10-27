@@ -38,6 +38,8 @@ export interface SettingsPatch {
   earthTerrainRelief?: number
   earthSeafloorRelief?: number
   earthSeawaterOpacity?: number
+  /** How full the volumetric ocean is, 0…1 (see `earthSeaLevel`). */
+  earthSeaLevel?: number
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
   leftPanelOpacity?: number
@@ -154,6 +156,15 @@ export interface SimulationState {
    */
   earthSeawaterOpacity: number
   /**
+   * How full the ocean is in the "volumetric" mode: 1 = the water surface sits
+   * at mean sea level and the ocean is at its full depth, 0 = the surface has
+   * dropped to the deepest floor and the seafloor is fully exposed. It is
+   * independent of `earthSeawaterOpacity` — the level moves the surface, the
+   * opacity thins the water. Only Earth reads it, and only the layered water
+   * mesh acts on it (see `components/3d/Ocean.tsx`).
+   */
+  earthSeaLevel: number
+  /**
    * Which implementation draws Earth's ocean: the single-mesh "surface" fade
    * (the default, and the cheaper one) or the two-mesh "volumetric" water layer.
    * Only Earth reads it. See `data/seawaterModes.ts`.
@@ -237,6 +248,7 @@ export interface SimulationActions {
   setEarthTerrainRelief: (value: number) => void
   setEarthSeafloorRelief: (value: number) => void
   setEarthSeawaterOpacity: (value: number) => void
+  setEarthSeaLevel: (value: number) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
   setScaleMode: (mode: ScaleMode) => void
@@ -348,6 +360,9 @@ const initialState: SimulationState = {
   // Fully opaque by default: the ocean looks exactly as it always has until the
   // viewer chooses to drain it.
   earthSeawaterOpacity: 1,
+  // A full ocean by default: the sea-level control only lowers the surface when
+  // the viewer reaches for it, so the shipped look is untouched.
+  earthSeaLevel: 1,
   // The single-mesh "surface" fade is the default: it is the cheaper of the two
   // implementations and keeps the photographic ocean at full opacity.
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
@@ -505,6 +520,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthSeawaterOpacity: (value) =>
     set({ earthSeawaterOpacity: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSeaLevel: (value) =>
+    set({ earthSeaLevel: Math.max(0, Math.min(1, value)) }),
 
   setEarthSeawaterMode: (mode) => {
     if (!isSeawaterModeId(mode)) return
@@ -674,6 +692,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthTerrainRelief: clamp01(patch.earthTerrainRelief, state.earthTerrainRelief),
       earthSeafloorRelief: clamp01(patch.earthSeafloorRelief, state.earthSeafloorRelief),
       earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
+      earthSeaLevel: clamp01(patch.earthSeaLevel, state.earthSeaLevel),
       earthSeawaterMode: isSeawaterModeId(patch.earthSeawaterMode)
         ? patch.earthSeawaterMode
         : state.earthSeawaterMode,
