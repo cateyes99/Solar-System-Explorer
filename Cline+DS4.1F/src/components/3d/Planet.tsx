@@ -225,6 +225,16 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const bumpScale = terrain ? radius * terrain.scale : 0
 
   /**
+   * The seafloor's displacement numbers for the current relief. They are shared
+   * by the surface uniforms and the ocean layer, which needs the deepest point
+   * to know how far the sea surface can drop.
+   */
+  const seafloorFloor = useMemo(
+    () => (visuals.seafloor ? seafloorDisplacement(visuals.seafloor, seafloorRelief) : null),
+    [visuals.seafloor, seafloorRelief],
+  )
+
+  /**
    * The elevation model's shader uniforms. They are built once per body and
    * shared with the city lights, so the glow lies on exactly the ground the
    * surface is displaced to.
@@ -355,16 +365,15 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   // writes, never a material rebuild. `uBathyEnabled` is re-checked so a
   // late-arriving (or missing) bathymetry map is handled.
   useEffect(() => {
-    if (!terrainUniforms || !visuals.seafloor) return
+    if (!terrainUniforms || !visuals.seafloor || !seafloorFloor) return
     const { uniforms } = terrainUniforms
-    const floor = seafloorDisplacement(visuals.seafloor, seafloorRelief)
     uniforms.uSeawaterOpacity.value = seafloorOpacity
-    uniforms.uSeafloorScale.value = floor.maxDepthRadius
+    uniforms.uSeafloorScale.value = seafloorFloor.maxDepthRadius
     // Like the land's `material.bumpScale`, the seafloor's bump strength is the
     // object-space depth scaled by the planet's drawn radius.
-    uniforms.uSeafloorBumpScale.value = radius * floor.maxDepthRadius
+    uniforms.uSeafloorBumpScale.value = radius * seafloorFloor.maxDepthRadius
     uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
-  }, [terrainUniforms, visuals.seafloor, seafloorOpacity, seafloorRelief, radius])
+  }, [terrainUniforms, visuals.seafloor, seafloorFloor, seafloorOpacity, radius])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)
@@ -523,6 +532,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               waterMask={getTexture('earthRoughness')}
               depthExponent={visuals.seafloor.depthExponent}
               uvOffset={visuals.textureOffsetU}
+              maxDepthRadius={seafloorFloor?.maxDepthRadius ?? 0}
             />
           ) : null}
 

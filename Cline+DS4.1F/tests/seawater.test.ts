@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   depthFraction,
   depthMeters,
+  seaLevelDrop,
   seafloorDepthRadius,
   seawaterVisibility,
 } from '../src/utils/seawater.ts'
@@ -31,6 +32,20 @@ test('a fully opaque ocean reveals nothing (the shipped look is untouched)', () 
   // The shader gates on `uSeawaterOpacity < 0.999`; at the default of 1 the
   // seafloor term is exactly zero.
   assert.equal(seawaterVisibility(1), 0)
+})
+
+test('the sea-surface drop is the complement of the fill, and needs a depth', () => {
+  // 100% fill means no drop; 0% drops the surface to the deepest floor.
+  assert.equal(seaLevelDrop(1, 0.17), 0)
+  assert.equal(seaLevelDrop(0, 0.17), 1)
+  assert.ok(Math.abs(seaLevelDrop(0.6, 0.17) - 0.4) < 1e-12)
+  // Out-of-range fill is clamped.
+  assert.equal(seaLevelDrop(-1, 0.17), 1)
+  assert.equal(seaLevelDrop(2, 0.17), 0)
+  // A flat sea has no depth to drain, so the control stays inert rather than
+  // carving holes in a surface that never had a floor below it.
+  assert.equal(seaLevelDrop(0, 0), 0)
+  assert.equal(seaLevelDrop(0.5, 0), 0)
 })
 
 test('the depth field decodes with its square-root curve', () => {

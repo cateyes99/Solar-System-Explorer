@@ -56,6 +56,12 @@ export interface AppConfig {
    */
   earthSeawaterOpacity: number
   /**
+   * How full the volumetric ocean is, 0…1 (store: `earthSeaLevel`). 1 is the
+   * full-depth ocean; 0 drops the surface to the deepest floor. It is
+   * independent of `earthSeawaterOpacity`.
+   */
+  earthSeaLevel: number
+  /**
    * Which ocean implementation Earth draws (store: `earthSeawaterMode`). `surface`
    * is the single-mesh fade; `volumetric` is the transparent water layer. See
    * `data/seawaterModes.ts`.
@@ -86,6 +92,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthTerrainRelief: 0.5,
   earthSeafloorRelief: 0.4,
   earthSeawaterOpacity: 1,
+  earthSeaLevel: 1,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
@@ -112,6 +119,7 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Terrain Relief', min: 0, max: 1, set: (c, v) => { c.earthTerrainRelief = v } },
   { key: 'Earth Seafloor Relief', min: 0, max: 1, set: (c, v) => { c.earthSeafloorRelief = v } },
   { key: 'Earth Seawater Opacity', min: 0, max: 1, set: (c, v) => { c.earthSeawaterOpacity = v } },
+  { key: 'Earth Sea Level', min: 0, max: 1, set: (c, v) => { c.earthSeaLevel = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -288,6 +296,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthTerrainRelief: config.earthTerrainRelief,
     earthSeafloorRelief: config.earthSeafloorRelief,
     earthSeawaterOpacity: config.earthSeawaterOpacity,
+    earthSeaLevel: config.earthSeaLevel,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
