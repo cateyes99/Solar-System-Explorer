@@ -1,5 +1,6 @@
 import { AnimatePresence } from 'framer-motion'
 import { BODY_VISUALS } from '../../data/visuals'
+import { SEAWATER_MODES, seawaterModeFor } from '../../data/seawaterModes'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
@@ -40,6 +41,8 @@ export function PlanetPanel() {
   const setEarthSeafloorRelief = useSimulationStore((state) => state.setEarthSeafloorRelief)
   const earthSeawaterOpacity = useSimulationStore((state) => state.earthSeawaterOpacity)
   const setEarthSeawaterOpacity = useSimulationStore((state) => state.setEarthSeawaterOpacity)
+  const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
+  const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
   const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
@@ -51,6 +54,10 @@ export function PlanetPanel() {
   const liveDistanceUnits = body ? getDistanceFromSun(body.id) : 0
   const moons = body ? content.satellitesOf(body.id) : []
   const isWorld = body?.kind === 'planet' || body?.kind === 'moon' || body?.kind === 'dwarf'
+  // The active ocean implementation. Its registry entry carries the labels and
+  // hints both the switcher and the shared slider show, so relabelling the
+  // slider per mode needs no special-casing here.
+  const seawaterMode = seawaterModeFor(earthSeawaterMode)
 
   return (
     <AnimatePresence>
@@ -147,16 +154,50 @@ export function PlanetPanel() {
           {body.id === 'earth' ? (
             <div className="mt-4">
               <SectionTitle hint={t('planet.seafloorHint')}>{t('planet.earthSeafloor')}</SectionTitle>
-              <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+
+              {/* Which ocean implementation draws the sea. The options come from
+                  the mode registry, so a future "Option C" shows up here with no
+                  change to this panel. */}
+              <div
+                role="group"
+                aria-label={t('planet.seawaterMode')}
+                className="flex gap-1 rounded-xl border border-white/8 bg-white/4 p-1"
+              >
+                {SEAWATER_MODES.map((mode) => {
+                  const active = mode.id === earthSeawaterMode
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setEarthSeawaterMode(mode.id)}
+                      className={`min-h-[2.25rem] flex-1 rounded-lg border px-2 text-xs font-medium transition-colors ${
+                        active
+                          ? 'border-ice/60 bg-ice/20 text-parchment'
+                          : 'border-transparent bg-transparent text-mist hover:text-parchment'
+                      }`}
+                    >
+                      {t(mode.labelKey)}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1 px-1 text-[0.68rem] leading-relaxed text-mist/80">
+                {t(seawaterMode.hintKey)}
+              </p>
+
+              {/* One slider for both implementations; only its label and hint
+                  follow the active mode (see `data/seawaterModes.ts`). */}
+              <div className="mt-2 rounded-xl border border-white/8 bg-white/4 p-1">
                 <SliderRow
-                  label={t('planet.seawaterOpacity')}
+                  label={t(seawaterMode.sliderLabelKey)}
                   value={earthSeawaterOpacity}
                   min={0}
                   max={1}
                   step={0.01}
                   onChange={setEarthSeawaterOpacity}
                   format={(value) => `${Math.round(value * 100)}%`}
-                  hint={t('planet.seawaterOpacityHint')}
+                  hint={t(seawaterMode.sliderHintKey)}
                 />
                 <SliderRow
                   label={t('planet.seafloorRelief')}
