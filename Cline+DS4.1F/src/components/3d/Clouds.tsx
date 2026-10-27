@@ -284,6 +284,14 @@ export function Clouds({
   })
 
   return (
-    <mesh ref={meshRef} geometry={geometry} material={material} scale={radius * (1.012 + shellLift)} />
+    // `renderOrder` keeps the deck above the transparent ocean layer, which sits
+    // at the same planet origin and would otherwise sort unpredictably against it.
+    <mesh
+      ref={meshRef}
+      geometry={geometry}
+      material={material}
+      scale={radius * (1.012 + shellLift)}
+      renderOrder={3}
+    />
   )
 }

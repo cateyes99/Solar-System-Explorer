@@ -124,6 +124,8 @@ export function NightLights({
       geometry={geometry ?? HIGH_DETAIL_SPHERE}
       material={material}
       scale={radius * 1.002}
+      // Above the ocean layer, which shares the planet origin (see `Water.tsx`).
+      renderOrder={2}
     />
   )
 }

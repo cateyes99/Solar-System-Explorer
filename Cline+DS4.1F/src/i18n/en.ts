@@ -562,6 +562,7 @@ export const en = {
   'texture.source.earthHeightmap': 'Reading Earth’s real elevation',
   'texture.source.earthBathymetry': 'Sounding the ocean floor',
   'texture.seafloorRamp': 'Tinting the ocean floor',
+  'texture.waterNormal': 'Rippling the ocean surface',
   'texture.source.earthClouds': 'Rolling out Earth’s real clouds',
   'texture.source.earthNight': 'Switching on the real city lights',
   'texture.source.moon': 'Surveying the Moon',
