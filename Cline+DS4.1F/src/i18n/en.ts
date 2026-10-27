@@ -171,6 +171,16 @@ export const en = {
     'How far the real surface rises out of the globe. Earth’s continents are pushed up by a global NASA / USGS elevation model, so mountain ranges, plateaus and canyons are genuinely three-dimensional. The height is exaggerated — the real thing is only 0.14% of Earth’s radius — and this slider sets how much.',
   'planet.earthSeafloor': 'Earth’s seafloor',
   'planet.seafloorHint': '100% = the usual ocean',
+  'planet.seawaterMode': 'Ocean rendering',
+  'planet.seawaterMode.surface': 'Surface',
+  'planet.seawaterMode.surfaceHint':
+    'Faster. The ocean is a single painted surface that fades away to reveal the seafloor beneath it.',
+  'planet.seawaterMode.volumetric': 'Volumetric',
+  'planet.seawaterMode.volumetricHint':
+    'Slower. A real transparent water layer sits over the drained seafloor, with depth-tinted colour and a sun glint.',
+  'planet.seawaterFade': 'Ocean fade',
+  'planet.seawaterFadeHint':
+    'How far the painted ocean is faded away. 100% keeps the ocean exactly as it looks; slide toward 0% to fade it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
   'planet.seawaterOpacity': 'Seawater opacity',
   'planet.seawaterOpacityHint':
     'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',

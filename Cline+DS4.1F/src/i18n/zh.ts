@@ -170,6 +170,15 @@ export const zh: Record<TranslationKey, string> = {
     '真实地表从球面上隆起的程度。地球的陆地由 NASA / USGS 的全球高程模型顶起，因此山脉、高原和峡谷都是真正的三维形状。高度经过夸张处理——真实起伏只有地球半径的 0.14%——这个滑块决定夸张多少。',
   'planet.earthSeafloor': '地球的海底',
   'planet.seafloorHint': '100% = 平常的海洋',
+  'planet.seawaterMode': '海洋渲染方式',
+  'planet.seawaterMode.surface': '表层',
+  'planet.seawaterMode.surfaceHint': '更快。海洋是单一贴图表面，逐渐淡出以露出下方的海底。',
+  'planet.seawaterMode.volumetric': '体积水层',
+  'planet.seawaterMode.volumetricHint':
+    '较慢。在排干的海底之上有一层真正透明的海水，带有随深度变化的颜色和阳光反光。',
+  'planet.seawaterFade': '海洋淡出',
+  'planet.seawaterFadeHint':
+    '贴图海洋淡出的程度。100% 时海洋与原来完全一样；滑向 0% 就会让它淡出，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。水越深、视线越贴近海面，海底就越被遮住，就像真实的海水一样。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',
   'planet.seawaterOpacity': '海水不透明度',
   'planet.seawaterOpacityHint':
     '能透过海水看到多少。100% 时海洋与原来完全一样；滑向 0% 就会排干海水，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。水越深、视线越贴近海面，海底就越被水遮住，就像真实的海水一样。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',
