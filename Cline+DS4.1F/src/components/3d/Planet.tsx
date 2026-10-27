@@ -4,6 +4,7 @@ import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial } from 'three
 import type { Group, Mesh, MeshBasicMaterial } from 'three'
 import type { CelestialBody, QualityLevel, SatelliteDefinition } from '../../types'
 import { BODY_VISUALS } from '../../data/visuals'
+import { DEFAULT_SEAWATER_MODE, seafloorOpacityFor, seawaterModeFor } from '../../data/seawaterModes'
 import { MOON, satellitesOf } from '../../data/planets'
 import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
@@ -126,11 +127,27 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   )
   // The seafloor has its own relief dial; like the others, the selector returns
   // an inert constant for every other world, so only Earth re-renders when it
-  // moves. (The seawater-opacity dial belongs to the water layer, which reads it
-  // itself — see `Water.tsx` — so the planet never re-renders for it.)
+  // moves.
   const seafloorRelief = useSimulationStore((state) =>
     body.id === 'earth' ? state.earthSeafloorRelief : 0,
   )
+  // Which ocean implementation Earth draws (see `data/seawaterModes.ts`). A
+  // non-Earth body keeps the constant default, so switching modes never
+  // re-renders the rest of the system.
+  const seawaterModeId = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthSeawaterMode : DEFAULT_SEAWATER_MODE,
+  )
+  const seawaterMode = seawaterModeFor(seawaterModeId)
+  // The shared opacity slider. Only the "surface" mode needs it here — the
+  // "volumetric" mode's water layer reads it itself (see `Ocean.tsx`) — so the
+  // selector returns a constant while that mode is active and the planet stays
+  // still as the slider is dragged.
+  const seawaterOpacity = useSimulationStore((state) =>
+    body.id === 'earth' && seawaterMode.surfaceFade === 'slider' ? state.earthSeawaterOpacity : 0,
+  )
+  // What the *surface* material's seafloor opacity uniform takes: the slider in
+  // a fading mode, a pinned 0 (fully drained) in a layered mode.
+  const seafloorOpacity = seafloorOpacityFor(seawaterMode, seawaterOpacity)
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -228,6 +245,12 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             ramp: getTexture(visuals.seafloor.rampMapId),
           },
           relief: state.earthSeafloorRelief,
+          // The initial surface opacity for whichever mode is active; the effect
+          // below keeps it live as the slider and the switcher move.
+          opacity: seafloorOpacityFor(
+            seawaterModeFor(state.earthSeawaterMode),
+            state.earthSeawaterOpacity,
+          ),
           enabled: hasTexture(visuals.seafloor.bathymetryMapId),
         }
       : null
@@ -288,7 +311,9 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
           )
         // The seafloor's colour, roughness and bump blends only ever *add* to
         // the standard shader: they paint the ocean's texels as the drained floor
-        // and leave the land untouched. The water itself is a separate layer.
+        // and leave the land untouched. How much of that shows is the seawater
+        // opacity uniform — the slider in the "surface" mode, a pinned 0 in the
+        // "volumetric" mode, where the water is a separate layer instead.
         shader.fragmentShader = shader.fragmentShader
           // The seafloor helpers read `vNormal` and `vViewPosition`, which the
           // standard material declares in `normal_pars_fragment`.
@@ -325,19 +350,21 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     surfaceMaterial.bumpScale = bumpScale
   }, [surfaceMaterial, terrain, terrainUniforms, bumpScale])
 
-  // The seafloor-relief dial is a live uniform too: dragging it is a couple of
-  // number writes, never a material rebuild. `uBathyEnabled` is re-checked so a
+  // The seafloor-relief dial and the shared seawater slider are live uniforms
+  // too: dragging either — or switching ocean mode — is a couple of number
+  // writes, never a material rebuild. `uBathyEnabled` is re-checked so a
   // late-arriving (or missing) bathymetry map is handled.
   useEffect(() => {
     if (!terrainUniforms || !visuals.seafloor) return
     const { uniforms } = terrainUniforms
     const floor = seafloorDisplacement(visuals.seafloor, seafloorRelief)
+    uniforms.uSeawaterOpacity.value = seafloorOpacity
     uniforms.uSeafloorScale.value = floor.maxDepthRadius
     // Like the land's `material.bumpScale`, the seafloor's bump strength is the
     // object-space depth scaled by the planet's drawn radius.
     uniforms.uSeafloorBumpScale.value = radius * floor.maxDepthRadius
     uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
-  }, [terrainUniforms, visuals.seafloor, seafloorRelief, radius])
+  }, [terrainUniforms, visuals.seafloor, seafloorOpacity, seafloorRelief, radius])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)
@@ -480,9 +507,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
             }}
           />
 
-          {/* The ocean, when the body has one: a transparent layer at sea level
-              through which the seafloor below is seen (see `Water.tsx`). */}
-          {visuals.water && visuals.seafloor && hasTexture(visuals.seafloor.bathymetryMapId) ? (
+          {/* The ocean layer, in the "volumetric" mode only: a transparent mesh
+              at sea level through which the drained seafloor below is seen (see
+              `water.ts` / `Ocean.tsx`). The "surface" mode fades the ocean in
+              place instead, so it draws no layer. */}
+          {seawaterMode.layeredWater &&
+          visuals.water &&
+          visuals.seafloor &&
+          hasTexture(visuals.seafloor.bathymetryMapId) ? (
             <Ocean
               geometry={sphereGeometry}
               radius={radius}
