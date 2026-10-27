@@ -359,12 +359,12 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     // runs the shallows bright and the abyss navy.
     water: {
       normalMapId: 'waterNormal',
-      normalScale: 0.6,
-      normalRepeat: [12, 6],
-      drift: [0.008, 0.003],
-      roughness: 0.18,
+      normalScale: 0.45,
+      normalRepeat: [9, 5],
+      drift: [0.006, 0.002],
+      roughness: 0.12,
       metalness: 0,
-      absorption: [1.1, 0.56, 0.36],
+      absorption: [0.95, 0.5, 0.32],
       waterTint: '#0a2b4d',
       revealGamma: 0.7,
     },
