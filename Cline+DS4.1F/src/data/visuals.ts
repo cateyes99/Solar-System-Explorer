@@ -93,10 +93,14 @@ export interface TerrainVisuals {
  * levels and the abyssal plains share the rest. The shader in
  * `components/3d/terrain.ts` inverts that curve.
  *
- * The "Seawater opacity" slider reveals the floor: 100% leaves the ocean exactly
- * as it was (the floor is neither displaced nor coloured), and 0% drains it. The
+ * The "Seawater" slider reveals the floor: 100% leaves the ocean exactly as it
+ * was (the floor is neither displaced nor coloured), and 0% drains it. The
  * relationship is a deliberate, documented *nominal visibility* factor — see the
  * hint text in the planet panel — not a physical model of underwater light.
+ *
+ * These numbers describe the **surface** ocean implementation, where the floor
+ * fades in place (see `data/seawaterModes.ts`). The separate, transparent water
+ * layer of the "volumetric" mode carries its own tuning in `WaterVisuals`.
  */
 export interface SeafloorVisuals {
   /** The depth field (grayscale, equirectangular, aligned with the day map). */
@@ -115,6 +119,30 @@ export interface SeafloorVisuals {
   maxExaggeration: number
   /** How matte the drained seafloor reads (0 = mirror, 1 = fully rough). */
   roughness: number
+  /**
+   * The water's per-channel Beer–Lambert extinction (R, G, B), at full opacity
+   * and a straight-down view. Red is absorbed first — which is why deep water
+   * reads blue — and the whole scale is deliberately compressed so the seafloor
+   * stays visible through it. It is a *visual* model, not a calibrated optical
+   * one, and it has no effect at 100% (opaque ocean) or 0% (fully drained).
+   */
+  absorption: [number, number, number]
+  /**
+   * The colour light takes on as it scatters through the water column — what the
+   * floor fades toward where the water is deep, or seen at a grazing angle.
+   */
+  waterTint: string
+  /**
+   * The reveal curve's exponent: the floor's visibility is
+   * `(1 − opacity) ^ revealGamma`, applied to *both* the geometry and the colour
+   * so they stay in step.
+   *
+   * 1 is the plain inverse-linear relationship; below 1 reveals the floor faster
+   * in the middle of the slider, so a half-drained ocean already reads as
+   * drained. It is a presentation curve, not physics — the note on the panel
+   * says the slider is not a model of real underwater visibility.
+   */
+  revealGamma: number
 }
 
 /**
@@ -255,7 +283,7 @@ export interface BodyVisuals {
   terrain?: TerrainVisuals
   /**
    * Real seafloor depth, when the body has any. Present only for Earth (see
-   * `SeafloorVisuals`); revealed by the "Seawater opacity" slider.
+   * `SeafloorVisuals`); revealed by the shared seawater slider.
    */
   seafloor?: SeafloorVisuals
   /**
@@ -353,6 +381,12 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       depthExponent: 2,
       maxExaggeration: 160,
       roughness: 0.92,
+      // The "surface" mode's own water column: a shallow shelf keeps the day-map
+      // blue while the abyss falls through teal to navy, and the floor fades to
+      // the tint where the water is deep or seen at a grazing angle.
+      absorption: [3.4, 1.7, 1],
+      waterTint: '#0a2b4d',
+      revealGamma: 0.65,
     },
     // The ocean surface itself: a transparent, rippled, specular water layer at
     // sea level, through which the seafloor above is seen. Its own absorption

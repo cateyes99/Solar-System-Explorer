@@ -137,6 +137,26 @@ export type OrbitModel = 'realistic' | 'educational'
 
 export type QualityLevel = 'low' | 'medium' | 'high'
 
+/**
+ * Which implementation draws Earth's ocean. Only Earth has a sea, so only Earth
+ * reads it; the switcher lives in the planet panel (see `data/seawaterModes.ts`).
+ *
+ *  - `surface`    : the single-mesh "faded floor". The ocean is part of the
+ *                   planet's own surface material and fades in place — the floor
+ *                   sinks into view and its colour is revealed through a nominal
+ *                   water column. One mesh and one material, so it is the
+ *                   cheaper option, and it is the default.
+ *  - `volumetric` : the two-mesh "real water layer". The seafloor is always drawn
+ *                   fully drained and a separate, transparent water mesh sits at
+ *                   sea level above it, with depth-based body colour and a sun
+ *                   glint. One extra transparent draw call.
+ *
+ * A planned third implementation only needs a new member here, a matching entry
+ * in `SEAWATER_MODES`, and its rendering branch — the switcher and the shared
+ * slider follow that registry.
+ */
+export type SeawaterModeId = 'surface' | 'volumetric'
+
 export interface CustomScale {
   /** 0.2 = strongly compressed sizes, 1 = true relative sizes. */
   sizeExponent: number
