@@ -52,6 +52,12 @@
   // a physical model of underwater light. The planet panel's slider is the live
   // version of this value.
   "Earth Seawater Opacity": 1,
+  // Which ocean implementation draws the sea. "surface" (the default) fades the
+  // single painted ocean surface in place to reveal the seafloor; "volumetric"
+  // draws a real transparent water layer over the drained seafloor, which looks
+  // richer but costs an extra draw call. The planet panel's switcher is the live
+  // version of this value.
+  "Seawater Mode": "surface",
 
   // --- Side panels ---------------------------------------------------------
   // Opacity of the left "Controls" panel and the right information panel.

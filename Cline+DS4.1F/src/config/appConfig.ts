@@ -1,5 +1,7 @@
 import { LANGUAGES } from '../i18n'
 import type { Language } from '../i18n'
+import type { SeawaterModeId } from '../types'
+import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
 import { useSimulationStore } from '../store/simulationStore'
 import type { SettingsPatch } from '../store/simulationStore'
 import {
@@ -53,6 +55,12 @@ export interface AppConfig {
    * shipped ocean; 0 drains it and reveals the seafloor.
    */
   earthSeawaterOpacity: number
+  /**
+   * Which ocean implementation Earth draws (store: `earthSeawaterMode`). `surface`
+   * is the single-mesh fade; `volumetric` is the transparent water layer. See
+   * `data/seawaterModes.ts`.
+   */
+  earthSeawaterMode: SeawaterModeId
   /** Opacity of the left controls panel, 0…1 (store: `ui.leftPanelOpacity`). */
   leftPanelOpacity: number
   /** Opacity of the right information panel, 0…1 (store: `ui.rightPanelOpacity`). */
@@ -78,6 +86,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthTerrainRelief: 0.5,
   earthSeafloorRelief: 0.4,
   earthSeawaterOpacity: 1,
+  earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
   spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
@@ -219,6 +228,15 @@ export function validateAppConfig(raw: unknown): { config: AppConfig; issues: st
     }
   }
 
+  const seawaterMode = record['Seawater Mode']
+  if (seawaterMode !== undefined) {
+    if (isSeawaterModeId(seawaterMode)) {
+      config.earthSeawaterMode = seawaterMode
+    } else {
+      issues.push(`Seawater Mode: unsupported value ${JSON.stringify(seawaterMode)}`)
+    }
+  }
+
   return { config, issues }
 }
 
@@ -270,6 +288,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthTerrainRelief: config.earthTerrainRelief,
     earthSeafloorRelief: config.earthSeafloorRelief,
     earthSeawaterOpacity: config.earthSeawaterOpacity,
+    earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
     spacecraftSize: config.spacecraftSize,

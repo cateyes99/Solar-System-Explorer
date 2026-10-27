@@ -9,8 +9,10 @@ import type {
   OrbitModel,
   QualityLevel,
   ScaleMode,
+  SeawaterModeId,
   WhatIfId,
 } from '../types'
+import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
 import { clampSpacecraftSize, DEFAULT_SPACECRAFT_SIZE } from '../utils/spacecraftSize'
 import { pickFact } from '../data/facts'
@@ -36,6 +38,8 @@ export interface SettingsPatch {
   earthTerrainRelief?: number
   earthSeafloorRelief?: number
   earthSeawaterOpacity?: number
+  /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
+  earthSeawaterMode?: SeawaterModeId
   leftPanelOpacity?: number
   rightPanelOpacity?: number
   /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
@@ -145,8 +149,16 @@ export interface SimulationState {
    * How opaque Earth's ocean is: 1 = fully opaque (the shipped look), 0 = the
    * ocean is drained and the seafloor is revealed. A *nominal* visibility
    * control, not a physical model of underwater light (see `utils/seawater.ts`).
+   * One shared slider drives both ocean implementations (see
+   * `earthSeawaterMode`), only its label changes.
    */
   earthSeawaterOpacity: number
+  /**
+   * Which implementation draws Earth's ocean: the single-mesh "surface" fade
+   * (the default, and the cheaper one) or the two-mesh "volumetric" water layer.
+   * Only Earth reads it. See `data/seawaterModes.ts`.
+   */
+  earthSeawaterMode: SeawaterModeId
 
   /* Scale */
   scaleMode: ScaleMode
@@ -225,6 +237,7 @@ export interface SimulationActions {
   setEarthTerrainRelief: (value: number) => void
   setEarthSeafloorRelief: (value: number) => void
   setEarthSeawaterOpacity: (value: number) => void
+  setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
   setScaleMode: (mode: ScaleMode) => void
   setCustomScale: (patch: Partial<CustomScale>) => void
@@ -335,6 +348,9 @@ const initialState: SimulationState = {
   // Fully opaque by default: the ocean looks exactly as it always has until the
   // viewer chooses to drain it.
   earthSeawaterOpacity: 1,
+  // The single-mesh "surface" fade is the default: it is the cheaper of the two
+  // implementations and keeps the photographic ocean at full opacity.
+  earthSeawaterMode: DEFAULT_SEAWATER_MODE,
 
   scaleMode: 'distances',
   customScale: DEFAULT_CUSTOM_SCALE,
@@ -489,6 +505,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthSeawaterOpacity: (value) =>
     set({ earthSeawaterOpacity: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSeawaterMode: (mode) => {
+    if (!isSeawaterModeId(mode)) return
+    set({ earthSeawaterMode: mode })
+  },
 
   setScaleMode: (mode) => {
     audio.play('click')
@@ -653,6 +674,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthTerrainRelief: clamp01(patch.earthTerrainRelief, state.earthTerrainRelief),
       earthSeafloorRelief: clamp01(patch.earthSeafloorRelief, state.earthSeafloorRelief),
       earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
+      earthSeawaterMode: isSeawaterModeId(patch.earthSeawaterMode)
+        ? patch.earthSeawaterMode
+        : state.earthSeawaterMode,
       spacecraftSize: clampSpacecraftSize(patch.spacecraftSize ?? state.spacecraftSize),
       ui: {
         ...state.ui,
