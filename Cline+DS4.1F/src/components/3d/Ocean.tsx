@@ -4,6 +4,7 @@ import { MeshStandardMaterial, RepeatWrapping } from 'three'
 import type { BufferGeometry, Mesh, Texture } from 'three'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
+import { seaLevelDrop } from '../../utils/seawater'
 import { useSimulationStore } from '../../store/simulationStore'
 import {
   WATER_FRAGMENT_BODY,
@@ -36,11 +37,25 @@ interface OceanProps {
   waterMask: Texture
   depthExponent: number
   uvOffset: number
+  /**
+   * How deep the deepest water lies below sea level, as a fraction of the
+   * planet's radius (the seafloor's own relief dial). It is what the sea surface
+   * drops through, so at 0% fill the surface reaches the deepest trench.
+   */
+  maxDepthRadius: number
 }
 
-export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset }: OceanProps) {
+export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius }: OceanProps) {
   const meshRef = useRef<Mesh>(null)
   const opacity = useSimulationStore((state) => state.earthSeawaterOpacity)
+  const seaLevel = useSimulationStore((state) => state.earthSeaLevel)
+  /**
+   * How far the surface has dropped, 0…1 of the full depth. The sphere itself
+   * shrinks by the same amount (below), and the shader uses it to expose the
+   * floor above the new waterline — so the two always agree on where the sea is.
+   */
+  const drop = seaLevelDrop(seaLevel, maxDepthRadius)
+  const surfaceScale = radius * (1 - drop * maxDepthRadius)
 
   const normalMap = useMemo(() => {
     const map = getTexture(visuals.normalMapId)
@@ -59,6 +74,9 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
         depthExponent,
         uvOffset,
         opacity: useSimulationStore.getState().earthSeawaterOpacity,
+        // Initialised once; `useFrame` below keeps it (and the opacity) live, so
+        // dragging either slider never rebuilds the material.
+        seaLevelDrop: seaLevelDrop(useSimulationStore.getState().earthSeaLevel, maxDepthRadius),
       }),
     [visuals, waterMask, bathymetry, depthExponent, uvOffset],
   )
@@ -91,11 +109,12 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
   useEffect(() => () => material.dispose(), [material])
 
   useFrame((_, delta) => {
-    // The ripples drift so the surface stays alive; the slider is a live uniform,
-    // never a material rebuild.
+    // The ripples drift so the surface stays alive; both sliders are live
+    // uniforms, never a material rebuild.
     normalMap.offset.x = (normalMap.offset.x + visuals.drift[0] * delta) % 1
     normalMap.offset.y = (normalMap.offset.y + visuals.drift[1] * delta) % 1
     uniforms.uniforms.uWaterAlpha.value = waterAlpha(opacity, visuals.revealGamma)
+    uniforms.uniforms.uSeaLevelDrop.value = drop
   })
 
   return (
@@ -103,7 +122,10 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
       ref={meshRef}
       geometry={geometry}
       material={material}
-      scale={radius}
+      // The surface is a sphere; lowering the sea level shrinks it toward the
+      // deepest floor point, so at 100% it sits at sea level and at 0% it has
+      // reached the trench and discards itself entirely.
+      scale={surfaceScale}
       renderOrder={1}
       // The water is a visual layer only: keep it out of pointer picking so the
       // planet underneath still receives hover and click.
