@@ -4,6 +4,7 @@ import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, MeshBasicMate
 import type { Mesh, PointLight, Points, PointsMaterial, Sprite, SpriteMaterial } from 'three'
 import { clock } from '../../utils/simulationClock'
 import { getTexture } from '../../utils/textures'
+import { registerBodyOccluder, unregisterBodyOccluder } from '../../utils/bodyRegistry'
 import { createRandom } from '../../utils/random'
 import { useSimulationStore } from '../../store/simulationStore'
 import { audio } from '../../utils/audio'
@@ -133,6 +134,15 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
   }, [sunTexture])
 
   useEffect(() => () => photosphereMaterial.dispose(), [photosphereMaterial])
+
+  // The photosphere is a label occluder: a name label behind the Sun fades out
+  // (see `PlanetLabel`). The corona sprites are deliberately not occluders.
+  useEffect(() => {
+    const mesh = coreRef.current
+    if (!mesh) return
+    registerBodyOccluder(mesh, radius)
+    return () => unregisterBodyOccluder(mesh)
+  }, [radius])
 
   // Every recorded flare (the Easter egg counter lives in the store) bursts here.
   useEffect(() => {
