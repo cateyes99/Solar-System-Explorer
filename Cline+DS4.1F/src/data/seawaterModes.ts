@@ -4,11 +4,12 @@ import type { SeawaterModeId } from '../types'
  * The ocean implementations the Earth panel can switch between.
  *
  * Each entry is the single source of truth for one mode: the names the switcher
- * and the shared slider show, and the two rendering choices that distinguish it.
- * The panel reads this list to build its switcher and to relabel the slider, and
- * the scene reads the two behaviour flags to decide how to draw. Adding a future
- * "Option C" is therefore one new entry here, its i18n strings and its rendering
- * branch — nothing in the panel or the slider has to change.
+ * and the shared slider show, and the rendering choices that distinguish it. The
+ * panel reads this list to build its switcher, relabel the shared slider and
+ * decide which extra controls to show, and the scene reads the behaviour flags
+ * to decide how to draw. Adding a future "Option C" is therefore one new entry
+ * here, its i18n strings and its rendering branch — nothing in the panel has to
+ * change.
  */
 export interface SeawaterMode {
   id: SeawaterModeId
@@ -36,6 +37,12 @@ export interface SeawaterMode {
    *                layer above it responds to the slider.
    */
   surfaceFade: 'slider' | 'drained'
+  /**
+   * Whether the mode also exposes the "Sea Level" fill slider. Only a layered
+   * mode has a body of water whose surface can be lowered independently of its
+   * opacity; the fade-in-place mode has no separate level to move.
+   */
+  seaLevel: boolean
 }
 
 export const SEAWATER_MODES: readonly SeawaterMode[] = [
@@ -47,6 +54,7 @@ export const SEAWATER_MODES: readonly SeawaterMode[] = [
     sliderHintKey: 'planet.seawaterFadeHint',
     layeredWater: false,
     surfaceFade: 'slider',
+    seaLevel: false,
   },
   {
     id: 'volumetric',
@@ -56,6 +64,7 @@ export const SEAWATER_MODES: readonly SeawaterMode[] = [
     sliderHintKey: 'planet.seawaterOpacityHint',
     layeredWater: true,
     surfaceFade: 'drained',
+    seaLevel: true,
   },
 ]
 

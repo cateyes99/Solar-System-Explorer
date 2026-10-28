@@ -41,6 +41,8 @@ export function PlanetPanel() {
   const setEarthSeafloorRelief = useSimulationStore((state) => state.setEarthSeafloorRelief)
   const earthSeawaterOpacity = useSimulationStore((state) => state.earthSeawaterOpacity)
   const setEarthSeawaterOpacity = useSimulationStore((state) => state.setEarthSeawaterOpacity)
+  const earthSeaLevel = useSimulationStore((state) => state.earthSeaLevel)
+  const setEarthSeaLevel = useSimulationStore((state) => state.setEarthSeaLevel)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
   const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
@@ -199,6 +201,20 @@ export function PlanetPanel() {
                   format={(value) => `${Math.round(value * 100)}%`}
                   hint={t(seawaterMode.sliderHintKey)}
                 />
+                {/* The fill level is a property of a layered ocean only, so the
+                    registry shows this slider for the volumetric mode alone. */}
+                {seawaterMode.seaLevel ? (
+                  <SliderRow
+                    label={t('planet.seaLevel')}
+                    value={earthSeaLevel}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={setEarthSeaLevel}
+                    format={(value) => `${Math.round(value * 100)}%`}
+                    hint={t('planet.seaLevelHint')}
+                  />
+                ) : null}
                 <SliderRow
                   label={t('planet.seafloorRelief')}
                   value={earthSeafloorRelief}
