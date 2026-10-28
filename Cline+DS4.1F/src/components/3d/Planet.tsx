@@ -9,7 +9,12 @@ import { MOON, satellitesOf } from '../../data/planets'
 import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
 import { bodyRadius, orbitRadiusFor, sceneFromEclipticKm } from '../../utils/scale'
-import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
+import {
+  registerBody,
+  registerBodyOccluder,
+  unregisterBody,
+  unregisterBodyOccluder,
+} from '../../utils/bodyRegistry'
 import { getTexture, hasTexture } from '../../utils/textures'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useTranslation } from '../../i18n'
@@ -94,6 +99,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const detailRef = useRef<Group>(null)
   const focusRingRef = useRef<Mesh>(null)
   const focusRingMaterialRef = useRef<MeshBasicMaterial>(null)
+  const surfaceMeshRef = useRef<Mesh>(null)
 
   const scaleMode = useSimulationStore((state) => state.scaleMode)
   const customScale = useSimulationStore((state) => state.customScale)
@@ -391,6 +397,15 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     return () => unregisterBody(body.id, object)
   }, [body.id])
 
+  // The surface sphere is a label occluder: a name label drawn behind this
+  // planet fades out (see `PlanetLabel`). `radius` follows the scale presets.
+  useEffect(() => {
+    const mesh = surfaceMeshRef.current
+    if (!mesh) return
+    registerBodyOccluder(mesh, radius)
+    return () => unregisterBodyOccluder(mesh)
+  }, [radius])
+
   const satellites = useMemo(() => {
     const list: SatelliteDefinition[] = []
     if (body.id === 'earth') list.push(EARTHS_MOON)
@@ -498,6 +513,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
       <group ref={tiltRef} rotation={[0, 0, body.axialTiltDeg * (Math.PI / 180)]}>
         <group ref={spinRef} scale={flattenScale}>
           <mesh
+            ref={surfaceMeshRef}
             geometry={sphereGeometry}
             material={surfaceMaterial}
             scale={radius}
