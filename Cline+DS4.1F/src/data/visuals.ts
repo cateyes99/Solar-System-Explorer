@@ -158,8 +158,32 @@ export interface SeafloorVisuals {
 }
 
 /**
+ * The second, finer ripple layer and the coastal surf — what the panel's "Wave
+ * intensity" slider scales beyond the base ripples (see `utils/waves.ts`).
+ *
+ *  - **The detail layer** is the *same* ripple map sampled again at a different
+ *    scale and scrolled in a different direction, so the surface evolves and
+ *    morphs instead of sliding as one rigid sheet (and the tiling stops showing).
+ *    It is invisible until the slider is high, so the shipped look is untouched.
+ *  - **The coastal surf** is an animated foam band on the water side of the
+ *    shore, gated to the shallows, so a stronger slider reads as waves breaking
+ *    on the coast. It is a *lighting/colour* effect: the water never moves the
+ *    land, and the globe keeps its shape.
+ */
+export interface WaterWaveVisuals {
+  /** The detail layer's scale relative to `normalRepeat` (a finer ripple). */
+  detailRepeatScale: number
+  /** The detail layer's normal strength at full variability. */
+  detailNormalScale: number
+  /** The detail layer's drift at the baseline speed, in UV turns per second. */
+  detailDrift: [number, number]
+  /** The colour the breaking surf is tinted with. */
+  foamColor: string
+}
+
+/**
  * The ocean **surface**: a genuinely transparent water layer drawn on top of the
- * seafloor, not a fade of it (see `components/3d/Water.tsx`).
+ * seafloor, not a fade of it (see `components/3d/Ocean.tsx`).
  *
  * It is its own mesh at sea level, so the floor stays where it belongs — at the
  * bottom of the water column — and you look *through* the water at it, with the
@@ -174,6 +198,11 @@ export interface SeafloorVisuals {
  *  - **A proper specular response**, from a low `roughness` — the glint that
  *    tells you this is a liquid surface and not a painted texture.
  *
+ * `normalScale` and `drift` are the *baseline* the "Wave intensity" slider is
+ * anchored to: at 25% (the default) the surface uses exactly these numbers (see
+ * `utils/waves.ts`). `wave` carries the extra tuning the slider needs above the
+ * baseline, and is present only where a water layer actually animates.
+ *
  * `revealGamma` shapes how fast the slider thins the water: the layer's alpha is
  * `1 − (1 − opacity) ^ revealGamma`, so a half-way slider already shows most of
  * the floor. It is a presentation curve, and the panel note says the slider is
@@ -182,11 +211,11 @@ export interface SeafloorVisuals {
 export interface WaterVisuals {
   /** A tiling ripple normal map for the surface. */
   normalMapId: TextureId
-  /** How far the ripples tilt the surface normal. */
+  /** How far the ripples tilt the surface normal, at the 25% baseline. */
   normalScale: number
   /** Ripple repeats around the globe and from pole to pole. */
   normalRepeat: [number, number]
-  /** Ripple drift, in UV turns per real second. */
+  /** Ripple drift, in UV turns per real second, at the 25% baseline. */
   drift: [number, number]
   /** Surface roughness: low is glassy. */
   roughness: number
@@ -197,6 +226,8 @@ export interface WaterVisuals {
   waterTint: string
   /** The reveal curve's exponent (see above). */
   revealGamma: number
+  /** The second ripple layer and the coastal surf (see `WaterWaveVisuals`). */
+  wave?: WaterWaveVisuals
 }
 
 /**
@@ -407,6 +438,9 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     // runs the shallows bright and the abyss navy.
     water: {
       normalMapId: 'waterNormal',
+      // The baseline the "Wave intensity" slider is anchored to (25%). The
+      // slider scales it at runtime; these are the numbers that make 25% — the
+      // default — look exactly as the ocean always has.
       normalScale: 0.45,
       normalRepeat: [9, 5],
       drift: [0.006, 0.002],
@@ -415,6 +449,15 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       absorption: [0.95, 0.5, 0.32],
       waterTint: '#0a2b4d',
       revealGamma: 0.7,
+      // The detail layer is the same ripple map again, finer (2.3× the base
+      // repeat) and scrolling a different way, so the surface evolves. The
+      // coastal surf is a pale sky-blue that reads as foam on the shore.
+      wave: {
+        detailRepeatScale: 2.3,
+        detailNormalScale: 0.22,
+        detailDrift: [-0.004, 0.0055],
+        foamColor: '#bfe4ff',
+      },
     },
     flattening: 0.00335,
     textureOffsetU: 0.55,

@@ -43,6 +43,12 @@ export interface SeawaterMode {
    * opacity; the fade-in-place mode has no separate level to move.
    */
   seaLevel: boolean
+  /**
+   * Whether the mode animates a rippled water surface, so the panel shows the
+   * "Wave intensity" slider. Only the layered water body has waves to scale; the
+   * fade-in-place mode is a still, painted surface.
+   */
+  wave: boolean
 }
 
 export const SEAWATER_MODES: readonly SeawaterMode[] = [
@@ -55,6 +61,7 @@ export const SEAWATER_MODES: readonly SeawaterMode[] = [
     layeredWater: false,
     surfaceFade: 'slider',
     seaLevel: false,
+    wave: false,
   },
   {
     id: 'volumetric',
@@ -65,6 +72,7 @@ export const SEAWATER_MODES: readonly SeawaterMode[] = [
     layeredWater: true,
     surfaceFade: 'drained',
     seaLevel: true,
+    wave: true,
   },
 ]
 
