@@ -181,6 +181,9 @@ export const en = {
   'planet.seawaterFade': 'Ocean fade',
   'planet.seawaterFadeHint':
     'How far the painted ocean is faded away. 100% keeps the ocean exactly as it looks; slide toward 0% to fade it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
+  'planet.seaLevel': 'Sea level',
+  'planet.seaLevelHint':
+    'How full the ocean is. 100% keeps the full-depth sea; slide toward 0% to lower the surface into the deep basins, exposing the shallower seafloor first, until the water is gone. It works independently of the opacity slider, which only changes how see-through the water is.',
   'planet.seawaterOpacity': 'Seawater opacity',
   'planet.seawaterOpacityHint':
     'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
