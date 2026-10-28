@@ -32,19 +32,19 @@ export function seawaterVisibility(opacity: number): number {
 
 /**
  * How far the sea surface drops for a "Sea Level" fill value, as a fraction of
- * the ocean's full depth: 1 at 0% fill (the surface reaches the deepest floor)
- * and 0 at 100% (the surface sits at mean sea level). It is the complement of
+ * the ocean's full depth: 1 at 0% fill and 0 at 100%. It is the complement of
  * the fill, clamped to 0…1.
  *
- * A body with no ocean depth has nothing to drain, so this is deliberately zero
- * for `maxDepthRadius <= 0`: the control stays inert rather than carving holes
- * in a sea that is a flat surface.
+ * The caller scales it by the deepest depth fraction **actually present in the
+ * map** (see `SeafloorRelief.deepestFraction`) — not by the encoding's ceiling —
+ * so that 0% brings the surface down to the deepest floor exactly, instead of
+ * overshooting 400 m below it and leaving a dead band where the slider does
+ * nothing.
  *
  * This is the geometry counterpart of the opacity slider. Opacity thins the
  * water; sea level lowers its surface. The two are independent.
  */
-export function seaLevelDrop(seaLevel: number, maxDepthRadius: number): number {
-  if (!(maxDepthRadius > 0)) return 0
+export function seaLevelDrop(seaLevel: number): number {
   return 1 - clamp01(seaLevel)
 }
 
