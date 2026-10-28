@@ -60,6 +60,13 @@ export interface SeafloorRelief {
    * the land's "Terrain relief", so the drained ocean can be dialled in alone.
    */
   maxDepthRadius: number
+  /**
+   * The depth fraction (0…1) of the deepest point **actually present** in the
+   * map (`deepestTexel`), which is shallower than the encoding's ceiling. The
+   * sea-level fill is measured against this, so 0% reaches the deepest floor
+   * exactly rather than overshooting below it.
+   */
+  deepestFraction: number
 }
 
 /**
@@ -74,6 +81,9 @@ export function seafloorDisplacement(seafloor: SeafloorVisuals, relief: number):
       seafloor.maxExaggeration,
       relief,
     ),
+    // `depthFraction = (texel / maxTexel) ^ depthExponent`; evaluated at the map's
+    // deepest texel this is the fraction the sea surface has to reach at 0%.
+    deepestFraction: Math.pow(seafloor.deepestTexel / seafloor.maxTexel, seafloor.depthExponent),
   }
 }
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   depthFraction,
   depthMeters,
+  seaLevelDrop,
   seafloorDepthRadius,
   seawaterVisibility,
 } from '../src/utils/seawater.ts'
@@ -31,6 +32,26 @@ test('a fully opaque ocean reveals nothing (the shipped look is untouched)', () 
   // The shader gates on `uSeawaterOpacity < 0.999`; at the default of 1 the
   // seafloor term is exactly zero.
   assert.equal(seawaterVisibility(1), 0)
+})
+
+test('the sea-surface drop is the complement of the fill', () => {
+  // 100% fill means no drop; 0% drops the surface to the deepest floor.
+  assert.equal(seaLevelDrop(1), 0)
+  assert.equal(seaLevelDrop(0), 1)
+  assert.ok(Math.abs(seaLevelDrop(0.6) - 0.4) < 1e-12)
+  // Out-of-range fill is clamped.
+  assert.equal(seaLevelDrop(-1), 1)
+  assert.equal(seaLevelDrop(2), 0)
+})
+
+test("the deepest texel in the map is shallower than the encoding's ceiling", () => {
+  // The shipped bathymetry's deepest texel is 250 (see `SeafloorVisuals.deepestTexel`):
+  // depthFraction = (250/255)^2 ≈ 0.9612, i.e. ~10,573 m of the 11,000 m ceiling.
+  // Scaling the sea-level drop by the *ceiling* instead of this point is exactly
+  // the overshoot that used to leave 0–4% of the slider showing no water at all.
+  const deepest = depthFraction(250, 2)
+  assert.ok(deepest > 0.96 && deepest < 0.97)
+  assert.ok(deepest < 1)
 })
 
 test('the depth field decodes with its square-root curve', () => {
