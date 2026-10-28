@@ -43,18 +43,26 @@ interface OceanProps {
    * drops through, so at 0% fill the surface reaches the deepest trench.
    */
   maxDepthRadius: number
+  /**
+   * The depth fraction (0…1) of the deepest point actually present in the map.
+   * The sea-level fill is measured against it, so the surface reaches the deepest
+   * floor exactly at 0% (see `SeafloorRelief`).
+   */
+  deepestFraction: number
 }
 
-export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius }: OceanProps) {
+export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius, deepestFraction }: OceanProps) {
   const meshRef = useRef<Mesh>(null)
   const opacity = useSimulationStore((state) => state.earthSeawaterOpacity)
   const seaLevel = useSimulationStore((state) => state.earthSeaLevel)
   /**
-   * How far the surface has dropped, 0…1 of the full depth. The sphere itself
-   * shrinks by the same amount (below), and the shader uses it to expose the
-   * floor above the new waterline — so the two always agree on where the sea is.
+   * How far the surface has dropped, as a depth fraction of the map's deepest
+   * point (0…1). The sphere itself shrinks by the same amount (below), and the
+   * shader uses it to expose the floor above the new waterline — so the two
+   * always agree on where the sea is. A flat sea has nothing to drain, so the
+   * control is inert when there is no depth.
    */
-  const drop = seaLevelDrop(seaLevel, maxDepthRadius)
+  const drop = maxDepthRadius > 0 ? seaLevelDrop(seaLevel) * deepestFraction : 0
   const surfaceScale = radius * (1 - drop * maxDepthRadius)
 
   const normalMap = useMemo(() => {
@@ -76,7 +84,10 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
         opacity: useSimulationStore.getState().earthSeawaterOpacity,
         // Initialised once; `useFrame` below keeps it (and the opacity) live, so
         // dragging either slider never rebuilds the material.
-        seaLevelDrop: seaLevelDrop(useSimulationStore.getState().earthSeaLevel, maxDepthRadius),
+        seaLevelDrop:
+          maxDepthRadius > 0
+            ? seaLevelDrop(useSimulationStore.getState().earthSeaLevel) * deepestFraction
+            : 0,
       }),
     [visuals, waterMask, bathymetry, depthExponent, uvOffset],
   )

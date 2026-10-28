@@ -113,6 +113,18 @@ export interface SeafloorVisuals {
   maxTexel: number
   /** The depth (metres, positive downward) that `maxTexel` stands for. */
   maxDepthMeters: number
+  /**
+   * The texel value (0…1) of the deepest point **actually present** in the map.
+   *
+   * `maxTexel`/`maxDepthMeters` describe the encoding's ceiling — a round
+   * 11,000 m — but no point in the real grid reaches it. Measured from the
+   * shipped `earth_bathymetry.png`, the deepest texel is **250** (≈ 10,573 m, in
+   * the Tonga Trench; the Mariana's Challenger Deep lands at texel 249). The
+   * "Sea Level" fill is measured against *this* point, not the ceiling, so 0%
+   * brings the surface down to the deepest floor exactly instead of overshooting
+   * 400 m below it and leaving a dead band where the slider does nothing.
+   */
+  deepestTexel: number
   /** `depth = maxDepth · (texel / maxTexel) ^ depthExponent`. 2 = a sqrt curve. */
   depthExponent: number
   /** Vertical exaggeration applied at the full "Seafloor relief" setting. */
@@ -378,6 +390,8 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       seaLevelTexel: 0,
       maxTexel: 1,
       maxDepthMeters: 11_000,
+      // The deepest texel in the shipped map (measured): 10,573 m, Tonga Trench.
+      deepestTexel: 250 / 255,
       depthExponent: 2,
       maxExaggeration: 160,
       roughness: 0.92,
