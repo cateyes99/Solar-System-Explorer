@@ -5,7 +5,12 @@ import type { ColorRepresentation, Group, Mesh } from 'three'
 import type { BodyId, FocusTargetId, QualityLevel, SatelliteDefinition } from '../../types'
 import { BODY_VISUALS } from '../../data/visuals'
 import { clock } from '../../utils/simulationClock'
-import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
+import {
+  registerBody,
+  registerBodyOccluder,
+  unregisterBody,
+  unregisterBodyOccluder,
+} from '../../utils/bodyRegistry'
 import { satelliteOrbitRadius, satelliteRadius } from '../../utils/scale'
 import { satellitePosition, satelliteOrbitPath, type SatelliteOrbit } from '../../utils/astronomy'
 import { hashString } from '../../utils/random'
@@ -179,6 +184,14 @@ export function Moon({
     registerBody(bodyId, object)
     return () => unregisterBody(bodyId, object)
   }, [bodyId])
+
+  // A moon can hide a name label drawn behind it (see `PlanetLabel`).
+  useEffect(() => {
+    const mesh = meshRef.current
+    if (!mesh) return
+    registerBodyOccluder(mesh, visualRadius)
+    return () => unregisterBodyOccluder(mesh)
+  }, [visualRadius])
 
   useFrame((state) => {
     const group = orbitRef.current

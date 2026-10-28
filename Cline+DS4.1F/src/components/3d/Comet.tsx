@@ -19,7 +19,12 @@ import { clock } from '../../utils/simulationClock'
 import { sceneFromEclipticKm } from '../../utils/scale'
 import { clamp, createRandom, fbm } from '../../utils/random'
 import { getTexture } from '../../utils/textures'
-import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
+import {
+  registerBody,
+  registerBodyOccluder,
+  unregisterBody,
+  unregisterBodyOccluder,
+} from '../../utils/bodyRegistry'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
@@ -281,6 +286,15 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
     },
     [nucleusGeometry, ionGeometry, dustGeometry, nucleusMaterial],
   )
+
+  // The nucleus is a label occluder: a name label behind the comet fades out
+  // (see `PlanetLabel`). The tails and coma are deliberately not occluders.
+  useEffect(() => {
+    const mesh = nucleusRef.current
+    if (!mesh) return
+    registerBodyOccluder(mesh, NUCLEUS_LONG_RADIUS)
+    return () => unregisterBodyOccluder(mesh)
+  }, [])
 
   useEffect(() => {
     const object = groupRef.current
