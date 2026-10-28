@@ -39,3 +39,35 @@ export function getDistanceFromSun(id: FocusTargetId): number {
   const position = getBodyWorldPosition(id, new Vector3())
   return position ? position.length() : 0
 }
+
+/**
+ * A celestial body's opaque disc, as a sphere the label system can test against.
+ *
+ * A label is a DOM overlay, so the GPU's depth buffer never touches it: the only
+ * way to know it is behind a body is to test the ray from the camera to the
+ * label. A body's real surface mesh can run to hundreds of thousands of
+ * triangles, so each body registers a cheap sphere — its centre object and the
+ * radius it is drawn at — and the test stays a handful of arithmetic ops.
+ */
+export interface BodyOccluder {
+  object: Object3D
+  radius: number
+}
+
+const occluders = new Map<Object3D, BodyOccluder>()
+/** Rebuilt whenever the set changes, so per-frame reads allocate nothing. */
+let occluderList: BodyOccluder[] = []
+
+export function registerBodyOccluder(object: Object3D, radius: number): void {
+  occluders.set(object, { object, radius })
+  occluderList = [...occluders.values()]
+}
+
+export function unregisterBodyOccluder(object: Object3D): void {
+  if (occluders.delete(object)) occluderList = [...occluders.values()]
+}
+
+/** The spheres a label is hidden behind, as of the last registration change. */
+export function getBodyOccluders(): BodyOccluder[] {
+  return occluderList
+}
