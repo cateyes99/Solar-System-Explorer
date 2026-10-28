@@ -57,6 +57,13 @@
   // and the seafloor is fully exposed. It is independent of "Earth Seawater
   // Opacity": the level moves the surface, the opacity thins the water.
   "Earth Sea Level": 1,
+  // How strong the waves are on the "volumetric" ocean, 0 to 1. One slider
+  // scales the ripple height, the flow speed, a second fine detail layer and the
+  // coastal surf together. 0 = completely still; 0.25 is the baseline that
+  // reproduces the ocean exactly as it shipped (and is the default); 1 = the
+  // tuned maximum (roughly 2.3x the ripple height and 2.5x the speed). It has no
+  // effect in the "surface" mode, which has no waves.
+  "Earth Wave Intensity": 0.25,
   // Which ocean implementation draws the sea. "surface" (the default) fades the
   // single painted ocean surface in place to reveal the seafloor; "volumetric"
   // draws a real transparent water layer over the drained seafloor, which looks

@@ -43,6 +43,8 @@ export function PlanetPanel() {
   const setEarthSeawaterOpacity = useSimulationStore((state) => state.setEarthSeawaterOpacity)
   const earthSeaLevel = useSimulationStore((state) => state.earthSeaLevel)
   const setEarthSeaLevel = useSimulationStore((state) => state.setEarthSeaLevel)
+  const earthWaveIntensity = useSimulationStore((state) => state.earthWaveIntensity)
+  const setEarthWaveIntensity = useSimulationStore((state) => state.setEarthWaveIntensity)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
   const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
@@ -213,6 +215,20 @@ export function PlanetPanel() {
                     onChange={setEarthSeaLevel}
                     format={(value) => `${Math.round(value * 100)}%`}
                     hint={t('planet.seaLevelHint')}
+                  />
+                ) : null}
+                {/* Waves are a property of the layered water body only, so the
+                    registry shows this slider for the volumetric mode alone. */}
+                {seawaterMode.wave ? (
+                  <SliderRow
+                    label={t('planet.waveIntensity')}
+                    value={earthWaveIntensity}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={setEarthWaveIntensity}
+                    format={(value) => `${Math.round(value * 100)}%`}
+                    hint={t('planet.waveIntensityHint')}
                   />
                 ) : null}
                 <SliderRow

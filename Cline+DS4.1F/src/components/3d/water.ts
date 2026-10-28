@@ -1,4 +1,4 @@
-import { Color, Vector3 } from 'three'
+import { Color, Vector2, Vector3 } from 'three'
 import type { Texture } from 'three'
 import type { WaterVisuals } from '../../data/visuals'
 
@@ -35,6 +35,21 @@ export interface WaterUniforms {
     uSeaLevelDrop: { value: number }
     uWaterAbsorption: { value: Vector3 }
     uWaterTint: { value: Color }
+    /* Waves (see `utils/waves.ts`; all inert while the slider is low) */
+    /** The detail layer's UV scale (a finer repeat of the same ripple map). */
+    uWaveRepeat2: { value: Vector2 }
+    /** The detail layer's scrolling UV offset, advanced each frame. */
+    uWaveOffset2: { value: Vector2 }
+    /** The detail layer's normal strength. */
+    uWaveScale2: { value: number }
+    /** The detail layer's blend weight, 0…1 (the slider's variability). */
+    uWaveBlend: { value: number }
+    /** A slowly advancing clock for the coastal surf animation, in seconds. */
+    uWaveTime: { value: number }
+    /** The coastal surf strength, 0…1 (the slider's coastal interaction). */
+    uCoastal: { value: number }
+    /** The colour the breaking surf is tinted with. */
+    uFoamColor: { value: Color }
   }
 }
 
@@ -74,6 +89,20 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uSeaLevelDrop: { value: binding.seaLevelDrop },
       uWaterAbsorption: { value: new Vector3(...binding.visuals.absorption) },
       uWaterTint: { value: new Color(binding.visuals.waterTint) },
+      uWaveRepeat2: {
+        value: new Vector2(
+          binding.visuals.normalRepeat[0] * (binding.visuals.wave?.detailRepeatScale ?? 1),
+          binding.visuals.normalRepeat[1] * (binding.visuals.wave?.detailRepeatScale ?? 1),
+        ),
+      },
+      uWaveOffset2: { value: new Vector2(0, 0) },
+      uWaveScale2: { value: binding.visuals.wave?.detailNormalScale ?? 0 },
+      // Zero until the slider is dragged up: the detail layer and the surf are
+      // invisible at the baseline, so the shipped look is preserved exactly.
+      uWaveBlend: { value: 0 },
+      uWaveTime: { value: 0 },
+      uCoastal: { value: 0 },
+      uFoamColor: { value: new Color(binding.visuals.wave?.foamColor ?? '#ffffff') },
     },
   }
 }
@@ -96,6 +125,13 @@ uniform float uWaterAlpha;
 uniform float uSeaLevelDrop;
 uniform vec3 uWaterAbsorption;
 uniform vec3 uWaterTint;
+uniform vec2 uWaveRepeat2;
+uniform vec2 uWaveOffset2;
+uniform float uWaveScale2;
+uniform float uWaveBlend;
+uniform float uWaveTime;
+uniform float uCoastal;
+uniform vec3 uFoamColor;
 varying vec2 vSeaUv;
 `
 
@@ -127,5 +163,45 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
   vec3 transmittance = exp(-uWaterAbsorption * waterDepth);
   diffuseColor.rgb = diffuseColor.rgb * transmittance + uWaterTint * (1.0 - transmittance);
   diffuseColor.a = waterMask * uWaterAlpha;
+  // The coastal surf: a soft band on the *water* side of the shore, gated to
+  // the shallows, brightened by an animated foam term. It is invisible until
+  // the "Wave intensity" slider is well above its baseline (see utils/waves.ts),
+  // so the shipped look is untouched. It is pure shading — the land never moves.
+  if (uCoastal > 0.002) {
+    float shoreBand = smoothstep(0.06, 0.42, waterMask) * (1.0 - smoothstep(0.42, 0.9, waterMask));
+    float shallow = 1.0 - smoothstep(0.0, 0.16, waterDepth);
+    float foam = uCoastal * shoreBand * shallow;
+    // A slow pulse reads as surf rolling in and drawing back.
+    foam *= 0.6 + 0.4 * sin(waterMask * 24.0 - uWaveTime * 2.1);
+    foam = clamp(foam, 0.0, 1.0);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uFoamColor, foam * 0.7);
+    diffuseColor.a = min(1.0, diffuseColor.a + foam * 0.35);
+  }
 }
+`
+
+/**
+ * The second, finer ripple layer, injected after `normal_fragment_maps` — the
+ * one place where the finished `normal` and the tangent frame `tbn` both exist.
+ *
+ * The *same* ripple map is sampled again at a different scale and scrolled a
+ * different way (its offset is advanced in `Ocean.tsx`), so the surface evolves
+ * and morphs instead of sliding as one rigid sheet. The two tangent-space
+ * normals are blended by adding them and re-normalising — the standard
+ * scrolling-normal-map technique — with `uWaveBlend` (the slider's variability)
+ * as the weight, so at the baseline the layer contributes exactly nothing and no
+ * extra texture fetch is even made.
+ *
+ * `normalMap` and `tbn` are declared by the standard material itself whenever it
+ * has a tangent-space normal map, which the water always does.
+ */
+export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
+#ifdef USE_NORMALMAP_TANGENTSPACE
+if (uWaveBlend > 0.002) {
+  vec2 waveUv2 = vSeaUv * uWaveRepeat2 + uWaveOffset2;
+  vec3 waveN2 = texture2D( normalMap, waveUv2 ).xyz * 2.0 - 1.0;
+  waveN2.xy *= uWaveScale2;
+  normal = normalize( normal + normalize( tbn * waveN2 ) * uWaveBlend );
+}
+#endif
 `

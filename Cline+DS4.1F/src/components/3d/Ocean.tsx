@@ -5,10 +5,12 @@ import type { BufferGeometry, Mesh, Texture } from 'three'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
 import { seaLevelDrop } from '../../utils/seawater'
+import { waveParams } from '../../utils/waves'
 import { useSimulationStore } from '../../store/simulationStore'
 import {
   WATER_FRAGMENT_BODY,
   WATER_FRAGMENT_PARS,
+  WATER_FRAGMENT_WAVE_NORMAL,
   WATER_VERTEX_PARS,
   WATER_VERTEX_UV,
   createWaterUniforms,
@@ -49,9 +51,15 @@ interface OceanProps {
    * floor exactly at 0% (see `SeafloorRelief`).
    */
   deepestFraction: number
+  /**
+   * When true the surface is held still: the ripples stop scrolling and the
+   * coastal surf stops moving. The static look (amplitude, detail, foam) is left
+   * as the slider set it, matching how the rest of the app calms its effects.
+   */
+  reducedMotion: boolean
 }
 
-export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius, deepestFraction }: OceanProps) {
+export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius, deepestFraction, reducedMotion }: OceanProps) {
   const meshRef = useRef<Mesh>(null)
   const opacity = useSimulationStore((state) => state.earthSeawaterOpacity)
   const seaLevel = useSimulationStore((state) => state.earthSeaLevel)
@@ -113,6 +121,12 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           `#include <normal_pars_fragment>\n${WATER_FRAGMENT_PARS}`,
         )
         .replace('#include <map_fragment>', `#include <map_fragment>\n${WATER_FRAGMENT_BODY}`)
+        // The second ripple layer needs the finished `normal` and the tangent
+        // frame, so it goes in right after the standard normal-map chunk.
+        .replace(
+          '#include <normal_fragment_maps>',
+          `#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
+        )
     }
     return water
   }, [visuals, waterMask, normalMap, uniforms])
@@ -120,10 +134,29 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
   useEffect(() => () => material.dispose(), [material])
 
   useFrame((_, delta) => {
-    // The ripples drift so the surface stays alive; both sliders are live
-    // uniforms, never a material rebuild.
-    normalMap.offset.x = (normalMap.offset.x + visuals.drift[0] * delta) % 1
-    normalMap.offset.y = (normalMap.offset.y + visuals.drift[1] * delta) % 1
+    // The wave slider is read live (no React re-render): the intensity and the
+    // sea-level/opacity sliders are all plain uniform writes, never a rebuild.
+    const intensity = useSimulationStore.getState().earthWaveIntensity
+    const params = waveParams(intensity)
+    const step = Math.min(delta, 0.05)
+    // Reduced motion holds the surface still — no scrolling, no surf pulse —
+    // while keeping the static look the slider asked for.
+    const speed = reducedMotion ? 0 : params.driftScale
+
+    normalMap.offset.x = (normalMap.offset.x + visuals.drift[0] * speed * step) % 1
+    normalMap.offset.y = (normalMap.offset.y + visuals.drift[1] * speed * step) % 1
+    // The detail layer scrolls a different way, so the surface evolves rather
+    // than sliding as one sheet. It only exists once the slider is high.
+    const detail = visuals.wave
+    const offset2 = uniforms.uniforms.uWaveOffset2.value
+    if (detail) {
+      offset2.x = (offset2.x + detail.detailDrift[0] * speed * step) % 1
+      offset2.y = (offset2.y + detail.detailDrift[1] * speed * step) % 1
+    }
+    material.normalScale.set(params.normalScale, params.normalScale)
+    uniforms.uniforms.uWaveBlend.value = params.variability
+    uniforms.uniforms.uCoastal.value = params.coastal
+    if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step
     uniforms.uniforms.uWaterAlpha.value = waterAlpha(opacity, visuals.revealGamma)
     uniforms.uniforms.uSeaLevelDrop.value = drop
   })
