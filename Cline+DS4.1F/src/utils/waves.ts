@@ -36,6 +36,13 @@
  * second layer carries the extra motion instead. Variability and coastal stay at
  * zero through the lower half so the baseline is untouched.
  *
+ * A fifth value, `fadeStrength`, is not a look of its own but the weight of a
+ * **view/distance fade** (see `water.ts`): the ripples ease toward a smooth
+ * surface as the ocean turns away at the limb and as the globe shrinks into the
+ * distance, which is what keeps a finely tiled map from smearing or shimmering
+ * there. It is zero through the baseline and rises to one at full intensity, so
+ * the shipped default is never faded.
+ *
  * This module is deliberately free of runtime imports so it can be unit-tested
  * directly under Node (see `tests/waves.test.ts`).
  */
@@ -73,7 +80,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t)
 }
 
-/** The four animation properties the wave slider drives. */
+/** The animation properties the wave slider drives. */
 export interface WaveParams {
   /** The surface's ripple amplitude, handed to the material's `normalScale`. */
   normalScale: number
@@ -83,6 +90,13 @@ export interface WaveParams {
   variability: number
   /** The coastal surf strength, 0…1. */
   coastal: number
+  /**
+   * How strongly the view/distance fade is applied to the **base** ripple layer,
+   * 0…1. It is 0 at and below the baseline, so the shipped look is untouched,
+   * and rises to 1 at full intensity. The second layer and the surf — which are
+   * dormant at the baseline — always use the full fade (see `Ocean.tsx`).
+   */
+  fadeStrength: number
 }
 
 /**
@@ -93,7 +107,7 @@ export interface WaveParams {
 export function waveParams(intensity: number): WaveParams {
   const w = clamp01(intensity)
   if (w <= 0) {
-    return { normalScale: 0, driftScale: 0, variability: 0, coastal: 0 }
+    return { normalScale: 0, driftScale: 0, variability: 0, coastal: 0, fadeStrength: 0 }
   }
   // Both power curves are written against the baseline, so the ratio is exactly
   // 1 — and the values exactly the shipped ones — at `w = 0.25`.
@@ -105,5 +119,8 @@ export function waveParams(intensity: number): WaveParams {
     // only over the upper part of the slider.
     variability: smoothstep(0.35, 1, w),
     coastal: smoothstep(0.4, 1, w),
+    // The base layer only starts to fade once the slider is above the shipped
+    // baseline, so 25% is pixel-identical to the ocean as it always looked.
+    fadeStrength: clamp01((w - WAVE_INTENSITY_BASELINE) / (1 - WAVE_INTENSITY_BASELINE)),
   }
 }

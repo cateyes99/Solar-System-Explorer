@@ -121,11 +121,12 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           `#include <normal_pars_fragment>\n${WATER_FRAGMENT_PARS}`,
         )
         .replace('#include <map_fragment>', `#include <map_fragment>\n${WATER_FRAGMENT_BODY}`)
-        // The second ripple layer needs the finished `normal` and the tangent
-        // frame, so it goes in right after the standard normal-map chunk.
+        // The wave block needs the finished `normal`, the *geometric* normal it
+        // started from (saved just before the standard chunk) and the tangent
+        // frame, so it goes in right after the normal-map chunk.
         .replace(
           '#include <normal_fragment_maps>',
-          `#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
+          `vec3 waterGeoNormal = normal;\n#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
         )
     }
     return water
@@ -156,6 +157,12 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
     material.normalScale.set(params.normalScale, params.normalScale)
     uniforms.uniforms.uWaveBlend.value = params.variability
     uniforms.uniforms.uCoastal.value = params.coastal
+    // The view/distance fade only applies to the base ripples above the
+    // baseline, so the shipped default is never faded. The radius is the
+    // surface's *drawn* size, so the distance fade stays scale-invariant as the
+    // planet grows and shrinks with the scale presets.
+    uniforms.uniforms.uWaveFadeStrength.value = visuals.wave ? params.fadeStrength : 0
+    uniforms.uniforms.uWaveRadius.value = surfaceScale
     if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step
     uniforms.uniforms.uWaterAlpha.value = waterAlpha(opacity, visuals.revealGamma)
     uniforms.uniforms.uSeaLevelDrop.value = drop
