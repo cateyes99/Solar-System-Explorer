@@ -13,6 +13,7 @@ import type {
   WhatIfId,
 } from '../types'
 import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
+import { WAVE_INTENSITY_DEFAULT } from '../utils/waves'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
 import { clampSpacecraftSize, DEFAULT_SPACECRAFT_SIZE } from '../utils/spacecraftSize'
 import { pickFact } from '../data/facts'
@@ -40,6 +41,8 @@ export interface SettingsPatch {
   earthSeawaterOpacity?: number
   /** How full the volumetric ocean is, 0…1 (see `earthSeaLevel`). */
   earthSeaLevel?: number
+  /** How strong the volumetric ocean's waves are, 0…1 (see `earthWaveIntensity`). */
+  earthWaveIntensity?: number
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
   leftPanelOpacity?: number
@@ -165,6 +168,15 @@ export interface SimulationState {
    */
   earthSeaLevel: number
   /**
+   * How strong the volumetric ocean's wave animation is: 1 = the tuned maximum,
+   * and the default 0.25 is the baseline that reproduces the shipped look
+   * exactly. One slider scales the ripple amplitude, the flow
+   * speed, a second detail layer and the coastal surf together (see
+   * `utils/waves.ts`). Only the layered water mesh acts on it; the painted
+   * "surface" ocean has no waves, so its panel slider is not shown.
+   */
+  earthWaveIntensity: number
+  /**
    * Which implementation draws Earth's ocean: the single-mesh "surface" fade
    * (the default, and the cheaper one) or the two-mesh "volumetric" water layer.
    * Only Earth reads it. See `data/seawaterModes.ts`.
@@ -249,6 +261,7 @@ export interface SimulationActions {
   setEarthSeafloorRelief: (value: number) => void
   setEarthSeawaterOpacity: (value: number) => void
   setEarthSeaLevel: (value: number) => void
+  setEarthWaveIntensity: (value: number) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
   setScaleMode: (mode: ScaleMode) => void
@@ -363,6 +376,10 @@ const initialState: SimulationState = {
   // A full ocean by default: the sea-level control only lowers the surface when
   // the viewer reaches for it, so the shipped look is untouched.
   earthSeaLevel: 1,
+  // The default is the baseline: 25% reproduces the shipped ripples exactly, so
+  // the volumetric ocean opens looking the way it always has, with room to calm
+  // it down or build it up from there.
+  earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
   // The single-mesh "surface" fade is the default: it is the cheaper of the two
   // implementations and keeps the photographic ocean at full opacity.
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
@@ -523,6 +540,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthSeaLevel: (value) =>
     set({ earthSeaLevel: Math.max(0, Math.min(1, value)) }),
+
+  setEarthWaveIntensity: (value) =>
+    set({ earthWaveIntensity: Math.max(0, Math.min(1, value)) }),
 
   setEarthSeawaterMode: (mode) => {
     if (!isSeawaterModeId(mode)) return
@@ -693,6 +713,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthSeafloorRelief: clamp01(patch.earthSeafloorRelief, state.earthSeafloorRelief),
       earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
       earthSeaLevel: clamp01(patch.earthSeaLevel, state.earthSeaLevel),
+      earthWaveIntensity: clamp01(patch.earthWaveIntensity, state.earthWaveIntensity),
       earthSeawaterMode: isSeawaterModeId(patch.earthSeawaterMode)
         ? patch.earthSeawaterMode
         : state.earthSeawaterMode,

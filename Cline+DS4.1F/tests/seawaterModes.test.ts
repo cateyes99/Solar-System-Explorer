@@ -54,3 +54,10 @@ test('only the layered mode draws the separate water layer', () => {
   assert.equal(seawaterModeFor('surface').layeredWater, false)
   assert.equal(seawaterModeFor('volumetric').layeredWater, true)
 })
+
+test('only the layered mode shows the wave-intensity slider', () => {
+  // The painted "surface" ocean has no waves, so the panel must not offer a
+  // slider that would do nothing there.
+  assert.equal(seawaterModeFor('surface').wave, false)
+  assert.equal(seawaterModeFor('volumetric').wave, true)
+})
