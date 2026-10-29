@@ -28,6 +28,7 @@ test('0% stops the ocean completely', () => {
     driftScale: 0,
     variability: 0,
     coastal: 0,
+    fadeStrength: 0,
   })
 })
 
@@ -37,6 +38,7 @@ test('25% reproduces the shipped baseline exactly', () => {
   assert.ok(Math.abs(params.driftScale - 1) < 1e-12)
   assert.equal(params.variability, 0)
   assert.equal(params.coastal, 0)
+  assert.equal(params.fadeStrength, 0)
 })
 
 test('100% reaches the tuned maximum', () => {
@@ -75,6 +77,18 @@ test('the two new effects stay dormant through the baseline', () => {
     assert.equal(params.variability, 0)
     assert.equal(params.coastal, 0)
   }
+})
+
+test('the view/distance fade only engages above the baseline', () => {
+  // At and below the baseline the base ripples must not fade, so the shipped
+  // look is untouched; it reaches full strength at the top of the slider.
+  assert.equal(waveParams(0).fadeStrength, 0)
+  assert.equal(waveParams(WAVE_INTENSITY_BASELINE).fadeStrength, 0)
+  assert.equal(waveParams(0.1).fadeStrength, 0)
+  assert.ok(Math.abs(waveParams(1).fadeStrength - 1) < 1e-12)
+  // Halfway between the baseline and the maximum, it is about half way.
+  const mid = (WAVE_INTENSITY_BASELINE + 1) / 2
+  assert.ok(Math.abs(waveParams(mid).fadeStrength - 0.5) < 1e-12)
 })
 
 test('an out-of-range intensity is clamped', () => {

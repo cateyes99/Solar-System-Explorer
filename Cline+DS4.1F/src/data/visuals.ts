@@ -179,6 +179,21 @@ export interface WaterWaveVisuals {
   detailDrift: [number, number]
   /** The colour the breaking surf is tinted with. */
   foamColor: string
+  /**
+   * The view angle at which the ripples are fully gone and fully present, as the
+   * cosine of the angle between the surface normal and the line of sight: 0 is
+   * the very edge of the disc (grazing), 1 is dead centre (facing the camera).
+   * The ripples ease to a smooth, mirror-like surface as the ocean turns away,
+   * which is what stops a finely tiled map smearing at the limb.
+   */
+  limbFade: [number, number]
+  /**
+   * How far the globe can be before its ripples fade out, as multiples of the
+   * planet's drawn radius: full ripples up to the first, a smooth mirror past
+   * the second. It is scale-invariant, so it behaves the same in every scale
+   * mode and simply hides the ripples when the whole Earth is a distant dot.
+   */
+  distanceFade: [number, number]
 }
 
 /**
@@ -457,6 +472,12 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         detailNormalScale: 0.22,
         detailDrift: [-0.004, 0.0055],
         foamColor: '#bfe4ff',
+        // Ripples hold across most of the disc and ease out over the outer band
+        // (facing ≈ 0.35 → 0.05, roughly the last 15–20° to the limb).
+        limbFade: [0.05, 0.35],
+        // Full ripples out to 30 Earth radii — well past a close, framed Earth —
+        // and a smooth mirror beyond 80, where the whole globe is a small dot.
+        distanceFade: [30, 80],
       },
     },
     flattening: 0.00335,
