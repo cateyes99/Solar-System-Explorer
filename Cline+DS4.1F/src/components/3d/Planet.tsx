@@ -550,6 +550,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               uvOffset={visuals.textureOffsetU}
               maxDepthRadius={seafloorFloor?.maxDepthRadius ?? 0}
               deepestFraction={seafloorFloor?.deepestFraction ?? 0}
+              reducedMotion={reducedMotion}
             />
           ) : null}
 

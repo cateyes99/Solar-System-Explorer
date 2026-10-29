@@ -2,6 +2,7 @@ import { LANGUAGES } from '../i18n'
 import type { Language } from '../i18n'
 import type { SeawaterModeId } from '../types'
 import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
+import { WAVE_INTENSITY_DEFAULT } from '../utils/waves'
 import { useSimulationStore } from '../store/simulationStore'
 import type { SettingsPatch } from '../store/simulationStore'
 import {
@@ -62,6 +63,13 @@ export interface AppConfig {
    */
   earthSeaLevel: number
   /**
+   * How strong the volumetric ocean's waves are, 0…1 (store:
+   * `earthWaveIntensity`). 0 is completely still; the 0.25 baseline reproduces
+   * the shipped ripples (and is the default) and 1 is the tuned maximum. Only the
+   * layered water body has waves. See `utils/waves.ts`.
+   */
+  earthWaveIntensity: number
+  /**
    * Which ocean implementation Earth draws (store: `earthSeawaterMode`). `surface`
    * is the single-mesh fade; `volumetric` is the transparent water layer. See
    * `data/seawaterModes.ts`.
@@ -93,6 +101,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthSeafloorRelief: 0.4,
   earthSeawaterOpacity: 1,
   earthSeaLevel: 1,
+  earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
@@ -120,6 +129,7 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Seafloor Relief', min: 0, max: 1, set: (c, v) => { c.earthSeafloorRelief = v } },
   { key: 'Earth Seawater Opacity', min: 0, max: 1, set: (c, v) => { c.earthSeawaterOpacity = v } },
   { key: 'Earth Sea Level', min: 0, max: 1, set: (c, v) => { c.earthSeaLevel = v } },
+  { key: 'Earth Wave Intensity', min: 0, max: 1, set: (c, v) => { c.earthWaveIntensity = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -297,6 +307,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthSeafloorRelief: config.earthSeafloorRelief,
     earthSeawaterOpacity: config.earthSeawaterOpacity,
     earthSeaLevel: config.earthSeaLevel,
+    earthWaveIntensity: config.earthWaveIntensity,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
