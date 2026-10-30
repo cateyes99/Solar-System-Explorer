@@ -20,9 +20,11 @@ import type { WaterVisuals } from '../../data/visuals'
  *    longitude 0, nothing pinched at the poles, and nothing to slide. A
  *    **directional spectrum** of plane waves — the real-time ocean-rendering
  *    "sum of sines" model — gives the swell, its directions fanned around a
- *    **globe-wide wind field** so each region differs; 3D noise advected through
- *    time gives the chop; and the waves disperse as they travel. The surface
- *    normal is tilted from the field's tangent-plane gradient, and the standard
+ *    **globe-wide wind field** so each region differs; a few **drifting point
+ *    sources**, each with its own wandering path and life cycle, add localised
+ *    systems that leave their wavefronts behind; 3D noise advected through time
+ *    gives the chop; and the waves disperse as they travel. The surface normal
+ *    is tilted from the field's tangent-plane gradient, and the standard
  *    material lights it — which is what puts a travelling glint on the water.
  *  - **Beer's-law body colour**, so a shallow shelf keeps the bright day-map
  *    blue while the abyss falls away through teal to navy.
@@ -56,6 +58,8 @@ export interface WaterUniforms {
     uWaveChop: { value: number }
     /** The swell spectrum's overall amplitude. */
     uWaveSwell: { value: number }
+    /** The drifting point sources' overall amplitude. */
+    uWaveSource: { value: number }
     /** How many times the base wave pattern is tiled across the globe. */
     uWaveScale: { value: number }
     /** The spatial scale of the globe-wide wind field (higher = smaller). */
@@ -116,6 +120,7 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveStrength: { value: 0 },
       uWaveChop: { value: 0 },
       uWaveSwell: { value: binding.visuals.wave?.swell ?? 0.26 },
+      uWaveSource: { value: binding.visuals.wave?.source ?? 0.3 },
       uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
       uWaveWindScale: { value: binding.visuals.wave?.windScale ?? 3.5 },
       uWaveWindAmount: { value: binding.visuals.wave?.windAmount ?? 0.85 },
@@ -166,6 +171,7 @@ uniform float uWaveTime;
 uniform float uWaveStrength;
 uniform float uWaveChop;
 uniform float uWaveSwell;
+uniform float uWaveSource;
 uniform float uWaveScale;
 uniform float uWaveWindScale;
 uniform float uWaveWindAmount;
@@ -240,6 +246,78 @@ float oceanChop(vec3 dir, float footprint) {
   float s = uWaveScale;
   vec3 q = dir * s + vec3(uWaveTime * 0.05, uWaveTime * 0.04, -uWaveTime * 0.045) * sqrt(s);
   return (waveFbmLod(q, s, footprint) - 0.5) * (0.5 + uWaveChop);
+}
+
+/**
+ * The drifting point sources.
+ *
+ * The directional spectrum above is the sea's steady foundation; these add the
+ * *localised, evolving* part. Each source wanders the globe on its own slow,
+ * irregular path and has its own life cycle, staggered against the others so no
+ * two ever rise or fall together.
+ *
+ * The important subtlety is the **retarded time**: the wave now reaching a pixel
+ * was emitted a while ago, from wherever the source stood *then*. Evaluating the
+ * source at that earlier position is what makes old wavefronts keep travelling
+ * outward from where they were born, instead of being dragged along as the
+ * source moves. The amplitude is the source's life at the moment of emission,
+ * faded by the wave's age, so old wavefronts dissipate as new ones overlap them.
+ */
+#define WAVE_SOURCES 3
+
+/** A deterministic per-source constant (folded away at compile time). */
+float sourceSeed(float i, float c) {
+  return waveHash(vec3(i * 7.13 + 1.7, c, 3.7));
+}
+
+/** The source's direction on the sphere at time t: a home per slot plus a slow,
+ *  irregular wander, so its path is a wandering curve rather than a straight
+ *  line. */
+vec3 sourceDir(float i, float t) {
+  vec3 home = vec3(sourceSeed(i, 11.0), sourceSeed(i, 23.0), sourceSeed(i, 5.0)) * 2.0 - 1.0;
+  vec3 wander = vec3(
+    sin(t * 0.021 + sourceSeed(i, 31.0) * 6.2831853),
+    sin(t * 0.017 + sourceSeed(i, 37.0) * 6.2831853),
+    sin(t * 0.025 + sourceSeed(i, 41.0) * 6.2831853));
+  return normalize(home + wander * 0.35);
+}
+
+/** The source's life envelope at time t: a smooth fade in, a long life, then a
+ *  smooth fade out, on a period and phase unique to the slot. */
+float sourceEnv(float i, float t) {
+  float period = 110.0 + sourceSeed(i, 7.0) * 130.0;
+  float u = fract((t + sourceSeed(i, 13.0) * period) / period);
+  return smoothstep(0.0, 0.28, u) * (1.0 - smoothstep(0.6, 1.0, u));
+}
+
+/** One source's contribution to the surface's tangent-plane gradient. */
+vec3 sourceGrad(vec3 dir, float i, float footprint) {
+  // Each source has its own wavenumber, well separated from the others and
+  // clearly coarser than the chop, so their wavefronts read as slow drifting
+  // systems and interfere incoherently instead of locking into a lattice.
+  float k = (1.1 + sourceSeed(i, 3.0) * 1.8) * uWaveScale;
+  float omega = sqrt(k) * 0.22;
+  float speed = omega / k;
+  // How long ago the wave now here was emitted, and where the source stood then.
+  float r0 = acos(clamp(dot(dir, sourceDir(i, uWaveTime)), -1.0, 1.0));
+  float tE = uWaveTime - r0 / speed;
+  vec3 s = sourceDir(i, tE);
+  // Bend the effective centre a little with a slow noise field, so the wavefronts
+  // arrive as irregular curves rather than perfect concentric circles — a point
+  // source on its own always draws a bullseye.
+  float bend = (waveNoise(dir * 2.2 + vec3(i * 23.0)) - 0.5) * 0.9;
+  s = normalize(s + vec3(bend, bend * 0.6, -bend * 0.4));
+  float cosR = clamp(dot(dir, s), -1.0, 1.0);
+  float r = acos(cosR);
+  float age = max(uWaveTime - tE, 0.0);
+  float amp = uWaveSource * sourceEnv(i, tE) / (1.0 + age * 0.03) * waveLod(k, footprint);
+  if (amp < 0.002) return vec3(0.0);
+  // The radial wave's gradient points away from the source along the great
+  // circle, so the tangent direction is the source's tangential part.
+  vec3 radial = s - cosR * dir;
+  float len = length(radial);
+  vec3 gradDir = len > 1e-4 ? -radial / len : vec3(0.0);
+  return amp * k * cos(k * r - omega * uWaveTime) * gradDir;
 }
 
 /**
@@ -385,6 +463,11 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     float phase = k * dot(nObj, K) - omega * uWaveTime
                 + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853;
     swellGrad += (amp * kBase * cos(phase)) * KTangent;
+  }
+
+  // --- The drifting sources: localised, evolving wave systems --------------
+  for (int i = 0; i < WAVE_SOURCES; i++) {
+    swellGrad += sourceGrad(nObj, float(i), footprint);
   }
 
   // --- The fine chop: a finite-difference gradient -------------------------

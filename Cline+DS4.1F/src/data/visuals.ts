@@ -182,6 +182,8 @@ export interface WaterWaveVisuals {
   maxChop: number
   /** The swell spectrum's overall amplitude. */
   swell: number
+  /** The drifting point sources' overall amplitude. */
+  source: number
   /** The globe-wide wind field's spatial scale (higher = smaller features). */
   windScale: number
   /** How far the local wind bends each swell's direction. */
@@ -474,7 +476,11 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // scales it per region: ~1/3.5 radian features means the wave direction
         // changes over roughly 1,000–2,000 km, and it bends each swell by up to
         // ~40°, so no two regions carry the same sea.
-        swell: 0.36,
+        swell: 0.3,
+        // The drifting point sources: localised systems that wander, evolve and
+        // die, leaving their wavefronts behind. Kept a few, not many — the aim
+        // is organic variation, not ever more sources.
+        source: 0.12,
         windScale: 4,
         windAmount: 0.5,
         foamColor: '#bfe4ff',
