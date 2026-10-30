@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { MeshStandardMaterial, RepeatWrapping } from 'three'
+import { MeshStandardMaterial } from 'three'
 import type { BufferGeometry, Mesh, Texture } from 'three'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
@@ -23,8 +23,9 @@ import {
  * A genuinely transparent liquid layer sitting at sea level on top of the
  * seafloor mesh. Because the two are separate surfaces at different radii, the
  * floor is seen *through* the water with real parallax rather than as a fade of
- * it, and the water carries its own Beer's-law body colour, rippled normal map
- * and specular response (see `water.ts`).
+ * it, and the water carries its own Beer's-law body colour and a **living,
+ * procedural wave field** (see `water.ts`) that the scene's lighting turns into
+ * travelling glints.
  *
  * The material is a `MeshStandardMaterial` so it inherits the scene's lighting
  * and tone mapping; `renderOrder` keeps it under the clouds and haze.
@@ -52,8 +53,8 @@ interface OceanProps {
    */
   deepestFraction: number
   /**
-   * When true the surface is held still: the ripples stop scrolling and the
-   * coastal surf stops moving. The static look (amplitude, detail, foam) is left
+   * When true the surface is held still: the wave field stops advecting and the
+   * coastal surf stops moving. The static look (amplitude, chop, foam) is left
    * as the slider set it, matching how the rest of the app calms its effects.
    */
   reducedMotion: boolean
@@ -72,14 +73,6 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
    */
   const drop = maxDepthRadius > 0 ? seaLevelDrop(seaLevel) * deepestFraction : 0
   const surfaceScale = radius * (1 - drop * maxDepthRadius)
-
-  const normalMap = useMemo(() => {
-    const map = getTexture(visuals.normalMapId)
-    map.wrapS = RepeatWrapping
-    map.wrapT = RepeatWrapping
-    map.repeat.set(visuals.normalRepeat[0], visuals.normalRepeat[1])
-    return map
-  }, [visuals.normalMapId, visuals.normalRepeat])
 
   const uniforms = useMemo(
     () =>
@@ -101,15 +94,16 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
   )
 
   const material = useMemo(() => {
+    // No normal map: the waves are a procedural height field computed in the
+    // shader (see `water.ts`), so there is nothing to slide or tile. The day map
+    // still supplies the ocean's real colour, which Beer's law then attenuates.
     const water = new MeshStandardMaterial({
       map: getTexture('earth'),
       roughness: visuals.roughness,
       metalness: visuals.metalness,
-      normalMap,
       transparent: true,
       depthWrite: false,
     })
-    water.normalScale.set(visuals.normalScale, visuals.normalScale)
     water.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms.uniforms)
       shader.vertexShader = shader.vertexShader
@@ -121,16 +115,15 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           `#include <normal_pars_fragment>\n${WATER_FRAGMENT_PARS}`,
         )
         .replace('#include <map_fragment>', `#include <map_fragment>\n${WATER_FRAGMENT_BODY}`)
-        // The wave block needs the finished `normal`, the *geometric* normal it
-        // started from (saved just before the standard chunk) and the tangent
-        // frame, so it goes in right after the normal-map chunk.
+        // The wave field tilts the geometric normal, so it goes in where three
+        // would have applied a normal map (which this material does not have).
         .replace(
           '#include <normal_fragment_maps>',
-          `vec3 waterGeoNormal = normal;\n#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
+          `#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
         )
     }
     return water
-  }, [visuals, waterMask, normalMap, uniforms])
+  }, [visuals, waterMask, uniforms])
 
   useEffect(() => () => material.dispose(), [material])
 
@@ -140,30 +133,15 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
     const intensity = useSimulationStore.getState().earthWaveIntensity
     const params = waveParams(intensity)
     const step = Math.min(delta, 0.05)
-    // Reduced motion holds the surface still — no scrolling, no surf pulse —
-    // while keeping the static look the slider asked for.
-    const speed = reducedMotion ? 0 : params.driftScale
-
-    normalMap.offset.x = (normalMap.offset.x + visuals.drift[0] * speed * step) % 1
-    normalMap.offset.y = (normalMap.offset.y + visuals.drift[1] * speed * step) % 1
-    // The detail layer scrolls a different way, so the surface evolves rather
-    // than sliding as one sheet. It only exists once the slider is high.
-    const detail = visuals.wave
-    const offset2 = uniforms.uniforms.uWaveOffset2.value
-    if (detail) {
-      offset2.x = (offset2.x + detail.detailDrift[0] * speed * step) % 1
-      offset2.y = (offset2.y + detail.detailDrift[1] * speed * step) % 1
-    }
-    material.normalScale.set(params.normalScale, params.normalScale)
-    uniforms.uniforms.uWaveBlend.value = params.variability
+    const wave = visuals.wave
+    uniforms.uniforms.uWaveStrength.value = (wave?.maxStrength ?? 0) * params.amplitude
+    uniforms.uniforms.uWaveChop.value = (wave?.maxChop ?? 0) * params.variability
     uniforms.uniforms.uCoastal.value = params.coastal
-    // The view/distance fade only applies to the base ripples above the
-    // baseline, so the shipped default is never faded. The radius is the
-    // surface's *drawn* size, so the distance fade stays scale-invariant as the
-    // planet grows and shrinks with the scale presets.
-    uniforms.uniforms.uWaveFadeStrength.value = visuals.wave ? params.fadeStrength : 0
+    // The radius is the surface's *drawn* size, so the distance fade stays
+    // scale-invariant as the planet grows and shrinks with the scale presets.
     uniforms.uniforms.uWaveRadius.value = surfaceScale
-    if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step
+    // Reduced motion freezes the field; the slider's speed scales it otherwise.
+    if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step * params.speed
     uniforms.uniforms.uWaterAlpha.value = waterAlpha(opacity, visuals.revealGamma)
     uniforms.uniforms.uSeaLevelDrop.value = drop
   })

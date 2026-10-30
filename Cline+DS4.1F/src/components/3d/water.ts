@@ -6,16 +6,27 @@ import type { WaterVisuals } from '../../data/visuals'
  * The ocean surface's shader plumbing.
  *
  * The water is a **separate, genuinely transparent mesh** at sea level, drawn
- * over the seafloor mesh (`terrain.ts`), which now always sits at the bottom of
- * the water column. Nothing here fades the floor: the GPU blends the two layers
- * by the water's own alpha, so at 50% you are looking through a real liquid
- * surface at a real floor, with the parallax that comes from their being at
- * different radii.
+ * over the seafloor mesh (`terrain.ts`), which sits at the bottom of the water
+ * column. The GPU blends the two layers by the water's own alpha, so at 50% you
+ * are looking through a real liquid surface at a real floor, with the parallax
+ * that comes from their being at different radii.
  *
- * The material itself is a `MeshStandardMaterial`, so the water gets the scene's
- * proper PBR lighting, a specular response from its roughness and a rippled
- * normal map for free; these chunks only add the two things that are specific to
- * this app — the Beer's-law body colour and the per-fragment alpha.
+ * The material is a `MeshStandardMaterial`, so the water gets the scene's proper
+ * PBR lighting and a specular response from its roughness. These chunks add the
+ * three things that are specific to this app:
+ *
+ *  - **A living wave field.** Not a texture: a height field evaluated from the
+ *    sphere's own direction (`vWaveDir`), so there is no map to seam at
+ *    longitude 0, nothing pinched at the poles, and nothing to slide. A handful
+ *    of great-circle swells give the long, directional waves; a domain-warped
+ *    noise field gives the chop; both are advected through time, so the shapes
+ *    genuinely evolve and morph the way the cloud deck does. The surface normal
+ *    is tilted from the field's tangent-plane gradient, and the standard
+ *    material lights it — which is what puts a travelling glint on the water.
+ *  - **Beer's-law body colour**, so a shallow shelf keeps the bright day-map
+ *    blue while the abyss falls away through teal to navy.
+ *  - **Per-fragment alpha** from the water mask, so the sea fades out across the
+ *    coast instead of ending at a hard line.
  */
 
 export interface WaterUniforms {
@@ -35,29 +46,25 @@ export interface WaterUniforms {
     uSeaLevelDrop: { value: number }
     uWaterAbsorption: { value: Vector3 }
     uWaterTint: { value: Color }
-    /* Waves (see `utils/waves.ts`; all inert while the slider is low) */
-    /** The detail layer's UV scale (a finer repeat of the same ripple map). */
-    uWaveRepeat2: { value: Vector2 }
-    /** The detail layer's scrolling UV offset, advanced each frame. */
-    uWaveOffset2: { value: Vector2 }
-    /** The detail layer's normal strength. */
-    uWaveScale2: { value: number }
-    /** The detail layer's blend weight, 0…1 (the slider's variability). */
-    uWaveBlend: { value: number }
-    /** A slowly advancing clock for the coastal surf animation, in seconds. */
+    /* The procedural wave field (see `utils/waves.ts`) */
+    /** The field's clock, in real seconds, advanced by the slider's speed. */
     uWaveTime: { value: number }
-    /** The coastal surf strength, 0…1 (the slider's coastal interaction). */
-    uCoastal: { value: number }
-    /** The colour the breaking surf is tinted with. */
-    uFoamColor: { value: Color }
-    /** How strongly the view/distance fade applies to the base ripples, 0…1. */
-    uWaveFadeStrength: { value: number }
+    /** How far the field tilts the surface normal, 0…1+. */
+    uWaveStrength: { value: number }
+    /** The fine chop's share of the height field. */
+    uWaveChop: { value: number }
+    /** How many times the base wave pattern is tiled across the globe. */
+    uWaveScale: { value: number }
     /** The planet's drawn radius, for the scale-invariant distance fade. */
     uWaveRadius: { value: number }
     /** The view-angle fade range (facing cosines; see `WaterWaveVisuals`). */
     uWaveLimbFade: { value: Vector2 }
     /** The distance fade range (multiples of the radius). */
     uWaveDistanceFade: { value: Vector2 }
+    /** The coastal surf strength, 0…1 (the slider's coastal interaction). */
+    uCoastal: { value: number }
+    /** The colour the breaking surf is tinted with. */
+    uFoamColor: { value: Color }
   }
 }
 
@@ -97,39 +104,43 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uSeaLevelDrop: { value: binding.seaLevelDrop },
       uWaterAbsorption: { value: new Vector3(...binding.visuals.absorption) },
       uWaterTint: { value: new Color(binding.visuals.waterTint) },
-      uWaveRepeat2: {
-        value: new Vector2(
-          binding.visuals.normalRepeat[0] * (binding.visuals.wave?.detailRepeatScale ?? 1),
-          binding.visuals.normalRepeat[1] * (binding.visuals.wave?.detailRepeatScale ?? 1),
-        ),
-      },
-      uWaveOffset2: { value: new Vector2(0, 0) },
-      uWaveScale2: { value: binding.visuals.wave?.detailNormalScale ?? 0 },
-      // Zero until the slider is dragged up: the detail layer and the surf are
-      // invisible at the baseline, so the shipped look is preserved exactly.
-      uWaveBlend: { value: 0 },
+      // Inert until the slider is raised: a flat field, no chop, no surf.
       uWaveTime: { value: 0 },
-      uCoastal: { value: 0 },
-      uFoamColor: { value: new Color(binding.visuals.wave?.foamColor ?? '#ffffff') },
-      // Zero until the slider is above the baseline, so the shipped look is
-      // never faded. `Ocean.tsx` keeps the radius live as the scale changes.
-      uWaveFadeStrength: { value: 0 },
+      uWaveStrength: { value: 0 },
+      uWaveChop: { value: 0 },
+      uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
       uWaveRadius: { value: 1 },
       uWaveLimbFade: { value: new Vector2(...(binding.visuals.wave?.limbFade ?? [0.05, 0.35])) },
       uWaveDistanceFade: {
         value: new Vector2(...(binding.visuals.wave?.distanceFade ?? [30, 80])),
       },
+      uCoastal: { value: 0 },
+      uFoamColor: { value: new Color(binding.visuals.wave?.foamColor ?? '#ffffff') },
     },
   }
 }
 
-/** The vertex side: one extra varying carrying the surface's own UV. */
+/**
+ * The vertex side: the surface's own UV (for the water mask and the depth field)
+ * and the object-space direction, which the wave field is evaluated from. The
+ * `vWaveBasis*` varyings are the object→view rotation (each column normalised,
+ * so the planet's scale drops out) and let the fragment tilt the *view-space*
+ * normal by a gradient measured in object space.
+ */
 export const WATER_VERTEX_PARS = /* glsl */ `
 varying vec2 vSeaUv;
+varying vec3 vWaveDir;
+varying vec3 vWaveBasisX;
+varying vec3 vWaveBasisY;
+varying vec3 vWaveBasisZ;
 `
 
 export const WATER_VERTEX_UV = /* glsl */ `
 vSeaUv = uv;
+vWaveDir = normalize(position);
+vWaveBasisX = normalize(normalMatrix[0]);
+vWaveBasisY = normalize(normalMatrix[1]);
+vWaveBasisZ = normalize(normalMatrix[2]);
 `
 
 export const WATER_FRAGMENT_PARS = /* glsl */ `
@@ -141,29 +152,108 @@ uniform float uWaterAlpha;
 uniform float uSeaLevelDrop;
 uniform vec3 uWaterAbsorption;
 uniform vec3 uWaterTint;
-uniform vec2 uWaveRepeat2;
-uniform vec2 uWaveOffset2;
-uniform float uWaveScale2;
-uniform float uWaveBlend;
 uniform float uWaveTime;
-uniform float uCoastal;
-uniform vec3 uFoamColor;
-uniform float uWaveFadeStrength;
+uniform float uWaveStrength;
+uniform float uWaveChop;
+uniform float uWaveScale;
 uniform float uWaveRadius;
 uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
+uniform float uCoastal;
+uniform vec3 uFoamColor;
 varying vec2 vSeaUv;
+varying vec3 vWaveDir;
+varying vec3 vWaveBasisX;
+varying vec3 vWaveBasisY;
+varying vec3 vWaveBasisZ;
+
+// 3D value noise, sampled along the sphere's own direction: a solid field, so it
+// is continuous everywhere — no seam at longitude 0, nothing pinched at the
+// poles. (The same primitive the cloud deck is built from.)
+float waveHash(vec3 p) {
+  p = fract(p * 0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y) * p.z);
+}
+float waveNoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(waveHash(i + vec3(0.0, 0.0, 0.0)), waveHash(i + vec3(1.0, 0.0, 0.0)), u.x),
+        mix(waveHash(i + vec3(0.0, 1.0, 0.0)), waveHash(i + vec3(1.0, 1.0, 0.0)), u.x), u.y),
+    mix(mix(waveHash(i + vec3(0.0, 0.0, 1.0)), waveHash(i + vec3(1.0, 0.0, 1.0)), u.x),
+        mix(waveHash(i + vec3(0.0, 1.0, 1.0)), waveHash(i + vec3(1.0, 1.0, 1.0)), u.x), u.y),
+    u.z);
+}
+/**
+ * How well a wave of angular frequency omega (radians of phase per unit of
+ * arc) is resolved at this pixel. It is 1 while the wave spans several pixels
+ * and eases to 0 as it shrinks toward the pixel grid — the standard screen-space
+ * LOD that keeps a fine sea from breaking into moiré. footprint is the arc
+ * length one pixel covers.
+ */
+float waveLod(float omega, float footprint) {
+  float pixelsPerWave = 6.2831853 / max(omega * footprint, 1e-6);
+  return smoothstep(2.0, 5.0, pixelsPerWave);
+}
+
+// Three octaves, each rotated so the noise lattice cannot line up, and each
+// faded by its own LOD so the finest detail drops away before it can alias.
+float waveFbmLod(vec3 p, float scale, float footprint) {
+  const mat3 rot = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
+  float sum = 0.0;
+  float amp = 0.5;
+  float cycles = scale;
+  for (int i = 0; i < 3; i++) {
+    sum += amp * waveLod(6.2831853 * cycles, footprint) * waveNoise(p);
+    p = rot * p * 2.02;
+    cycles *= 2.02;
+    amp *= 0.5;
+  }
+  return sum / 0.875;
+}
 
 /**
- * How much of the ripples survive at this fragment: 1 facing the camera and
- * close, easing to 0 at the limb and as the globe shrinks into the distance.
+ * The ocean's height field, in object space, at the current time.
  *
- * The view angle is the cosine between the surface normal and the line of
- * sight (vViewPosition points from the fragment to the camera in view space),
- * so it is 1 dead centre and 0 at the very edge of the disc. The distance is
- * measured in planet radii, which makes it behave identically in every scale
- * mode. Both are combined so a finely tiled ripple map cannot smear at the limb
- * or shimmer on a distant globe.
+ * The long waves are four **great-circle swells**: each is a plane wave with a
+ * 3D wave vector, so its crests are great circles that wrap the globe and follow
+ * its curvature instead of lying on a flat UV grid. Their frequencies are
+ * deliberately unrelated, so they never line up into a repeating pattern. The
+ * fine chop is 3D noise, advected through time, so it churns and morphs rather
+ * than sliding.
+ *
+ * uWaveScale multiplies every spatial frequency, so the whole sea gets finer
+ * without changing how far the surface tilts (the caller shrinks the gradient's
+ * sample step to match). The clock runs faster by the square root of that scale
+ * — deep-water waves disperse as omega proportional to sqrt(k) — so finer waves
+ * are slower, as they are in a real sea, instead of turning into a flicker.
+ */
+float oceanHeight(vec3 dir, float footprint) {
+  float s = uWaveScale;
+  float ts = sqrt(s) * uWaveTime;
+  // The body of the sea is 3D noise, advected through time: organic, seamless,
+  // and with no pole for a pattern to converge on.
+  vec3 q = dir * s + vec3(ts * 0.06, ts * 0.045, -ts * 0.05);
+  float chop = waveFbmLod(q, s, footprint) - 0.5;
+  // Two long swells, crossed, give the sea a direction without one dominant
+  // bullseye; their crests are *bent hard by the chop*, so they wander the way
+  // real swell does instead of forming a regular stripe pattern.
+  float bend = chop * 8.0;
+  float h = chop * (0.6 + uWaveChop);
+  h += 0.30 * waveLod(6.1 * s, footprint) * sin(dot(dir, vec3( 0.83, 0.12,  0.55)) * (6.1 * s) + ts * 1.05 + bend);
+  h += 0.24 * waveLod(9.7 * s, footprint) * sin(dot(dir, vec3(-0.47, 0.20,  0.86)) * (9.7 * s) - ts * 1.35 + bend * 1.4);
+  return h;
+}
+
+/**
+ * How much of the waves survive at this fragment: 1 facing the camera and close,
+ * easing to 0 at the limb and as the globe shrinks into the distance. The view
+ * angle is the cosine between the surface normal and the line of sight
+ * (vViewPosition points from the fragment to the camera in view space), and the
+ * distance is measured in planet radii, which makes it scale-invariant. Both
+ * keep fine chop from smearing at the limb or shimmering on a distant globe.
  */
 float waterRippleFade(vec3 viewNormal) {
   float facing = clamp(dot(normalize(vViewPosition), viewNormal), 0.0, 1.0);
@@ -202,18 +292,18 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
   vec3 transmittance = exp(-uWaterAbsorption * waterDepth);
   diffuseColor.rgb = diffuseColor.rgb * transmittance + uWaterTint * (1.0 - transmittance);
   diffuseColor.a = waterMask * uWaterAlpha;
-  // The coastal surf: a soft band on the *water* side of the shore, gated to
-  // the shallows, brightened by an animated foam term. It is invisible until
-  // the "Wave intensity" slider is well above its baseline (see utils/waves.ts),
-  // so the shipped look is untouched. It is pure shading — the land never moves.
+  // The coastal surf: a soft band on the *water* side of the shore, gated to the
+  // shallows, brightened by an animated foam term. It is invisible in a gentle
+  // sea and only appears as the "Wave intensity" slider is raised (see
+  // utils/waves.ts). It is pure shading — the land never moves.
   if (uCoastal > 0.002) {
     float shoreBand = smoothstep(0.06, 0.42, waterMask) * (1.0 - smoothstep(0.42, 0.9, waterMask));
     float shallow = 1.0 - smoothstep(0.0, 0.16, waterDepth);
     float foam = uCoastal * shoreBand * shallow;
     // A slow pulse reads as surf rolling in and drawing back.
     foam *= 0.6 + 0.4 * sin(waterMask * 24.0 - uWaveTime * 2.1);
-    // The surf fades out with the ripples, so it cannot smear into a bright ring
-    // at the limb or on a distant globe (the surf only appears above the baseline).
+    // The surf fades out with the waves, so it cannot smear into a bright ring
+    // at the limb or on a distant globe.
     foam *= waterRippleFade(normalize(vNormal));
     foam = clamp(foam, 0.0, 1.0);
     diffuseColor.rgb = mix(diffuseColor.rgb, uFoamColor, foam * 0.7);
@@ -223,43 +313,41 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
 `
 
 /**
- * The ripple layers' view/distance fade and the second, finer detail layer.
- * Injected after `normal_fragment_maps`, where the finished `normal`, the
- * geometric normal (`waterGeoNormal`, saved just before the standard chunk) and
- * the tangent frame `tbn` all exist.
+ * The wave field's surface normal, injected after `normal_fragment_maps` (which
+ * is a no-op here, since the water has no normal map).
  *
- * Two things happen here:
- *
- *  - **The fade.** `waterRippleFade` eases the ripples toward a smooth surface at
- *    the limb and as the globe shrinks into the distance. The base ripples fade
- *    by `uWaveFadeStrength`, which is 0 at the shipped baseline, so the default
- *    look is untouched; the finer detail layer below always fades at full
- *    strength, because it only appears well above the baseline.
- *  - **The detail layer.** The *same* ripple map is sampled again at a different
- *    scale and scrolled a different way (its offset is advanced in `Ocean.tsx`),
- *    so the surface evolves and morphs instead of sliding as one rigid sheet.
- *    The two tangent-space normals are blended by adding them and re-normalising
- *    — the standard scrolling-normal-map technique.
- *
- * The whole block is skipped while both weights are zero (the baseline), so no
- * extra work or texture fetch is done and the shipped look is preserved exactly.
- *
- * `normalMap` and `tbn` are declared by the standard material itself whenever it
- * has a tangent-space normal map, which the water always does.
+ * The height field is sampled at three points a small step apart in the sphere's
+ * tangent plane, and their differences give the field's gradient — an exact,
+ * *screen-independent* tilt (a screen-space derivative would grow as the globe
+ * shrank). The gradient is carried into view space by the per-vertex basis and
+ * subtracted from the geometric normal, then the view/distance fade eases the
+ * tilt away at the limb and with distance. The whole thing collapses to a flat
+ * normal at 0% intensity, so the surface is completely still.
  */
 export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
-#ifdef USE_NORMALMAP_TANGENTSPACE
-if (uWaveFadeStrength > 0.002 || uWaveBlend > 0.002) {
-  float viewFade = waterRippleFade(waterGeoNormal);
-  // Ease the base ripples back toward the smooth surface. At the baseline
-  // uWaveFadeStrength is 0, so this is exactly the base normal.
-  normal = normalize(mix(waterGeoNormal, normal, mix(1.0, viewFade, uWaveFadeStrength)));
-  if (uWaveBlend > 0.002) {
-    vec2 waveUv2 = vSeaUv * uWaveRepeat2 + uWaveOffset2;
-    vec3 waveN2 = texture2D( normalMap, waveUv2 ).xyz * 2.0 - 1.0;
-    waveN2.xy *= uWaveScale2;
-    normal = normalize( normal + normalize( tbn * waveN2 ) * (uWaveBlend * viewFade) );
-  }
+{
+  vec3 nObj = normalize(vWaveDir);
+  // A stable tangent frame on the sphere; the up swap avoids a degenerate
+  // cross product at the poles.
+  vec3 up = abs(nObj.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 tObj = normalize(cross(nObj, up));
+  vec3 bObj = cross(nObj, tObj);
+
+  // The arc length one pixel covers: the screen-space LOD needs it to fade any
+  // wave that has shrunk toward the pixel grid.
+  float footprint = max(length(dFdx(vWaveDir)), length(dFdy(vWaveDir)));
+
+  // The step shrinks with the waves so the differences still resolve them
+  // exactly, and the gradient is renormalised by the same factor, so
+  // uWaveStrength means the same tilt at any wave scale.
+  float e = 0.012 / uWaveScale;
+  float h0 = oceanHeight(nObj, footprint);
+  float ht = oceanHeight(normalize(nObj + tObj * e), footprint);
+  float hb = oceanHeight(normalize(nObj + bObj * e), footprint);
+  vec3 gObj = ((ht - h0) * tObj + (hb - h0) * bObj) / (e * uWaveScale);
+
+  vec3 gView = vWaveBasisX * gObj.x + vWaveBasisY * gObj.y + vWaveBasisZ * gObj.z;
+  float fade = waterRippleFade(normal);
+  normal = normalize(normal - gView * (uWaveStrength * fade));
 }
-#endif
 `

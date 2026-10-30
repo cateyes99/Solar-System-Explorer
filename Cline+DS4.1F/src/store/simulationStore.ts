@@ -168,12 +168,12 @@ export interface SimulationState {
    */
   earthSeaLevel: number
   /**
-   * How strong the volumetric ocean's wave animation is: 1 = the tuned maximum,
-   * and the default 0.25 is the baseline that reproduces the shipped look
-   * exactly. One slider scales the ripple amplitude, the flow
-   * speed, a second detail layer and the coastal surf together (see
-   * `utils/waves.ts`). Only the layered water mesh acts on it; the painted
-   * "surface" ocean has no waves, so its panel slider is not shown.
+   * How strong the volumetric ocean's wave animation is: 0 = completely still,
+   * 1 = the tuned maximum, and the default 0.25 already reads as a living sea.
+   * One slider scales the wave amplitude, the flow speed, the churning chop and
+   * the coastal surf together (see `utils/waves.ts`). Only the layered water mesh
+   * acts on it; the painted "surface" ocean has no waves, so its panel slider is
+   * not shown.
    */
   earthWaveIntensity: number
   /**
@@ -376,9 +376,9 @@ const initialState: SimulationState = {
   // A full ocean by default: the sea-level control only lowers the surface when
   // the viewer reaches for it, so the shipped look is untouched.
   earthSeaLevel: 1,
-  // The default is the baseline: 25% reproduces the shipped ripples exactly, so
-  // the volumetric ocean opens looking the way it always has, with room to calm
-  // it down or build it up from there.
+  // A gentle but living sea by default: 25% already gives real swells and a
+  // little chop, with room to calm it to a still mirror or build it into a
+  // rough, breaking sea.
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
   // The single-mesh "surface" fade is the default: it is the cheaper of the two
   // implementations and keeps the photographic ocean at full opacity.
