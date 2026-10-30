@@ -480,7 +480,7 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // The drifting point sources: localised systems that wander, evolve and
         // die, leaving their wavefronts behind. Kept a few, not many — the aim
         // is organic variation, not ever more sources.
-        source: 0.12,
+        source: 0.03,
         windScale: 4,
         windAmount: 0.5,
         foamColor: '#bfe4ff',
