@@ -17,11 +17,12 @@ import type { WaterVisuals } from '../../data/visuals'
  *
  *  - **A living wave field.** Not a texture: a height field evaluated from the
  *    sphere's own direction (`vWaveDir`), so there is no map to seam at
- *    longitude 0, nothing pinched at the poles, and nothing to slide. A handful
- *    of great-circle swells give the long, directional waves; a domain-warped
- *    noise field gives the chop; both are advected through time, so the shapes
- *    genuinely evolve and morph the way the cloud deck does. The surface normal
- *    is tilted from the field's tangent-plane gradient, and the standard
+ *    longitude 0, nothing pinched at the poles, and nothing to slide. A
+ *    **directional spectrum** of plane waves — the real-time ocean-rendering
+ *    "sum of sines" model — gives the swell, its directions fanned around a
+ *    **globe-wide wind field** so each region differs; 3D noise advected through
+ *    time gives the chop; and the waves disperse as they travel. The surface
+ *    normal is tilted from the field's tangent-plane gradient, and the standard
  *    material lights it — which is what puts a travelling glint on the water.
  *  - **Beer's-law body colour**, so a shallow shelf keeps the bright day-map
  *    blue while the abyss falls away through teal to navy.
@@ -53,8 +54,14 @@ export interface WaterUniforms {
     uWaveStrength: { value: number }
     /** The fine chop's share of the height field. */
     uWaveChop: { value: number }
+    /** The swell spectrum's overall amplitude. */
+    uWaveSwell: { value: number }
     /** How many times the base wave pattern is tiled across the globe. */
     uWaveScale: { value: number }
+    /** The spatial scale of the globe-wide wind field (higher = smaller). */
+    uWaveWindScale: { value: number }
+    /** How far the local wind bends each swell's direction. */
+    uWaveWindAmount: { value: number }
     /** The planet's drawn radius, for the scale-invariant distance fade. */
     uWaveRadius: { value: number }
     /** The view-angle fade range (facing cosines; see `WaterWaveVisuals`). */
@@ -108,7 +115,10 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveTime: { value: 0 },
       uWaveStrength: { value: 0 },
       uWaveChop: { value: 0 },
+      uWaveSwell: { value: binding.visuals.wave?.swell ?? 0.26 },
       uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
+      uWaveWindScale: { value: binding.visuals.wave?.windScale ?? 3.5 },
+      uWaveWindAmount: { value: binding.visuals.wave?.windAmount ?? 0.85 },
       uWaveRadius: { value: 1 },
       uWaveLimbFade: { value: new Vector2(...(binding.visuals.wave?.limbFade ?? [0.05, 0.35])) },
       uWaveDistanceFade: {
@@ -155,7 +165,10 @@ uniform vec3 uWaterTint;
 uniform float uWaveTime;
 uniform float uWaveStrength;
 uniform float uWaveChop;
+uniform float uWaveSwell;
 uniform float uWaveScale;
+uniform float uWaveWindScale;
+uniform float uWaveWindAmount;
 uniform float uWaveRadius;
 uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
@@ -215,36 +228,18 @@ float waveFbmLod(vec3 p, float scale, float footprint) {
 }
 
 /**
- * The ocean's height field, in object space, at the current time.
+ * The fine chop alone, as a height field. The swells are added analytically by
+ * the caller — their gradient is exact — so only the noise chop, which has no
+ * analytic derivative, needs the finite-difference treatment.
  *
- * The long waves are four **great-circle swells**: each is a plane wave with a
- * 3D wave vector, so its crests are great circles that wrap the globe and follow
- * its curvature instead of lying on a flat UV grid. Their frequencies are
- * deliberately unrelated, so they never line up into a repeating pattern. The
- * fine chop is 3D noise, advected through time, so it churns and morphs rather
- * than sliding.
- *
- * uWaveScale multiplies every spatial frequency, so the whole sea gets finer
- * without changing how far the surface tilts (the caller shrinks the gradient's
- * sample step to match). The clock runs faster by the square root of that scale
- * — deep-water waves disperse as omega proportional to sqrt(k) — so finer waves
- * are slower, as they are in a real sea, instead of turning into a flicker.
+ * It is 3D noise advected through time: organic, seamless, and free of the ring
+ * a plane wave leaves at its own pole. uWaveScale multiplies its frequency, so
+ * the caller shrinks the sample step to match (see the normal chunk).
  */
-float oceanHeight(vec3 dir, float footprint) {
+float oceanChop(vec3 dir, float footprint) {
   float s = uWaveScale;
-  float ts = sqrt(s) * uWaveTime;
-  // The body of the sea is 3D noise, advected through time: organic, seamless,
-  // and with no pole for a pattern to converge on.
-  vec3 q = dir * s + vec3(ts * 0.06, ts * 0.045, -ts * 0.05);
-  float chop = waveFbmLod(q, s, footprint) - 0.5;
-  // Two long swells, crossed, give the sea a direction without one dominant
-  // bullseye; their crests are *bent hard by the chop*, so they wander the way
-  // real swell does instead of forming a regular stripe pattern.
-  float bend = chop * 8.0;
-  float h = chop * (0.6 + uWaveChop);
-  h += 0.30 * waveLod(6.1 * s, footprint) * sin(dot(dir, vec3( 0.83, 0.12,  0.55)) * (6.1 * s) + ts * 1.05 + bend);
-  h += 0.24 * waveLod(9.7 * s, footprint) * sin(dot(dir, vec3(-0.47, 0.20,  0.86)) * (9.7 * s) - ts * 1.35 + bend * 1.4);
-  return h;
+  vec3 q = dir * s + vec3(uWaveTime * 0.05, uWaveTime * 0.04, -uWaveTime * 0.045) * sqrt(s);
+  return (waveFbmLod(q, s, footprint) - 0.5) * (0.5 + uWaveChop);
 }
 
 /**
@@ -316,12 +311,22 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
  * The wave field's surface normal, injected after `normal_fragment_maps` (which
  * is a no-op here, since the water has no normal map).
  *
- * The height field is sampled at three points a small step apart in the sphere's
- * tangent plane, and their differences give the field's gradient — an exact,
- * *screen-independent* tilt (a screen-space derivative would grow as the globe
- * shrank). The gradient is carried into view space by the per-vertex basis and
- * subtracted from the geometric normal, then the view/distance fade eases the
- * tilt away at the limb and with distance. The whole thing collapses to a flat
+ * The sea is built the way real-time ocean rendering builds it: a **directional
+ * spectrum** of plane waves summed in the "sum of sines" model (Tessendorf 2001;
+ * GPU Gems 1, ch. 1). Six components are spread in direction around a
+ * **globe-wide wind field**, so every region carries a different wave system —
+ * different angles, different strengths — instead of one uniform pattern. Each
+ * component's wavenumber follows a JONSWAP-like falloff, its amplitude comes from
+ * the spectrum, and it travels at its own deep-water phase speed (omega
+ * proportional to sqrt(k)), so the sea disperses the way a real one does. A
+ * directional spectrum also dissolves the "bullseye" a single plane wave leaves
+ * at its own pole, because the six ring systems interfere with each other.
+ *
+ * The swell gradient is computed **analytically** (`A k cos(phase) K_tangent`),
+ * which is exact and cheap; only the noise chop — which has no analytic
+ * derivative — is differenced across the tangent plane. The gradient is carried
+ * into view space by the per-vertex basis, the view/distance fade eases the tilt
+ * away at the limb and with distance, and the whole thing collapses to a flat
  * normal at 0% intensity, so the surface is completely still.
  */
 export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
@@ -337,15 +342,62 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
   // wave that has shrunk toward the pixel grid.
   float footprint = max(length(dFdx(vWaveDir)), length(dFdy(vWaveDir)));
 
+  // --- The globe-wide wind -------------------------------------------------
+  // A smooth direction and strength over the whole planet, so the spectrum below
+  // is turned and scaled differently in every region (real wave climate is
+  // strongly regional). It is low-frequency, so one sample per fragment serves
+  // the whole sea. The constant bias keeps the direction well-defined.
+  vec3 windRaw = vec3(
+    waveNoise(nObj * uWaveWindScale + 11.0),
+    waveNoise(nObj * uWaveWindScale + 37.0),
+    waveNoise(nObj * uWaveWindScale + 71.0)) - 0.5;
+  vec3 windDir = normalize(windRaw + vec3(0.25, 0.35, 0.15));
+  float windStrength = 0.45 + 0.55 * waveNoise(nObj * uWaveWindScale * 0.6 + 5.0);
+
+  // --- The swell spectrum: an analytic gradient ----------------------------
+  // For h = A sin(k dot(n,K) + phase), the tangent-plane gradient is
+  // A k cos(phase) * K_tangent. The six components differ in direction, length
+  // and amplitude, and each carries its own phase, so they never march in step.
+  vec3 swellGrad = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    float fi = float(i);
+    // Wavenumber: a JONSWAP-like falloff, so the long swell carries the energy.
+    // The band is kept fairly narrow so most components stay above the LOD
+    // cutoff and actually reach the screen; the noise chop covers the fine end.
+    float kBase = 4.5 * pow(1.2, fi);
+    float k = kBase * uWaveScale;
+    // Direction: a fan around the local wind, which bends it per region. The
+    // spread is about ±60°, in the range real directional spectra show.
+    float spread = (waveHash(vec3(fi + 0.5, 3.0, 7.0)) - 0.5) * 2.1;
+    vec3 K0 = normalize(vec3(cos(0.6 + spread), 0.3, sin(0.6 + spread)));
+    vec3 K = normalize(K0 + uWaveWindAmount * windDir);
+    vec3 KTangent = K - dot(K, nObj) * nObj;
+    // Fade the component out where its wavefronts would collapse into a ring at
+    // its own pole (where K lines up with the surface normal). Topology forces
+    // every smooth phase field on a sphere to have such points; fading them is
+    // what keeps the "bullseye" out of the picture.
+    float poleFade = smoothstep(0.22, 0.5, length(KTangent));
+    // Amplitude: the spectral energy at that wavenumber, scaled by the local wind.
+    float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint) * poleFade;
+    // Deep-water dispersion: omega proportional to sqrt(k), so long waves travel
+    // faster than short ones and the sea spreads out instead of pulsing.
+    float omega = sqrt(k) * 0.22;
+    float phase = k * dot(nObj, K) - omega * uWaveTime
+                + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853;
+    swellGrad += (amp * kBase * cos(phase)) * KTangent;
+  }
+
+  // --- The fine chop: a finite-difference gradient -------------------------
   // The step shrinks with the waves so the differences still resolve them
   // exactly, and the gradient is renormalised by the same factor, so
   // uWaveStrength means the same tilt at any wave scale.
   float e = 0.012 / uWaveScale;
-  float h0 = oceanHeight(nObj, footprint);
-  float ht = oceanHeight(normalize(nObj + tObj * e), footprint);
-  float hb = oceanHeight(normalize(nObj + bObj * e), footprint);
-  vec3 gObj = ((ht - h0) * tObj + (hb - h0) * bObj) / (e * uWaveScale);
+  float c0 = oceanChop(nObj, footprint);
+  float ct = oceanChop(normalize(nObj + tObj * e), footprint);
+  float cb = oceanChop(normalize(nObj + bObj * e), footprint);
+  vec3 chopGrad = ((ct - c0) * tObj + (cb - c0) * bObj) / (e * uWaveScale);
 
+  vec3 gObj = swellGrad + chopGrad;
   vec3 gView = vWaveBasisX * gObj.x + vWaveBasisY * gObj.y + vWaveBasisZ * gObj.z;
   float fade = waterRippleFade(normal);
   normal = normalize(normal - gView * (uWaveStrength * fade));
