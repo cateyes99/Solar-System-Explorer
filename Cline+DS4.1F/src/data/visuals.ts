@@ -12,7 +12,6 @@ export type TextureId =
   | 'earthNight'
   | 'earthRoughness'
   | 'seafloorRamp'
-  | 'waterNormal'
   | 'mars'
   | 'jupiter'
   | 'saturn'
@@ -158,40 +157,44 @@ export interface SeafloorVisuals {
 }
 
 /**
- * The second, finer ripple layer and the coastal surf — what the panel's "Wave
- * intensity" slider scales beyond the base ripples (see `utils/waves.ts`).
+ * The ocean's **procedural wave field** — what the panel's "Wave intensity"
+ * slider scales (see `utils/waves.ts` and `components/3d/water.ts`).
  *
- *  - **The detail layer** is the *same* ripple map sampled again at a different
- *    scale and scrolled in a different direction, so the surface evolves and
- *    morphs instead of sliding as one rigid sheet (and the tiling stops showing).
- *    It is invisible until the slider is high, so the shipped look is untouched.
- *  - **The coastal surf** is an animated foam band on the water side of the
- *    shore, gated to the shallows, so a stronger slider reads as waves breaking
- *    on the coast. It is a *lighting/colour* effect: the water never moves the
- *    land, and the globe keeps its shape.
+ * The waves are not a texture: they are a height field evaluated from the
+ * sphere's own direction, so there is no map to seam at longitude 0, nothing
+ * pinched at the poles, and nothing to slide. Two crossed swells give the sea
+ * its direction, but their crests are bent by the fine noise chop, so they
+ * wander like real swell instead of forming stripes or a bullseye at a pole. All
+ * of it is advected through time, so the shapes genuinely evolve and morph the
+ * way the cloud deck does — they are never a moving picture of waves.
  */
 export interface WaterWaveVisuals {
-  /** The detail layer's scale relative to `normalRepeat` (a finer ripple). */
-  detailRepeatScale: number
-  /** The detail layer's normal strength at full variability. */
-  detailNormalScale: number
-  /** The detail layer's drift at the baseline speed, in UV turns per second. */
-  detailDrift: [number, number]
+  /**
+   * How many times the base wave pattern is tiled across the globe. The base is
+   * the original, very large swell (one crest every ~60° of arc); larger values
+   * make every wave finer and more numerous. It is what turns the sea from a few
+   * giant bands into the fine, sunlit texture it should be at globe scale.
+   */
+  scale: number
+  /** How far the surface normal tilts at full amplitude (the slider's top end). */
+  maxStrength: number
+  /** The chop's share of the height field at full variability. */
+  maxChop: number
   /** The colour the breaking surf is tinted with. */
   foamColor: string
   /**
-   * The view angle at which the ripples are fully gone and fully present, as the
+   * The view angle at which the waves are fully gone and fully present, as the
    * cosine of the angle between the surface normal and the line of sight: 0 is
    * the very edge of the disc (grazing), 1 is dead centre (facing the camera).
-   * The ripples ease to a smooth, mirror-like surface as the ocean turns away,
-   * which is what stops a finely tiled map smearing at the limb.
+   * The water eases to a smooth, mirror-like surface as it turns away, which is
+   * what stops fine chop smearing at the limb.
    */
   limbFade: [number, number]
   /**
-   * How far the globe can be before its ripples fade out, as multiples of the
-   * planet's drawn radius: full ripples up to the first, a smooth mirror past
-   * the second. It is scale-invariant, so it behaves the same in every scale
-   * mode and simply hides the ripples when the whole Earth is a distant dot.
+   * How far the globe can be before its waves fade out, as multiples of the
+   * planet's drawn radius: full waves up to the first, a smooth mirror past the
+   * second. It is scale-invariant, so it behaves the same in every scale mode
+   * and simply hides the chop when the whole Earth is a distant dot.
    */
   distanceFade: [number, number]
 }
@@ -209,14 +212,10 @@ export interface WaterWaveVisuals {
  *    the water itself, so a shallow shelf keeps the bright day-map blue while the
  *    abyss falls away through teal to navy, driven by the real depth under each
  *    pixel.
- *  - **A rippled normal map**, so the surface has waves that catch the sun.
+ *  - **A living, procedural wave field** (`wave`), so the surface is never the
+ *    same twice and its glints travel the way real water does.
  *  - **A proper specular response**, from a low `roughness` — the glint that
  *    tells you this is a liquid surface and not a painted texture.
- *
- * `normalScale` and `drift` are the *baseline* the "Wave intensity" slider is
- * anchored to: at 25% (the default) the surface uses exactly these numbers (see
- * `utils/waves.ts`). `wave` carries the extra tuning the slider needs above the
- * baseline, and is present only where a water layer actually animates.
  *
  * `revealGamma` shapes how fast the slider thins the water: the layer's alpha is
  * `1 − (1 − opacity) ^ revealGamma`, so a half-way slider already shows most of
@@ -224,14 +223,6 @@ export interface WaterWaveVisuals {
  * not a model of real underwater visibility.
  */
 export interface WaterVisuals {
-  /** A tiling ripple normal map for the surface. */
-  normalMapId: TextureId
-  /** How far the ripples tilt the surface normal, at the 25% baseline. */
-  normalScale: number
-  /** Ripple repeats around the globe and from pole to pole. */
-  normalRepeat: [number, number]
-  /** Ripple drift, in UV turns per real second, at the 25% baseline. */
-  drift: [number, number]
   /** Surface roughness: low is glassy. */
   roughness: number
   metalness: number
@@ -241,7 +232,7 @@ export interface WaterVisuals {
   waterTint: string
   /** The reveal curve's exponent (see above). */
   revealGamma: number
-  /** The second ripple layer and the coastal surf (see `WaterWaveVisuals`). */
+  /** The procedural wave field (see `WaterWaveVisuals`). */
   wave?: WaterWaveVisuals
 }
 
@@ -448,34 +439,36 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       waterTint: '#0a2b4d',
       revealGamma: 0.65,
     },
-    // The ocean surface itself: a transparent, rippled, specular water layer at
-    // sea level, through which the seafloor above is seen. Its own absorption
-    // runs the shallows bright and the abyss navy.
+    // The ocean surface itself: a transparent, specular water layer at sea
+    // level, through which the seafloor above is seen. Its own absorption runs
+    // the shallows bright and the abyss navy, and its waves are a procedural
+    // height field (see `WaterWaveVisuals`), not a texture.
     water: {
-      normalMapId: 'waterNormal',
-      // The baseline the "Wave intensity" slider is anchored to (25%). The
-      // slider scales it at runtime; these are the numbers that make 25% — the
-      // default — look exactly as the ocean always has.
-      normalScale: 0.45,
-      normalRepeat: [9, 5],
-      drift: [0.006, 0.002],
-      roughness: 0.12,
+      // A little rougher than a mirror: a living sea breaks a single hard glint
+      // into a field of small ones, and it keeps the specular from aliasing.
+      roughness: 0.18,
       metalness: 0,
       absorption: [0.95, 0.5, 0.32],
       waterTint: '#0a2b4d',
       revealGamma: 0.7,
-      // The detail layer is the same ripple map again, finer (2.3× the base
-      // repeat) and scrolling a different way, so the surface evolves. The
-      // coastal surf is a pale sky-blue that reads as foam on the shore.
       wave: {
-        detailRepeatScale: 2.3,
-        detailNormalScale: 0.22,
-        detailDrift: [-0.004, 0.0055],
+        // Many times finer than the original swell: at the default view the sea
+        // is a fine, sunlit texture, not bands you could see from the Moon. The
+        // shader fades any wave that drops below a few pixels, so a larger value
+        // simply reveals more detail as you zoom in rather than aliasing.
+        scale: 13,
+        // The height field's gradient runs to roughly 10, so this tilts the
+        // normal by up to ~50° at the top of the slider — a rough sea, without
+        // tipping the normals so far that the glints become noise.
+        maxStrength: 0.16,
+        // How much the "Wave variability" slider swells the fine chop against
+        // the long swell.
+        maxChop: 0.7,
         foamColor: '#bfe4ff',
-        // Ripples hold across most of the disc and ease out over the outer band
+        // Waves hold across most of the disc and ease out over the outer band
         // (facing ≈ 0.35 → 0.05, roughly the last 15–20° to the limb).
         limbFade: [0.05, 0.35],
-        // Full ripples out to 30 Earth radii — well past a close, framed Earth —
+        // Full waves out to 30 Earth radii — well past a close, framed Earth —
         // and a smooth mirror beyond 80, where the whole globe is a small dot.
         distanceFade: [30, 80],
       },
