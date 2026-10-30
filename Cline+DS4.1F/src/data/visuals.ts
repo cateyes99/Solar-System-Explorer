@@ -180,6 +180,12 @@ export interface WaterWaveVisuals {
   maxStrength: number
   /** The chop's share of the height field at full variability. */
   maxChop: number
+  /** The swell spectrum's overall amplitude. */
+  swell: number
+  /** The globe-wide wind field's spatial scale (higher = smaller features). */
+  windScale: number
+  /** How far the local wind bends each swell's direction. */
+  windAmount: number
   /** The colour the breaking surf is tinted with. */
   foamColor: string
   /**
@@ -464,6 +470,13 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // How much the "Wave variability" slider swells the fine chop against
         // the long swell.
         maxChop: 0.7,
+        // The swell spectrum's amplitude, and the globe-wide wind that turns and
+        // scales it per region: ~1/3.5 radian features means the wave direction
+        // changes over roughly 1,000–2,000 km, and it bends each swell by up to
+        // ~40°, so no two regions carry the same sea.
+        swell: 0.36,
+        windScale: 4,
+        windAmount: 0.5,
         foamColor: '#bfe4ff',
         // Waves hold across most of the disc and ease out over the outer band
         // (facing ≈ 0.35 → 0.05, roughly the last 15–20° to the limb).
