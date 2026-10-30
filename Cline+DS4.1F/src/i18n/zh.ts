@@ -184,7 +184,7 @@ export const zh: Record<TranslationKey, string> = {
     '海水的充盈程度。100% 保持满深度的海洋；滑向 0% 会让海面下沉到深海盆地，先露出较浅的海底，直到海水完全消失。它与不透明度滑块相互独立，后者只改变海水的透明程度。',
   'planet.waveIntensity': '海浪强度',
   'planet.waveIntensityHint':
-    '体积水层的生动程度。0% 让海面完全静止——没有起伏，也没有浪花。25%（默认）就是海洋一直以来的样子；再往上会让海浪更高、流动更快，并在岸边激起浪花。海浪是一种光照效果，球体的形状不会改变。此控件只属于体积水层。',
+    '体积水层的生动程度。0% 让海面完全静止——没有起伏，也没有浪花；数值越高，海浪越高、流动越快，并会在岸边激起浪花。海浪是一片不断演变的程序化海洋——真实的长浪与翻滚的细碎波纹不断变换形态——而不是滚动的贴图。它属于光照效果，球体的形状不会改变。此控件只属于体积水层。',
   'planet.seawaterOpacity': '海水不透明度',
   'planet.seawaterOpacityHint':
     '能透过海水看到多少。100% 时海洋与原来完全一样；滑向 0% 就会排干海水，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。水越深、视线越贴近海面，海底就越被水遮住，就像真实的海水一样。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',
@@ -573,7 +573,6 @@ export const zh: Record<TranslationKey, string> = {
   'texture.source.earthHeightmap': '读取地球真实的高程',
   'texture.source.earthBathymetry': '探测海底深度',
   'texture.seafloorRamp': '为海底着色',
-  'texture.waterNormal': '让海面泛起波纹',
   'texture.source.earthClouds': '铺开地球真实的云',
   'texture.source.earthNight': '点亮真实的城市灯光',
   'texture.source.moon': '勘测月球',
