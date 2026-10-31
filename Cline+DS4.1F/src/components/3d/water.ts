@@ -20,10 +20,12 @@ import type { WaterVisuals } from '../../data/visuals'
  *    longitude 0, nothing pinched at the poles, and nothing to slide. A
  *    **directional spectrum** of plane waves — the real-time ocean-rendering
  *    "sum of sines" model — gives the swell, its directions fanned around a
- *    **globe-wide wind field** so each region differs; 3D noise advected through
- *    time gives the chop; and the waves disperse as they travel. The surface
- *    normal is tilted from the field's tangent-plane gradient, and the standard
- *    material lights it — which is what puts a travelling glint on the water.
+ *    **globe-wide wind field** so each region differs; a shared **crest warp**
+ *    offsets every component's phase so the wavefronts wander instead of closing
+ *    into rings at each plane wave's pole; 3D noise advected through time gives
+ *    the chop; and the waves disperse as they travel. The surface normal is
+ *    tilted from the field's tangent-plane gradient, and the standard material
+ *    lights it — which is what puts a travelling glint on the water.
  *  - **Beer's-law body colour**, so a shallow shelf keeps the bright day-map
  *    blue while the abyss falls away through teal to navy.
  *  - **Per-fragment alpha** from the water mask, so the sea fades out across the
@@ -58,10 +60,19 @@ export interface WaterUniforms {
     uWaveSwell: { value: number }
     /** How many times the base wave pattern is tiled across the globe. */
     uWaveScale: { value: number }
-    /** The spatial scale of the globe-wide wind field (higher = smaller). */
+    /** The crest warp's spatial frequency, relative to `uWaveScale` (useful 0.2–3). */
+    uWaveWarpScale: { value: number }
+    /** How far the crest warp bends each component's phase (useful 0–1.5). */
+    uWaveWarpAmount: { value: number }
+    /** The globe-wide wind field's scale (higher = smaller; useful 1–12). */
     uWaveWindScale: { value: number }
-    /** How far the local wind bends each swell's direction. */
+    /** How far the local wind bends each swell's direction (useful 0–1.5). */
     uWaveWindAmount: { value: number }
+    /**
+     * The fine wind octave's frequency, as a multiple of `uWaveWindScale`
+     * (useful 1.5–6; inert while `uWaveWindAmount` is 0).
+     */
+    uWaveWindDetail: { value: number }
     /** The planet's drawn radius, for the scale-invariant distance fade. */
     uWaveRadius: { value: number }
     /** The view-angle fade range (facing cosines; see `WaterWaveVisuals`). */
@@ -117,8 +128,11 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveChop: { value: 0 },
       uWaveSwell: { value: binding.visuals.wave?.swell ?? 0.26 },
       uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
+      uWaveWarpScale: { value: binding.visuals.wave?.warpScale ?? 1 },
+      uWaveWarpAmount: { value: binding.visuals.wave?.warpAmount ?? 0.7 },
       uWaveWindScale: { value: binding.visuals.wave?.windScale ?? 3.5 },
       uWaveWindAmount: { value: binding.visuals.wave?.windAmount ?? 0.85 },
+      uWaveWindDetail: { value: binding.visuals.wave?.windDetail ?? 3 },
       uWaveRadius: { value: 1 },
       uWaveLimbFade: { value: new Vector2(...(binding.visuals.wave?.limbFade ?? [0.05, 0.35])) },
       uWaveDistanceFade: {
@@ -167,8 +181,11 @@ uniform float uWaveStrength;
 uniform float uWaveChop;
 uniform float uWaveSwell;
 uniform float uWaveScale;
+uniform float uWaveWarpScale;
+uniform float uWaveWarpAmount;
 uniform float uWaveWindScale;
 uniform float uWaveWindAmount;
+uniform float uWaveWindDetail;
 uniform float uWaveRadius;
 uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
@@ -313,14 +330,21 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
  *
  * The sea is built the way real-time ocean rendering builds it: a **directional
  * spectrum** of plane waves summed in the "sum of sines" model (Tessendorf 2001;
- * GPU Gems 1, ch. 1). Six components are spread in direction around a
+ * GPU Gems 1, ch. 1). Eight components are spread in direction around a
  * **globe-wide wind field**, so every region carries a different wave system —
  * different angles, different strengths — instead of one uniform pattern. Each
  * component's wavenumber follows a JONSWAP-like falloff, its amplitude comes from
  * the spectrum, and it travels at its own deep-water phase speed (omega
- * proportional to sqrt(k)), so the sea disperses the way a real one does. A
- * directional spectrum also dissolves the "bullseye" a single plane wave leaves
- * at its own pole, because the six ring systems interfere with each other.
+ * proportional to sqrt(k)), so the sea disperses the way a real one does.
+ *
+ * A plane wave on a sphere is a set of concentric circles on a fixed axis, so a
+ * plain sum of sines reads as a handful of stationary "point sources", each
+ * emitting rings. Two things break that up. First, every component's phase is
+ * offset by a shared low-frequency **crest warp**, so the wavefronts wander and
+ * interleave instead of closing into circles. Second, the wind carries a **fine
+ * octave** on top of its smooth field, so neighbouring regions get different
+ * axes rather than sharing one. The per-component `poleFade` then dims whatever
+ * residual centre is left.
  *
  * The swell gradient is computed **analytically** (`A k cos(phase) K_tangent`),
  * which is exact and cheap; only the noise chop — which has no analytic
@@ -345,18 +369,34 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
   // --- The globe-wide wind -------------------------------------------------
   // A smooth direction and strength over the whole planet, so the spectrum below
   // is turned and scaled differently in every region (real wave climate is
-  // strongly regional). It is low-frequency, so one sample per fragment serves
-  // the whole sea. The constant bias keeps the direction well-defined.
+  // strongly regional). A second, finer octave rides on top, so the wave axis
+  // changes over a few hundred km rather than a whole ocean basin — that is what
+  // keeps neighbouring seas from sharing one axis and converging on fixed
+  // centres. The constant bias keeps the direction well-defined.
   vec3 windRaw = vec3(
     waveNoise(nObj * uWaveWindScale + 11.0),
     waveNoise(nObj * uWaveWindScale + 37.0),
     waveNoise(nObj * uWaveWindScale + 71.0)) - 0.5;
-  vec3 windDir = normalize(windRaw + vec3(0.25, 0.35, 0.15));
+  vec3 windFine = vec3(
+    waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 101.0),
+    waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 131.0),
+    waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 167.0)) - 0.5;
+  vec3 windDir = normalize(windRaw + windFine * 0.7 + vec3(0.25, 0.35, 0.15));
   float windStrength = 0.45 + 0.55 * waveNoise(nObj * uWaveWindScale * 0.6 + 5.0);
+
+  // --- The crest warp ------------------------------------------------------
+  // A low-frequency field that offsets every component's phase, so the wavefronts
+  // wander and interleave instead of closing into rings around each component's
+  // own pole (a plane wave on a sphere is concentric circles on a fixed axis —
+  // the "point source" look). Sampled once and shared: it is the phase offset
+  // that bends the crests, so one field serves the whole spectrum. Two octaves,
+  // so the wandering is organic rather than one clean bend.
+  float warp = waveNoise(nObj * uWaveScale * uWaveWarpScale + 3.0) - 0.5
+             + (waveNoise(nObj * uWaveScale * uWaveWarpScale * 2.03 + 19.0) - 0.5) * 0.5;
 
   // --- The swell spectrum: an analytic gradient ----------------------------
   // For h = A sin(k dot(n,K) + phase), the tangent-plane gradient is
-  // A k cos(phase) * K_tangent. The six components differ in direction, length
+  // A k cos(phase) * K_tangent. The components differ in direction, length
   // and amplitude, and each carries its own phase, so they never march in step.
   vec3 swellGrad = vec3(0.0);
   for (int i = 0; i < 8; i++) {
@@ -374,16 +414,20 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     vec3 KTangent = K - dot(K, nObj) * nObj;
     // Fade the component out where its wavefronts would collapse into a ring at
     // its own pole (where K lines up with the surface normal). Topology forces
-    // every smooth phase field on a sphere to have such points; fading them is
-    // what keeps the "bullseye" out of the picture.
+    // every smooth phase field on a sphere to have such points; the crest warp
+    // has already broken the rings, and this just cleans up the residual centre.
     float poleFade = smoothstep(0.22, 0.5, length(KTangent));
     // Amplitude: the spectral energy at that wavenumber, scaled by the local wind.
     float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint) * poleFade;
     // Deep-water dispersion: omega proportional to sqrt(k), so long waves travel
     // faster than short ones and the sea spreads out instead of pulsing.
     float omega = sqrt(k) * 0.22;
+    // The shared warp offsets this component's phase, scaled by kBase so every
+    // component wanders by the same fraction of its own wavelength (uWaveScale
+    // cancels: kBase is k without it).
     float phase = k * dot(nObj, K) - omega * uWaveTime
-                + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853;
+                + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853
+                + warp * uWaveWarpAmount * kBase;
     swellGrad += (amp * kBase * cos(phase)) * KTangent;
   }
 

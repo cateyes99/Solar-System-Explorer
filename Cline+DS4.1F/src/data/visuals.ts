@@ -162,11 +162,19 @@ export interface SeafloorVisuals {
  *
  * The waves are not a texture: they are a height field evaluated from the
  * sphere's own direction, so there is no map to seam at longitude 0, nothing
- * pinched at the poles, and nothing to slide. Two crossed swells give the sea
- * its direction, but their crests are bent by the fine noise chop, so they
- * wander like real swell instead of forming stripes or a bullseye at a pole. All
- * of it is advected through time, so the shapes genuinely evolve and morph the
- * way the cloud deck does — they are never a moving picture of waves.
+ * pinched at the poles, and nothing to slide. A directional spectrum of plane
+ * waves gives the sea its swell, a shared crest warp bends those wavefronts so
+ * they wander rather than closing into rings at each wave's pole, and a fine
+ * noise chop churns through the middle. All of it is advected through time, so
+ * the shapes genuinely evolve and morph the way the cloud deck does — they are
+ * never a moving picture of waves.
+ *
+ * The `warp*` and `wind*` knobs each list a useful range. They are plain config
+ * values — never clamped and not exposed as sliders — so those ranges are tuning
+ * guidance for the eye, not enforced limits. The crest bend is roughly
+ * `2 × warpScale × warpAmount` wavelengths, so the two warp knobs act as a
+ * product; keep it within about 0.2 – 1.5. Setting `warpAmount` and `windAmount`
+ * both to 0 reproduces the plain sum of sines (the old, ringed sea) exactly.
  */
 export interface WaterWaveVisuals {
   /**
@@ -182,10 +190,54 @@ export interface WaterWaveVisuals {
   maxChop: number
   /** The swell spectrum's overall amplitude. */
   swell: number
-  /** The globe-wide wind field's spatial scale (higher = smaller features). */
+  /**
+   * The crest warp's spatial frequency, relative to `scale`. Every spectral
+   * component's phase is offset by a shared low-frequency field of this scale,
+   * so the wavefronts wander instead of closing into rings around each plane
+   * wave's pole.
+   *
+   * Useful range **0.2 – 3** (default 1). At 0 the warp is constant over the
+   * globe, so it only shifts every phase equally and the rings return; very high
+   * makes the warp change per pixel and shreds the wavefronts into noise. It
+   * acts as a product with `warpAmount` — see the note on this interface.
+   */
+  warpScale: number
+  /**
+   * How far the crest warp bends each component's phase, as a fraction of its
+   * own wavelength. 0 restores the plain sum of sines (clean concentric rings);
+   * ~1 lets the crests wander by about one wavelength.
+   *
+   * Useful range **0 – 1.5** (default 0.7). Above ~2 the crests wander more than
+   * a wavelength and cross each other, reading as random rather than as waves.
+   */
+  warpAmount: number
+  /**
+   * The globe-wide wind field's spatial scale (higher = smaller features).
+   *
+   * Useful range **1 – 12** (default 4). Low puts one wind axis over a whole
+   * hemisphere (a uniform sea); high makes the wind flicker per pixel and alias.
+   */
   windScale: number
-  /** How far the local wind bends each swell's direction. */
+  /**
+   * How far the local wind bends each swell's direction. The bend tops out at
+   * `atan(windAmount)` at a right angle to the wind: 0.5 → 27°, 0.9 → 42°,
+   * 1 → 45°.
+   *
+   * Useful range **0 – 1.5** (default 0.9). At 0 every component keeps its fixed
+   * direction fan and the rings return; above ~2 the wave vector swings so far
+   * that the fan is meaningless and the wavefronts cross chaotically.
+   */
   windAmount: number
+  /**
+   * The finer wind octave's frequency, as a multiple of `windScale`. It makes
+   * the wave axis change from region to region instead of staying fixed.
+   *
+   * Useful range **1.5 – 6** (default 3). At 1 it matches the base octave (not
+   * "fine" — it just thickens the wind); very high turns it into per-pixel
+   * noise. It only has any effect while `windAmount > 0`, and its weight is
+   * hard-coded at 0.7 in the shader, so this changes the frequency only.
+   */
+  windDetail: number
   /** The colour the breaking surf is tinted with. */
   foamColor: string
   /**
@@ -475,8 +527,17 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // changes over roughly 1,000–2,000 km, and it bends each swell by up to
         // ~40°, so no two regions carry the same sea.
         swell: 0.36,
-        windScale: 4,
-        windAmount: 0.5,
+        // The crest warp: a low-frequency field that offsets every component's
+        // phase, so the swells wander and interleave instead of closing into
+        // rings around each plane wave's pole. ~1 wavelength of wander. Tune the
+        // product warpScale × warpAmount within about 0.2–1.5.
+        warpScale: 1, // 0.2–3
+        warpAmount: 0.7, // 0–1.5
+        windScale: 4, // 1–12
+        // Bend each swell harder, and add a finer wind octave, so the wave axis
+        // differs from region to region rather than converging on fixed centres.
+        windAmount: 0.9, // 0–1.5; bend = atan(windAmount)
+        windDetail: 3, // 1.5–6; inert while windAmount is 0
         foamColor: '#bfe4ff',
         // Waves hold across most of the disc and ease out over the outer band
         // (facing ≈ 0.35 → 0.05, roughly the last 15–20° to the limb).
