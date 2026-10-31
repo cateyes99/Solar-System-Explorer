@@ -250,7 +250,7 @@ export interface WaterWaveVisuals {
    * deliberately far from where it died — on this cadence, so the wave sources
    * come and go instead of sitting still.
    *
-   * Useful range **2 – 120** (default 4). 0 pins every axis and restores the
+   * Useful range **1 – 120** (default 1). 0 pins every axis and restores the
    * plain, stationary spectrum; too short and the sea flickers as systems churn.
    */
   life: number
@@ -268,7 +268,7 @@ export interface WaterWaveVisuals {
    * the whole globe. 0 keeps the old global spectrum; higher tightens each
    * source, so the sea becomes a field of distinct, overlapping sources.
    *
-   * Useful range **0 – 3** (default 1.2). Around 1 the ocean stays covered but
+   * Useful range **0 – 3** (default 2.4). Around 1 the ocean stays covered but
    * the sources are clearly regional; much higher leaves calm gaps between them.
    */
   sourceFalloff: number
@@ -577,8 +577,8 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // and respawns far from where it died, so the sources come and go instead
         // of sitting still. `life` is in wave-clock seconds (the intensity slider
         // scales the clock); 0 pins every source in place.
-        sourceFalloff: 1.2, // 0–3; 0 = each system covers the whole globe
-        life: 4, // 2–120; 0 = stationary
+        sourceFalloff: 2.4, // 0–3; 0 = each system covers the whole globe
+        life: 1, // 1–120; 0 = stationary
         lifeFade: 0.3, // 0.1–0.4; share of each lifetime spent fading
         foamColor: '#bfe4ff',
         // Waves hold across most of the disc and ease out over the outer band
