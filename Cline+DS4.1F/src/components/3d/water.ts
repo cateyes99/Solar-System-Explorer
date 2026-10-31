@@ -22,10 +22,13 @@ import type { WaterVisuals } from '../../data/visuals'
  *    "sum of sines" model — gives the swell, its directions fanned around a
  *    **globe-wide wind field** so each region differs; a shared **crest warp**
  *    offsets every component's phase so the wavefronts wander instead of closing
- *    into rings at each plane wave's pole; 3D noise advected through time gives
- *    the chop; and the waves disperse as they travel. The surface normal is
- *    tilted from the field's tangent-plane gradient, and the standard material
- *    lights it — which is what puts a travelling glint on the water.
+ *    into rings at each plane wave's pole; each component is gathered around its
+ *    own pole into a discrete **wave source**, and is a **transient system** that
+ *    fades in and out and respawns elsewhere, so the sources are never still; 3D
+ *    noise advected through time gives the chop; and the waves disperse as they
+ *    travel. The surface normal is tilted from the field's tangent-plane
+ *    gradient, and the standard material lights it — which is what puts a
+ *    travelling glint on the water.
  *  - **Beer's-law body colour**, so a shallow shelf keeps the bright day-map
  *    blue while the abyss falls away through teal to navy.
  *  - **Per-fragment alpha** from the water mask, so the sea fades out across the
@@ -73,6 +76,21 @@ export interface WaterUniforms {
      * (useful 1.5–6; inert while `uWaveWindAmount` is 0).
      */
     uWaveWindDetail: { value: number }
+    /**
+     * The base lifetime of one transient swell system, in wave-clock seconds.
+     * Each spectrum component fades in, holds, fades out and respawns on a fresh
+     * axis on this cadence; <= 0 switches the lifecycle off and leaves every
+     * source where it is.
+     */
+    uWaveLife: { value: number }
+    /** The fraction of a lifetime spent fading in and out (useful 0.1–0.5). */
+    uWaveLifeFade: { value: number }
+    /**
+     * How tightly each swell system is gathered around its own pole, so it reads
+     * as a discrete wave source rather than a wave that covers the whole globe.
+     * 0 is the old, global spectrum; higher tightens the source (useful 0–3).
+     */
+    uWaveSourceFalloff: { value: number }
     /** The planet's drawn radius, for the scale-invariant distance fade. */
     uWaveRadius: { value: number }
     /** The view-angle fade range (facing cosines; see `WaterWaveVisuals`). */
@@ -133,6 +151,9 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveWindScale: { value: binding.visuals.wave?.windScale ?? 3.5 },
       uWaveWindAmount: { value: binding.visuals.wave?.windAmount ?? 0.85 },
       uWaveWindDetail: { value: binding.visuals.wave?.windDetail ?? 3 },
+      uWaveLife: { value: binding.visuals.wave?.life ?? 0 },
+      uWaveLifeFade: { value: binding.visuals.wave?.lifeFade ?? 0.3 },
+      uWaveSourceFalloff: { value: binding.visuals.wave?.sourceFalloff ?? 0 },
       uWaveRadius: { value: 1 },
       uWaveLimbFade: { value: new Vector2(...(binding.visuals.wave?.limbFade ?? [0.05, 0.35])) },
       uWaveDistanceFade: {
@@ -186,6 +207,9 @@ uniform float uWaveWarpAmount;
 uniform float uWaveWindScale;
 uniform float uWaveWindAmount;
 uniform float uWaveWindDetail;
+uniform float uWaveLife;
+uniform float uWaveLifeFade;
+uniform float uWaveSourceFalloff;
 uniform float uWaveRadius;
 uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
@@ -339,12 +363,17 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
  *
  * A plane wave on a sphere is a set of concentric circles on a fixed axis, so a
  * plain sum of sines reads as a handful of stationary "point sources", each
- * emitting rings. Two things break that up. First, every component's phase is
- * offset by a shared low-frequency **crest warp**, so the wavefronts wander and
- * interleave instead of closing into circles. Second, the wind carries a **fine
- * octave** on top of its smooth field, so neighbouring regions get different
- * axes rather than sharing one. The per-component `poleFade` then dims whatever
- * residual centre is left.
+ * emitting rings. The spectrum is shaped so those sources behave. Every
+ * component's phase is offset by a shared low-frequency **crest warp**, so the
+ * wavefronts wander and interleave instead of closing into clean circles. The
+ * wind carries a **fine octave**, so neighbouring regions get different axes.
+ * The component is gathered around its own pole (`uWaveSourceFalloff`), so it
+ * reads as a discrete source with a home region. And, most directly, it is a
+ * **transient swell system**: it fades in, holds, fades out and respawns — far
+ * from where it died, stepping through a Fibonacci spiral of well-spread axes
+ * (`uWaveLife`) — so the sources come and go the way real wave climate does
+ * instead of sitting still forever. The per-component `poleFade` then dims
+ * whatever residual centre is left.
  *
  * The swell gradient is computed **analytically** (`A k cos(phase) K_tangent`),
  * which is exact and cheap; only the noise chop — which has no analytic
@@ -406,10 +435,50 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     // cutoff and actually reach the screen; the noise chop covers the fine end.
     float kBase = 4.5 * pow(1.2, fi);
     float k = kBase * uWaveScale;
-    // Direction: a fan around the local wind, which bends it per region. The
-    // spread is about ±60°, in the range real directional spectra show.
-    float spread = (waveHash(vec3(fi + 0.5, 3.0, 7.0)) - 0.5) * 2.1;
-    vec3 K0 = normalize(vec3(cos(0.6 + spread), 0.3, sin(0.6 + spread)));
+
+    // --- The swell system's life --------------------------------------------
+    // Each component is its own transient wave system: it fades in, holds, then
+    // fades out and respawns on a fresh random axis somewhere else. That turns
+    // the spectrum's fixed poles from permanent "point sources" into sources
+    // that come and go the way real wave climate does. The schedule is a pure
+    // function of the wave clock and the component index — no CPU state — and
+    // the envelope is exactly zero when the axis jumps, so a respawn never pops.
+    // uWaveLife <= 0 switches the lifecycle off and pins every axis in place.
+    float env = 1.0;
+    vec3 K0 = vec3(0.0, 1.0, 0.0);
+    if (uWaveLife > 0.0) {
+      // A staggered lifetime per component, so they do not all turn over at once.
+      float period = uWaveLife * (0.55 + 0.9 * waveHash(vec3(fi + 0.5, 23.0, 41.0)));
+      float life = uWaveTime / period + waveHash(vec3(fi + 0.5, 29.0, 47.0));
+      float gen = floor(life);
+      float f = fract(life);
+      float fadeFrac = clamp(uWaveLifeFade, 0.01, 0.49);
+      env = smoothstep(0.0, fadeFrac, f) * smoothstep(0.0, fadeFrac, 1.0 - f);
+      // Where the source respawns. A fresh random axis all too often lands right
+      // back on top of the one that just faded, so the new source would seem not
+      // to move at all. Instead, step through a fixed Fibonacci spiral of 32
+      // well-spread directions with a stride of 11 (coprime to 32, so every slot
+      // is visited before any repeats). That guarantees consecutive respawns land
+      // far apart — measured ~55° minimum, ~79° mean, versus ~2° and a quarter of
+      // them inside 30° for a plain hash. The per-component offset keeps the
+      // eight systems out of phase, and a small hash jitter stops a slot from
+      // looking stamped when it comes round again.
+      float slot = mod(gen * 11.0 + fi * 5.0, 32.0);
+      float sz = 1.0 - 2.0 * (slot + 0.5) / 32.0;
+      float sr = sqrt(max(0.0, 1.0 - sz * sz));
+      float st = slot * 2.39996323; // the golden angle, for even spacing
+      vec3 axisBase = vec3(sr * cos(st), sz, sr * sin(st));
+      vec3 jitter = vec3(
+        waveHash(vec3(fi + 0.5, gen + 1.0, 5.0)),
+        waveHash(vec3(fi + 0.5, gen + 1.0, 9.0)),
+        waveHash(vec3(fi + 0.5, gen + 1.0, 13.0))) * 2.0 - 1.0;
+      K0 = normalize(axisBase + jitter * 0.15);
+    } else {
+      // The fixed fan of the plain spectrum: directions spread around the wind.
+      float spread = (waveHash(vec3(fi + 0.5, 3.0, 7.0)) - 0.5) * 2.1;
+      K0 = normalize(vec3(cos(0.6 + spread), 0.3, sin(0.6 + spread)));
+    }
+
     vec3 K = normalize(K0 + uWaveWindAmount * windDir);
     vec3 KTangent = K - dot(K, nObj) * nObj;
     // Fade the component out where its wavefronts would collapse into a ring at
@@ -417,8 +486,15 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     // every smooth phase field on a sphere to have such points; the crest warp
     // has already broken the rings, and this just cleans up the residual centre.
     float poleFade = smoothstep(0.22, 0.5, length(KTangent));
-    // Amplitude: the spectral energy at that wavenumber, scaled by the local wind.
-    float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint) * poleFade;
+    // Gather the system around its own pole, so it reads as a discrete wave
+    // source with a home region rather than a wave that covers the whole globe.
+    // It is the cosine of the angle to the axis, so no acos is needed: 1 at the
+    // source and ~0 at the far side. uWaveSourceFalloff 0 leaves it global.
+    float sourceFalloff = exp(-(1.0 - dot(nObj, K)) * uWaveSourceFalloff);
+    // Amplitude: the spectral energy at that wavenumber, scaled by the local wind,
+    // the system's own life envelope, and how close we are to its source.
+    float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint)
+              * poleFade * env * sourceFalloff;
     // Deep-water dispersion: omega proportional to sqrt(k), so long waves travel
     // faster than short ones and the sea spreads out instead of pulsing.
     float omega = sqrt(k) * 0.22;

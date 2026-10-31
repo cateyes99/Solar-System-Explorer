@@ -164,17 +164,22 @@ export interface SeafloorVisuals {
  * sphere's own direction, so there is no map to seam at longitude 0, nothing
  * pinched at the poles, and nothing to slide. A directional spectrum of plane
  * waves gives the sea its swell, a shared crest warp bends those wavefronts so
- * they wander rather than closing into rings at each wave's pole, and a fine
- * noise chop churns through the middle. All of it is advected through time, so
- * the shapes genuinely evolve and morph the way the cloud deck does — they are
- * never a moving picture of waves.
+ * they wander rather than closing into rings at each wave's pole, each component
+ * is gathered around its own pole into a **discrete wave source**
+ * (`sourceFalloff`), and each is a **transient swell system** that fades in,
+ * holds, fades out and respawns elsewhere — so the wave sources come and go the
+ * way real wave climate does, instead of sitting still. A fine noise chop churns
+ * through the middle. All of it is advected through time, so the shapes genuinely
+ * evolve and morph the way the cloud deck does — they are never a moving picture
+ * of waves.
  *
- * The `warp*` and `wind*` knobs each list a useful range. They are plain config
- * values — never clamped and not exposed as sliders — so those ranges are tuning
- * guidance for the eye, not enforced limits. The crest bend is roughly
- * `2 × warpScale × warpAmount` wavelengths, so the two warp knobs act as a
- * product; keep it within about 0.2 – 1.5. Setting `warpAmount` and `windAmount`
- * both to 0 reproduces the plain sum of sines (the old, ringed sea) exactly.
+ * The `warp*`, `wind*`, `life*` and `sourceFalloff` knobs each list a useful
+ * range. They are plain config values — never clamped and not exposed as
+ * sliders — so those ranges are tuning guidance for the eye, not enforced
+ * limits. The crest bend is roughly `2 × warpScale × warpAmount` wavelengths, so
+ * the two warp knobs act as a product; keep it within about 0.2 – 1.5. Setting
+ * `life` to 0 pins every source, and `warpAmount` and `windAmount` to 0 then
+ * reproduces the plain sum of sines (the old, ringed sea) exactly.
  */
 export interface WaterWaveVisuals {
   /**
@@ -238,6 +243,35 @@ export interface WaterWaveVisuals {
    * hard-coded at 0.7 in the shader, so this changes the frequency only.
    */
   windDetail: number
+  /**
+   * The base lifetime of one transient swell system, in wave-clock seconds (the
+   * clock the intensity slider scales, so a livelier sea turns the systems over
+   * faster). Each spectrum component fades in, holds, fades out and respawns —
+   * deliberately far from where it died — on this cadence, so the wave sources
+   * come and go instead of sitting still.
+   *
+   * Useful range **2 – 120** (default 4). 0 pins every axis and restores the
+   * plain, stationary spectrum; too short and the sea flickers as systems churn.
+   */
+  life: number
+  /**
+   * The fraction of a lifetime spent fading in and out, so a system never pops
+   * in or out. The held plateau is the middle `1 − 2 × lifeFade`.
+   *
+   * Useful range **0.1 – 0.4** (default 0.3). At 0.5 the two fades meet and the
+   * system is never at full strength.
+   */
+  lifeFade: number
+  /**
+   * How tightly each swell system is gathered around its own pole, so it reads
+   * as a discrete wave source with a home region rather than a wave that covers
+   * the whole globe. 0 keeps the old global spectrum; higher tightens each
+   * source, so the sea becomes a field of distinct, overlapping sources.
+   *
+   * Useful range **0 – 3** (default 1.2). Around 1 the ocean stays covered but
+   * the sources are clearly regional; much higher leaves calm gaps between them.
+   */
+  sourceFalloff: number
   /** The colour the breaking surf is tinted with. */
   foamColor: string
   /**
@@ -538,6 +572,14 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // differs from region to region rather than converging on fixed centres.
         windAmount: 0.9, // 0–1.5; bend = atan(windAmount)
         windDetail: 3, // 1.5–6; inert while windAmount is 0
+        // Each spectrum component is a discrete wave source, gathered around its
+        // own pole, and a transient swell system: it fades in, holds, fades out
+        // and respawns far from where it died, so the sources come and go instead
+        // of sitting still. `life` is in wave-clock seconds (the intensity slider
+        // scales the clock); 0 pins every source in place.
+        sourceFalloff: 1.2, // 0–3; 0 = each system covers the whole globe
+        life: 4, // 2–120; 0 = stationary
+        lifeFade: 0.3, // 0.1–0.4; share of each lifetime spent fading
         foamColor: '#bfe4ff',
         // Waves hold across most of the disc and ease out over the outer band
         // (facing ≈ 0.35 → 0.05, roughly the last 15–20° to the limb).
