@@ -530,99 +530,6 @@ function paintEarthNight(size: MapSize, shared: SharedBuild): HTMLCanvasElement 
   return canvas
 }
 
-/**
- * A tiling water-surface normal map: a handful of directional waves summed into
- * a height field, then turned into a tangent-space normal by its own gradient.
- * Every wave uses whole-number frequencies, so the tile repeats seamlessly in
- * both directions and the ripples can be tiled across the whole globe.
- */
-function paintWaterNormal(size: MapSize): HTMLCanvasElement {
-  const canvas = makeCanvas(size.width, size.height)
-  const ctx = context2d(canvas)
-  const { width, height } = size
-
-  // A periodic value-noise, so the ripples tile seamlessly in both directions.
-  const hash = (ix: number, iy: number, seed: number): number => {
-    let n = Math.imul(ix, 73856093) ^ Math.imul(iy, 19349663) ^ Math.imul(seed, 83492791)
-    n = Math.imul(n ^ (n >>> 13), 1274126177)
-    return ((n ^ (n >>> 16)) >>> 0) / 4294967296
-  }
-  const wrap = (value: number, period: number): number => ((value % period) + period) % period
-  const valueNoise = (u: number, v: number, period: number, seed: number): number => {
-    const x = u * period
-    const y = v * period
-    const ix = Math.floor(x)
-    const iy = Math.floor(y)
-    const fx = x - ix
-    const fy = y - iy
-    const sx = fx * fx * (3 - 2 * fx)
-    const sy = fy * fy * (3 - 2 * fy)
-    const x0 = wrap(ix, period)
-    const x1 = wrap(ix + 1, period)
-    const y0 = wrap(iy, period)
-    const y1 = wrap(iy + 1, period)
-    return lerp(
-      lerp(hash(x0, y0, seed), hash(x1, y0, seed), sx),
-      lerp(hash(x0, y1, seed), hash(x1, y1, seed), sx),
-      sy,
-    )
-  }
-  // Four octaves of tileable value noise: organic ripples, no visible lattice.
-  const heightAt = (u: number, v: number): number => {
-    let sum = 0
-    let amplitude = 1
-    let period = 4
-    let total = 0
-    for (let octave = 0; octave < 4; octave += 1) {
-      sum += amplitude * valueNoise(u, v, period, 1013 + octave * 977)
-      total += amplitude
-      amplitude *= 0.5
-      period *= 2
-    }
-    return sum / total
-  }
-
-  const heights = new Float32Array(width * height)
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      heights[y * width + x] = heightAt((x + 0.5) / width, (y + 0.5) / height)
-    }
-  }
-
-  // The gradient, with the sampling wrapped so the tile stays seamless.
-  const gradients = new Float32Array(width * height * 2)
-  let maxGradient = 1e-6
-  const at = (x: number, y: number): number =>
-    heights[wrap(y, height) * width + wrap(x, width)]
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const dx = (at(x + 1, y) - at(x - 1, y)) * (width / 2)
-      const dy = (at(x, y + 1) - at(x, y - 1)) * (height / 2)
-      gradients[(y * width + x) * 2] = dx
-      gradients[(y * width + x) * 2 + 1] = dy
-      maxGradient = Math.max(maxGradient, Math.hypot(dx, dy))
-    }
-  }
-
-  // Scale so the steepest slope tilts the normal by a fixed amount; the
-  // material's `normalScale` is what finally sets how choppy the water looks.
-  const strength = 0.5 / maxGradient
-  const image = ctx.createImageData(width, height)
-  const data = image.data
-  for (let i = 0; i < width * height; i += 1) {
-    const nx = -gradients[i * 2] * strength
-    const ny = -gradients[i * 2 + 1] * strength
-    const length = Math.sqrt(nx * nx + ny * ny + 1)
-    const offset = i * 4
-    data[offset] = Math.round(((nx / length) * 0.5 + 0.5) * 255)
-    data[offset + 1] = Math.round(((ny / length) * 0.5 + 0.5) * 255)
-    data[offset + 2] = Math.round(((1 / length) * 0.5 + 0.5) * 255)
-    data[offset + 3] = 255
-  }
-  ctx.putImageData(image, 0, 0)
-  return canvas
-}
-
 /** Parses `#rrggbb` into an [r, g, b] triple. */
 function hexToRgb(hex: string): [number, number, number] {
   const value = Number.parseInt(hex.slice(1), 16)
@@ -1467,7 +1374,6 @@ const PAINTERS: Painter[] = [
   { id: 'earth', label: 'Building Earth’s continents', build: (size, shared) => paintEarth(size, shared) },
   { id: 'earthHeightmap', label: 'Raising Earth’s mountains', build: (size, shared) => paintEarthHeightmap(size, shared) },
   { id: 'seafloorRamp', label: 'Tinting the ocean floor', build: (size) => paintSeafloorRamp(size) },
-  { id: 'waterNormal', label: 'Rippling the ocean surface', build: (size) => paintWaterNormal(size) },
   { id: 'earthClouds', label: 'Rolling out Earth’s clouds', build: (size) => paintEarthClouds(size) },
   { id: 'earthNight', label: 'Switching on the city lights', build: (size) => paintEarthNight(size, sharedLandMask ?? { landMask: null, width: 0, height: 0 }) },
   { id: 'moon', label: 'Pocking the Moon with craters', build: (size) => paintMoon(size) },
@@ -1508,8 +1414,6 @@ function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   // The seafloor's colour ramp is a 1-D strip, so its width is the only axis
   // that matters; 256 stops are already smoother than the eye can see.
   if (id === 'seafloorRamp') return { width: 256, height: 1 }
-  // A tiling ripple map: small, but it repeats many times across the globe.
-  if (id === 'waterNormal') return { width: 256, height: 256 }
 
   const large = LARGE_MAPS.includes(id)
   if (quality === 'high') return large ? { width: 1024, height: 512 } : { width: 512, height: 256 }
@@ -1571,8 +1475,6 @@ const DATA_MAPS: TextureId[] = [
   'earthRoughness',
   'earthHeightmap',
   'earthBathymetry',
-  // A normal map carries a vector, not a colour, so it must not be gamma-decoded.
-  'waterNormal',
 ]
 
 /**
