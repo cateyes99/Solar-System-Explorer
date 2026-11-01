@@ -58,10 +58,10 @@
   // Opacity": the level moves the surface, the opacity thins the water.
   "Earth Sea Level": 1,
   // How strong the waves are on the "volumetric" ocean, 0 to 1. One slider
-  // scales the ripple height, the flow speed, a second fine detail layer and the
-  // coastal surf together. 0 = completely still; 0.25 is the baseline that
-  // reproduces the ocean exactly as it shipped (and is the default); 1 = the
-  // tuned maximum (roughly 2.3x the ripple height and 2.5x the speed). It has no
+  // scales the wave height, the flow speed, the churning chop and the coastal
+  // surf together. 0 = completely still; 0.25 (the default) already reads as a
+  // living sea; 1 = the tuned maximum, a rough sea that breaks on the coast.
+  // The waves are procedural and ever-changing, not a moving picture. It has no
   // effect in the "surface" mode, which has no waves.
   "Earth Wave Intensity": 0.25,
   // Which ocean implementation draws the sea. "surface" (the default) fades the
