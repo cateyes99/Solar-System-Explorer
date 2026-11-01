@@ -1,73 +1,36 @@
 /**
  * The ocean's wave animation, and how the "Wave intensity" slider maps onto it.
  *
- * The volumetric ocean draws a rippled water surface (see `components/3d/
- * Ocean.tsx` and `water.ts`). One panel slider — **Wave intensity**, 0…100% —
- * scales the whole effect through four related properties:
+ * The volumetric ocean draws a genuinely dynamic sea: a **procedural height
+ * field** evaluated from the sphere's own direction and advected through time
+ * (see `components/3d/water.ts`), not a tiling normal map slid across the
+ * surface. One panel slider — **Wave intensity**, 0…100% — scales the whole
+ * effect through four related properties:
  *
- *  - **Amplitude** (`normalScale`): how far the ripples tilt the surface normal,
- *    so how choppy the water reads. A *lighting* strength, not real geometry:
- *    the water is a smooth sphere and the waves are painted into its normals.
- *  - **Flow speed** (`driftScale`): how fast the ripple pattern scrolls.
- *  - **Variability** (`variability`): the weight of a second, finer ripple layer
- *    that scrolls at a different scale and direction, so the surface evolves
- *    instead of sliding rigidly (and the tiling stops showing).
+ *  - **Amplitude** (`amplitude`): how far the waves tilt the surface normal, so
+ *    how choppy the sea reads. It is a *lighting* strength, not real geometry:
+ *    the water is a smooth sphere and the waves live in its normals.
+ *  - **Flow speed** (`speed`): how fast the whole field is advected through time,
+ *    so the swells travel and the chop churns faster or slower.
+ *  - **Variability** (`variability`): the weight of the domain-warped fine chop
+ *    against the long swells — the irregular, ever-changing detail that keeps the
+ *    surface from reading as a few clean sine waves.
  *  - **Coastal interaction** (`coastal`): how strong the animated surf is where
  *    the water meets the shore.
  *
- * The curves are deliberately **not linear**. They are anchored at three points
- * so the slider is predictable and the shipped look is preserved:
+ * The curves are deliberately **not linear**. Amplitude and speed rise steeply
+ * from zero (so the default already reads as a living sea, not a faint one) and
+ * then flatten toward the top (so the maximum stays coherent instead of turning
+ * into noise). Variability and coastal stay at zero through the low half, so a
+ * gentle sea is smooth and only a strong one breaks on the coast.
  *
- *     intensity   0.00      0.25 (baseline)      1.00 (maximum)
- *     amplitude   0         0.45                 1.05
- *     speed       0×        1×                   2.5×
- *     variability 0         0                    1
- *     coastal     0         0                    1
- *
- * 25% reproduces the ocean **exactly as it shipped** (that is what `0.25` is
- * anchored to), and it is also the default, so the ocean opens looking the way it
- * always has. At 0% the surface is completely still: a flat normal, no scrolling,
- * no second layer, no surf.
- *
- * Amplitude and speed are single power curves through their anchor points. The
- * amplitude curve is *saturating* (its exponent is below 1): pushing the normal
- * strength up linearly would make a small tiled map sparkle — the classic
- * specular-aliasing "disco ball" — so the top of the range is compressed and the
- * second layer carries the extra motion instead. Variability and coastal stay at
- * zero through the lower half so the baseline is untouched.
- *
- * A fifth value, `fadeStrength`, is not a look of its own but the weight of a
- * **view/distance fade** (see `water.ts`): the ripples ease toward a smooth
- * surface as the ocean turns away at the limb and as the globe shrinks into the
- * distance, which is what keeps a finely tiled map from smearing or shimmering
- * there. It is zero through the baseline and rises to one at full intensity, so
- * the shipped default is never faded.
- *
- * This module is deliberately free of runtime imports so it can be unit-tested
- * directly under Node (see `tests/waves.test.ts`).
+ * At 0% the surface is completely still: a flat normal and a frozen field — no
+ * motion, no chop, no surf. This module is deliberately free of runtime imports
+ * so it can be unit-tested directly under Node (see `tests/waves.test.ts`).
  */
 
-/** The slider value that reproduces the ocean exactly as it shipped. */
-export const WAVE_INTENSITY_BASELINE = 0.25
-/** The slider's default position: the shipped look, i.e. the baseline itself. */
-export const WAVE_INTENSITY_DEFAULT = WAVE_INTENSITY_BASELINE
-/** The ripple amplitude (`normalScale`) at the baseline. */
-export const WAVE_BASELINE_NORMAL_SCALE = 0.45
-/** The tuned ripple amplitude at 100%. */
-export const WAVE_MAX_NORMAL_SCALE = 1.05
-/** The tuned flow-speed multiplier at 100%. */
-export const WAVE_MAX_SPEED_SCALE = 2.5
-
-/**
- * The amplitude curve's exponent, solved so the curve passes through both the
- * baseline `(0.25, 0.45)` and the maximum `(1.00, 1.05)`. Below 1, so the curve
- * flattens off toward the top.
- */
-const AMPLITUDE_EXPONENT =
-  Math.log(WAVE_MAX_NORMAL_SCALE / WAVE_BASELINE_NORMAL_SCALE) /
-  Math.log(1 / WAVE_INTENSITY_BASELINE)
-/** The speed curve's exponent, solved for `(0.25, 1×)` and `(1.00, 2.5×)`. */
-const SPEED_EXPONENT = Math.log(WAVE_MAX_SPEED_SCALE) / Math.log(1 / WAVE_INTENSITY_BASELINE)
+/** The slider's default position, 0…1. */
+export const WAVE_INTENSITY_DEFAULT = 0.25
 
 function clamp01(value: number): number {
   return value < 0 ? 0 : value > 1 ? 1 : value
@@ -80,23 +43,16 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t)
 }
 
-/** The animation properties the wave slider drives. */
+/** The four animation properties the wave slider drives. */
 export interface WaveParams {
-  /** The surface's ripple amplitude, handed to the material's `normalScale`. */
-  normalScale: number
-  /** A multiplier on the surface's base drift, so 1 is the shipped speed. */
-  driftScale: number
-  /** The second ripple layer's blend weight, 0…1. */
+  /** Normal-tilt strength, 0…1, scaled by the field's `maxStrength`. */
+  amplitude: number
+  /** Time multiplier for the field's advection, 0…1. */
+  speed: number
+  /** The fine chop's weight against the swells, 0…1. */
   variability: number
   /** The coastal surf strength, 0…1. */
   coastal: number
-  /**
-   * How strongly the view/distance fade is applied to the **base** ripple layer,
-   * 0…1. It is 0 at and below the baseline, so the shipped look is untouched,
-   * and rises to 1 at full intensity. The second layer and the surf — which are
-   * dormant at the baseline — always use the full fade (see `Ocean.tsx`).
-   */
-  fadeStrength: number
 }
 
 /**
@@ -107,20 +63,17 @@ export interface WaveParams {
 export function waveParams(intensity: number): WaveParams {
   const w = clamp01(intensity)
   if (w <= 0) {
-    return { normalScale: 0, driftScale: 0, variability: 0, coastal: 0, fadeStrength: 0 }
+    return { amplitude: 0, speed: 0, variability: 0, coastal: 0 }
   }
-  // Both power curves are written against the baseline, so the ratio is exactly
-  // 1 — and the values exactly the shipped ones — at `w = 0.25`.
-  const ratio = w / WAVE_INTENSITY_BASELINE
   return {
-    normalScale: WAVE_BASELINE_NORMAL_SCALE * Math.pow(ratio, AMPLITUDE_EXPONENT),
-    driftScale: Math.pow(ratio, SPEED_EXPONENT),
-    // Both stay at zero through the baseline, so 25% is untouched, and ramp in
-    // only over the upper part of the slider.
-    variability: smoothstep(0.35, 1, w),
-    coastal: smoothstep(0.4, 1, w),
-    // The base layer only starts to fade once the slider is above the shipped
-    // baseline, so 25% is pixel-identical to the ocean as it always looked.
-    fadeStrength: clamp01((w - WAVE_INTENSITY_BASELINE) / (1 - WAVE_INTENSITY_BASELINE)),
+    // Steep off the mark, flattening toward the top: the default is already a
+    // convincing sea, and the maximum stays coherent rather than turning noisy.
+    amplitude: Math.pow(w, 0.45),
+    speed: Math.pow(w, 0.45),
+    // The chop is nearly dormant in the gentlest seas and grows in over the
+    // lower half, so even a calm sea has some life in it.
+    variability: smoothstep(0.03, 0.6, w),
+    // Only a strong sea breaks on the coast.
+    coastal: smoothstep(0.45, 1, w),
   }
 }

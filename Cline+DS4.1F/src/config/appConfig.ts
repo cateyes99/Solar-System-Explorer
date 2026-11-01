@@ -64,9 +64,9 @@ export interface AppConfig {
   earthSeaLevel: number
   /**
    * How strong the volumetric ocean's waves are, 0…1 (store:
-   * `earthWaveIntensity`). 0 is completely still; the 0.25 baseline reproduces
-   * the shipped ripples (and is the default) and 1 is the tuned maximum. Only the
-   * layered water body has waves. See `utils/waves.ts`.
+   * `earthWaveIntensity`). 0 is completely still, the default 0.25 already reads
+   * as a living sea, and 1 is the tuned maximum. Only the layered water body has
+   * waves. See `utils/waves.ts`.
    */
   earthWaveIntensity: number
   /**
