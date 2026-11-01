@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { MeshStandardMaterial } from 'three'
+import { MeshStandardMaterial, RepeatWrapping } from 'three'
 import type { BufferGeometry, Mesh, Texture } from 'three'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
 import { seaLevelDrop } from '../../utils/seawater'
-import { waveParams } from '../../utils/waves'
+import { rippleParams, spectralWaveParams } from '../../utils/waves'
 import { useSimulationStore } from '../../store/simulationStore'
 import {
   WATER_FRAGMENT_BODY,
@@ -23,9 +23,13 @@ import {
  * A genuinely transparent liquid layer sitting at sea level on top of the
  * seafloor mesh. Because the two are separate surfaces at different radii, the
  * floor is seen *through* the water with real parallax rather than as a fade of
- * it, and the water carries its own Beer's-law body colour and a **living,
- * procedural wave field** (see `water.ts`) that the scene's lighting turns into
- * travelling glints.
+ * it, and the water carries its own Beer's-law body colour and a wave field
+ * (see `water.ts`) that the scene's lighting turns into travelling glints.
+ *
+ * The wave field comes from whichever style the panel's switcher selects (see
+ * `data/waveStyles.ts`): the living, procedural **spectral** sea, or the original
+ * tiling **ripples** normal map. The choice is a shader uniform, so switching
+ * never rebuilds the material.
  *
  * The material is a `MeshStandardMaterial` so it inherits the scene's lighting
  * and tone mapping; `renderOrder` keeps it under the clouds and haze.
@@ -53,9 +57,10 @@ interface OceanProps {
    */
   deepestFraction: number
   /**
-   * When true the surface is held still: the wave field stops advecting and the
-   * coastal surf stops moving. The static look (amplitude, chop, foam) is left
-   * as the slider set it, matching how the rest of the app calms its effects.
+   * When true the surface is held still: the wave field stops advecting, the
+   * ripples stop scrolling and the coastal surf stops moving. The static look
+   * (amplitude, chop, foam) is left as the slider set it, matching how the rest
+   * of the app calms its effects.
    */
   reducedMotion: boolean
 }
@@ -73,6 +78,24 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
    */
   const drop = maxDepthRadius > 0 ? seaLevelDrop(seaLevel) * deepestFraction : 0
   const surfaceScale = radius * (1 - drop * maxDepthRadius)
+
+  /**
+   * The tiling ripple map of the "ripples" style. It is attached to the material
+   * whatever style is active — the spectral branch simply ignores it — so that
+   * switching styles is a uniform write rather than a shader rebuild. The base
+   * layer scrolls by mutating the texture's own offset (three.js folds that into
+   * the normal-map UV transform), and the detail layer scrolls a separate uniform
+   * offset in the shader.
+   */
+  const normalMap = useMemo(() => {
+    const ripple = visuals.ripple
+    if (!ripple) return null
+    const map = getTexture(ripple.normalMapId)
+    map.wrapS = RepeatWrapping
+    map.wrapT = RepeatWrapping
+    map.repeat.set(ripple.normalRepeat[0], ripple.normalRepeat[1])
+    return map
+  }, [visuals.ripple])
 
   const uniforms = useMemo(
     () =>
@@ -94,16 +117,23 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
   )
 
   const material = useMemo(() => {
-    // No normal map: the waves are a procedural height field computed in the
-    // shader (see `water.ts`), so there is nothing to slide or tile. The day map
-    // still supplies the ocean's real colour, which Beer's law then attenuates.
+    // The material always carries the ripple normal map: it is the base layer of
+    // the "ripples" style, and the spectral style resets `normal` to the
+    // geometric one so it costs only the (unused) fetch. The day map still
+    // supplies the ocean's real colour, which Beer's law then attenuates.
     const water = new MeshStandardMaterial({
       map: getTexture('earth'),
-      roughness: visuals.roughness,
+      // Each wave style has its own roughness; this is the default style's, and
+      // `useFrame` keeps it in step with whichever style is active.
+      roughness: visuals.wave?.roughness ?? visuals.ripple?.roughness ?? 0.18,
       metalness: visuals.metalness,
+      normalMap,
       transparent: true,
       depthWrite: false,
     })
+    if (visuals.ripple) {
+      water.normalScale.set(visuals.ripple.normalScale, visuals.ripple.normalScale)
+    }
     water.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms.uniforms)
       shader.vertexShader = shader.vertexShader
@@ -115,33 +145,71 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           `#include <normal_pars_fragment>\n${WATER_FRAGMENT_PARS}`,
         )
         .replace('#include <map_fragment>', `#include <map_fragment>\n${WATER_FRAGMENT_BODY}`)
-        // The wave field tilts the geometric normal, so it goes in where three
-        // would have applied a normal map (which this material does not have).
+        // Both wave styles need the *geometric* normal the standard chunk started
+        // from (the spectral field is built from the smooth sphere; the ripple
+        // style fades its mapped normal back toward it), so it is saved just
+        // before the normal-map chunk.
         .replace(
           '#include <normal_fragment_maps>',
-          `#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
+          `vec3 waterGeoNormal = normal;\n#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
         )
     }
     return water
-  }, [visuals, waterMask, uniforms])
+  }, [visuals, waterMask, normalMap, uniforms])
 
   useEffect(() => () => material.dispose(), [material])
 
   useFrame((_, delta) => {
-    // The wave slider is read live (no React re-render): the intensity and the
-    // sea-level/opacity sliders are all plain uniform writes, never a rebuild.
-    const intensity = useSimulationStore.getState().earthWaveIntensity
-    const params = waveParams(intensity)
+    // The wave style, the intensity and the sea-level/opacity sliders are read
+    // live (no React re-render): every one of them is a plain uniform or material
+    // write, never a rebuild.
+    const store = useSimulationStore.getState()
+    const style = store.earthWaveStyle
+    const intensity = store.earthWaveIntensity
     const step = Math.min(delta, 0.05)
-    const wave = visuals.wave
-    uniforms.uniforms.uWaveStrength.value = (wave?.maxStrength ?? 0) * params.amplitude
-    uniforms.uniforms.uWaveChop.value = (wave?.maxChop ?? 0) * params.variability
-    uniforms.uniforms.uCoastal.value = params.coastal
+    // Tell the shader which branch to take (0 = spectral, 1 = ripples), and give
+    // the surface that style's own specular roughness.
+    uniforms.uniforms.uWaveStyle.value = style === 'ripples' ? 1 : 0
+    const roughness = style === 'ripples' ? visuals.ripple?.roughness : visuals.wave?.roughness
+    if (roughness !== undefined) material.roughness = roughness
+
+    if (style === 'ripples') {
+      const params = rippleParams(intensity)
+      // Reduced motion holds the surface still — no scrolling, no surf pulse —
+      // while keeping the static look the slider asked for.
+      const speed = reducedMotion ? 0 : params.driftScale
+      const ripple = visuals.ripple
+      if (normalMap && ripple) {
+        normalMap.offset.x = (normalMap.offset.x + ripple.drift[0] * speed * step) % 1
+        normalMap.offset.y = (normalMap.offset.y + ripple.drift[1] * speed * step) % 1
+      }
+      // The detail layer scrolls a different way, so the surface evolves rather
+      // than sliding as one sheet. It only exists once the slider is high.
+      const offset2 = uniforms.uniforms.uWaveOffset2.value
+      if (ripple) {
+        offset2.x = (offset2.x + ripple.detailDrift[0] * speed * step) % 1
+        offset2.y = (offset2.y + ripple.detailDrift[1] * speed * step) % 1
+      }
+      material.normalScale.set(params.normalScale, params.normalScale)
+      uniforms.uniforms.uWaveBlend.value = params.variability
+      uniforms.uniforms.uCoastal.value = params.coastal
+      // The view/distance fade only applies to the base ripples above the
+      // baseline, so the shipped default is never faded.
+      uniforms.uniforms.uWaveFadeStrength.value = ripple ? params.fadeStrength : 0
+      if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step
+    } else {
+      const params = spectralWaveParams(intensity)
+      const wave = visuals.wave
+      uniforms.uniforms.uWaveStrength.value = (wave?.maxStrength ?? 0) * params.amplitude
+      uniforms.uniforms.uWaveChop.value = (wave?.maxChop ?? 0) * params.variability
+      uniforms.uniforms.uCoastal.value = params.coastal
+      // Reduced motion freezes the field; the slider's speed scales it otherwise.
+      if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step * params.speed
+    }
+
     // The radius is the surface's *drawn* size, so the distance fade stays
     // scale-invariant as the planet grows and shrinks with the scale presets.
     uniforms.uniforms.uWaveRadius.value = surfaceScale
-    // Reduced motion freezes the field; the slider's speed scales it otherwise.
-    if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step * params.speed
     uniforms.uniforms.uWaterAlpha.value = waterAlpha(opacity, visuals.revealGamma)
     uniforms.uniforms.uSeaLevelDrop.value = drop
   })

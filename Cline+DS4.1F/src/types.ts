@@ -157,6 +157,23 @@ export type QualityLevel = 'low' | 'medium' | 'high'
  */
 export type SeawaterModeId = 'surface' | 'volumetric'
 
+/**
+ * Which wave model draws the volumetric ocean's surface. Both run side by side
+ * behind one switcher in the planet panel (see `data/waveStyles.ts`); only the
+ * layered "volumetric" seawater mode has a wave field to choose between, so the
+ * switcher is shown only while that mode is active.
+ *
+ *  - `spectral` : the living, procedural sea. A directional spectrum of plane
+ *                 waves evaluated from the sphere's own direction, with a
+ *                 globe-wide wind field, a crest warp, transient wave sources
+ *                 and advected noise chop. There is no map to seam or slide, so
+ *                 the surface genuinely evolves. It is the default.
+ *  - `ripples`  : the original tiling ripple normal map, slid across the
+ *                 surface — a base layer plus a finer, differently-scrolling
+ *                 detail layer. Cheaper, but the pattern repeats.
+ */
+export type WaveStyleId = 'spectral' | 'ripples'
+
 export interface CustomScale {
   /** 0.2 = strongly compressed sizes, 1 = true relative sizes. */
   sizeExponent: number

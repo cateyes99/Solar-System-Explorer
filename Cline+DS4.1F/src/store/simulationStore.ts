@@ -10,9 +10,11 @@ import type {
   QualityLevel,
   ScaleMode,
   SeawaterModeId,
+  WaveStyleId,
   WhatIfId,
 } from '../types'
 import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
+import { DEFAULT_WAVE_STYLE, isWaveStyleId } from '../data/waveStyles'
 import { WAVE_INTENSITY_DEFAULT } from '../utils/waves'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
 import { clampSpacecraftSize, DEFAULT_SPACECRAFT_SIZE } from '../utils/spacecraftSize'
@@ -45,6 +47,8 @@ export interface SettingsPatch {
   earthWaveIntensity?: number
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
+  /** Which wave model the volumetric ocean draws (see `data/waveStyles.ts`). */
+  earthWaveStyle?: WaveStyleId
   leftPanelOpacity?: number
   rightPanelOpacity?: number
   /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
@@ -177,6 +181,13 @@ export interface SimulationState {
    */
   earthWaveIntensity: number
   /**
+   * Which wave model the "volumetric" ocean draws: the living, procedural
+   * "spectral" sea (the default) or the original tiling "ripples" normal map.
+   * Both are chosen under Volumetric mode, and only the layered water mesh acts
+   * on it; the painted "surface" ocean has no waves. See `data/waveStyles.ts`.
+   */
+  earthWaveStyle: WaveStyleId
+  /**
    * Which implementation draws Earth's ocean: the single-mesh "surface" fade
    * (the default, and the cheaper one) or the two-mesh "volumetric" water layer.
    * Only Earth reads it. See `data/seawaterModes.ts`.
@@ -262,6 +273,7 @@ export interface SimulationActions {
   setEarthSeawaterOpacity: (value: number) => void
   setEarthSeaLevel: (value: number) => void
   setEarthWaveIntensity: (value: number) => void
+  setEarthWaveStyle: (style: WaveStyleId) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
   setScaleMode: (mode: ScaleMode) => void
@@ -380,6 +392,9 @@ const initialState: SimulationState = {
   // little chop, with room to calm it to a still mirror or build it into a
   // rough, breaking sea.
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
+  // The living, procedural sea is the default wave model; the tiling ripples are
+  // the alternative the viewer can switch to under Volumetric mode.
+  earthWaveStyle: DEFAULT_WAVE_STYLE,
   // The single-mesh "surface" fade is the default: it is the cheaper of the two
   // implementations and keeps the photographic ocean at full opacity.
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
@@ -543,6 +558,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthWaveIntensity: (value) =>
     set({ earthWaveIntensity: Math.max(0, Math.min(1, value)) }),
+
+  setEarthWaveStyle: (style) => {
+    if (!isWaveStyleId(style)) return
+    set({ earthWaveStyle: style })
+  },
 
   setEarthSeawaterMode: (mode) => {
     if (!isSeawaterModeId(mode)) return
@@ -714,6 +734,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
       earthSeaLevel: clamp01(patch.earthSeaLevel, state.earthSeaLevel),
       earthWaveIntensity: clamp01(patch.earthWaveIntensity, state.earthWaveIntensity),
+      earthWaveStyle: isWaveStyleId(patch.earthWaveStyle)
+        ? patch.earthWaveStyle
+        : state.earthWaveStyle,
       earthSeawaterMode: isSeawaterModeId(patch.earthSeawaterMode)
         ? patch.earthSeawaterMode
         : state.earthSeawaterMode,

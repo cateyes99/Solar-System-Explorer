@@ -15,19 +15,22 @@ import type { WaterVisuals } from '../../data/visuals'
  * PBR lighting and a specular response from its roughness. These chunks add the
  * three things that are specific to this app:
  *
- *  - **A living wave field.** Not a texture: a height field evaluated from the
- *    sphere's own direction (`vWaveDir`), so there is no map to seam at
- *    longitude 0, nothing pinched at the poles, and nothing to slide. A
- *    **directional spectrum** of plane waves — the real-time ocean-rendering
- *    "sum of sines" model — gives the swell, its directions fanned around a
- *    **globe-wide wind field** so each region differs; a shared **crest warp**
- *    offsets every component's phase so the wavefronts wander instead of closing
- *    into rings at each plane wave's pole; each component is gathered around its
- *    own pole into a discrete **wave source**, and is a **transient system** that
- *    fades in and out and respawns elsewhere, so the sources are never still; 3D
- *    noise advected through time gives the chop; and the waves disperse as they
- *    travel. The surface normal is tilted from the field's tangent-plane
- *    gradient, and the standard material lights it — which is what puts a
+ *  - **A wave field**, in whichever of the two models the panel's switcher
+ *    selects (see `data/waveStyles.ts`). The **"spectral"** model is not a
+ *    texture: a height field evaluated from the sphere's own direction
+ *    (`vWaveDir`), so there is no map to seam at longitude 0, nothing pinched at
+ *    the poles, and nothing to slide. A **directional spectrum** of plane waves —
+ *    the real-time ocean-rendering "sum of sines" model — gives the swell, its
+ *    directions fanned around a **globe-wide wind field** so each region differs;
+ *    a shared **crest warp** offsets every component's phase so the wavefronts
+ *    wander instead of closing into rings at each plane wave's pole; each
+ *    component is gathered around its own pole into a discrete **wave source**,
+ *    and is a **transient system** that fades in and out and respawns elsewhere,
+ *    so the sources are never still; 3D noise advected through time gives the
+ *    chop; and the waves disperse as they travel. The **"ripples"** model is the
+ *    original tiling normal map, slid across the surface as a base layer plus a
+ *    finer, differently-scrolling detail layer. Either way the surface normal is
+ *    tilted, and the standard material lights it — which is what puts a
  *    travelling glint on the water.
  *  - **Beer's-law body colour**, so a shallow shelf keeps the bright day-map
  *    blue while the abyss falls away through teal to navy.
@@ -52,9 +55,20 @@ export interface WaterUniforms {
     uSeaLevelDrop: { value: number }
     uWaterAbsorption: { value: Vector3 }
     uWaterTint: { value: Color }
-    /* The procedural wave field (see `utils/waves.ts`) */
-    /** The field's clock, in real seconds, advanced by the slider's speed. */
+    /**
+     * Which wave model draws the surface: 0 = the procedural "spectral" field,
+     * 1 = the tiling "ripples" normal map. Both are compiled into the shader and
+     * the choice is a uniform, so switching styles never rebuilds the material
+     * (see `data/waveStyles.ts`).
+     */
+    uWaveStyle: { value: number }
+    /**
+     * The shared animation clock. In the spectral style it is advanced by the
+     * slider's speed and drives the whole field; in the ripples style it
+     * advances in real seconds and drives only the coastal surf pulse.
+     */
     uWaveTime: { value: number }
+    /* The procedural wave field (the "spectral" style; see `utils/waves.ts`) */
     /** How far the field tilts the surface normal, 0…1+. */
     uWaveStrength: { value: number }
     /** The fine chop's share of the height field. */
@@ -98,9 +112,21 @@ export interface WaterUniforms {
      * measured distances and which values to prefer.
      */
     uWaveRespawnStride: { value: number }
+    /* The tiling ripple normal map (the "ripples" style) */
+    /** The detail layer's UV scale (a finer repeat of the same ripple map). */
+    uWaveRepeat2: { value: Vector2 }
+    /** The detail layer's scrolling UV offset, advanced each frame. */
+    uWaveOffset2: { value: Vector2 }
+    /** The detail layer's normal strength. */
+    uWaveScale2: { value: number }
+    /** The detail layer's blend weight, 0…1 (the slider's variability). */
+    uWaveBlend: { value: number }
+    /** How strongly the view/distance fade applies to the base ripples, 0…1. */
+    uWaveFadeStrength: { value: number }
+    /* Shared by both wave styles */
     /** The planet's drawn radius, for the scale-invariant distance fade. */
     uWaveRadius: { value: number }
-    /** The view-angle fade range (facing cosines; see `WaterWaveVisuals`). */
+    /** The view-angle fade range (facing cosines; see `WaterVisuals`). */
     uWaveLimbFade: { value: Vector2 }
     /** The distance fade range (multiples of the radius). */
     uWaveDistanceFade: { value: Vector2 }
@@ -147,6 +173,8 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uSeaLevelDrop: { value: binding.seaLevelDrop },
       uWaterAbsorption: { value: new Vector3(...binding.visuals.absorption) },
       uWaterTint: { value: new Color(binding.visuals.waterTint) },
+      // 0 = spectral (the default); `Ocean.tsx` writes 1 for the ripples style.
+      uWaveStyle: { value: 0 },
       // Inert until the slider is raised: a flat field, no chop, no surf.
       uWaveTime: { value: 0 },
       uWaveStrength: { value: 0 },
@@ -162,13 +190,27 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveLifeFade: { value: binding.visuals.wave?.lifeFade ?? 0.3 },
       uWaveSourceFalloff: { value: binding.visuals.wave?.sourceFalloff ?? 0 },
       uWaveRespawnStride: { value: binding.visuals.wave?.respawnStride ?? 11 },
-      uWaveRadius: { value: 1 },
-      uWaveLimbFade: { value: new Vector2(...(binding.visuals.wave?.limbFade ?? [0.05, 0.35])) },
-      uWaveDistanceFade: {
-        value: new Vector2(...(binding.visuals.wave?.distanceFade ?? [30, 80])),
+      // The ripples style: the base layer is the material's own normal map; the
+      // detail layer is the same map at a finer repeat, scrolled separately.
+      uWaveRepeat2: {
+        value: new Vector2(
+          (binding.visuals.ripple?.normalRepeat[0] ?? 9) *
+            (binding.visuals.ripple?.detailRepeatScale ?? 1),
+          (binding.visuals.ripple?.normalRepeat[1] ?? 5) *
+            (binding.visuals.ripple?.detailRepeatScale ?? 1),
+        ),
       },
+      uWaveOffset2: { value: new Vector2(0, 0) },
+      uWaveScale2: { value: binding.visuals.ripple?.detailNormalScale ?? 0 },
+      // Zero until the slider is dragged up: the detail layer and the fade are
+      // invisible at the baseline, so the shipped look is preserved exactly.
+      uWaveBlend: { value: 0 },
+      uWaveFadeStrength: { value: 0 },
+      uWaveRadius: { value: 1 },
+      uWaveLimbFade: { value: new Vector2(...binding.visuals.limbFade) },
+      uWaveDistanceFade: { value: new Vector2(...binding.visuals.distanceFade) },
       uCoastal: { value: 0 },
-      uFoamColor: { value: new Color(binding.visuals.wave?.foamColor ?? '#ffffff') },
+      uFoamColor: { value: new Color(binding.visuals.foamColor) },
     },
   }
 }
@@ -205,6 +247,7 @@ uniform float uWaterAlpha;
 uniform float uSeaLevelDrop;
 uniform vec3 uWaterAbsorption;
 uniform vec3 uWaterTint;
+uniform float uWaveStyle;
 uniform float uWaveTime;
 uniform float uWaveStrength;
 uniform float uWaveChop;
@@ -219,6 +262,11 @@ uniform float uWaveLife;
 uniform float uWaveLifeFade;
 uniform float uWaveSourceFalloff;
 uniform float uWaveRespawnStride;
+uniform vec2 uWaveRepeat2;
+uniform vec2 uWaveOffset2;
+uniform float uWaveScale2;
+uniform float uWaveBlend;
+uniform float uWaveFadeStrength;
 uniform float uWaveRadius;
 uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
@@ -358,17 +406,21 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
 `
 
 /**
- * The wave field's surface normal, injected after `normal_fragment_maps` (which
- * is a no-op here, since the water has no normal map).
+ * The surface normal of whichever wave style is active, injected after
+ * `normal_fragment_maps`.
  *
- * The sea is built the way real-time ocean rendering builds it: a **directional
- * spectrum** of plane waves summed in the "sum of sines" model (Tessendorf 2001;
- * GPU Gems 1, ch. 1). Eight components are spread in direction around a
- * **globe-wide wind field**, so every region carries a different wave system —
- * different angles, different strengths — instead of one uniform pattern. Each
- * component's wavenumber follows a JONSWAP-like falloff, its amplitude comes from
- * the spectrum, and it travels at its own deep-water phase speed (omega
- * proportional to sqrt(k)), so the sea disperses the way a real one does.
+ * Both styles are compiled into the shader side by side and selected by the
+ * `uWaveStyle` uniform, so the panel's switcher never rebuilds the material.
+ *
+ * **The "spectral" style (0)** is the sea built the way real-time ocean
+ * rendering builds it: a **directional spectrum** of plane waves summed in the
+ * "sum of sines" model (Tessendorf 2001; GPU Gems 1, ch. 1). Eight components
+ * are spread in direction around a **globe-wide wind field**, so every region
+ * carries a different wave system — different angles, different strengths —
+ * instead of one uniform pattern. Each component's wavenumber follows a
+ * JONSWAP-like falloff, its amplitude comes from the spectrum, and it travels at
+ * its own deep-water phase speed (omega proportional to sqrt(k)), so the sea
+ * disperses the way a real one does.
  *
  * A plane wave on a sphere is a set of concentric circles on a fixed axis, so a
  * plain sum of sines reads as a handful of stationary "point sources", each
@@ -390,146 +442,185 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
  * into view space by the per-vertex basis, the view/distance fade eases the tilt
  * away at the limb and with distance, and the whole thing collapses to a flat
  * normal at 0% intensity, so the surface is completely still.
+ *
+ * **The "ripples" style (1)** is the original tiling normal map. The material's
+ * own `normalMap` is the base ripple layer (already applied by the standard
+ * chunk above, with the slider's `normalScale`); here it is eased back toward
+ * the smooth surface at the limb and with distance, then a second, finer copy of
+ * the *same* map — sampled at a different scale and scrolled a different way —
+ * is blended in, so the surface evolves instead of sliding as one rigid sheet.
+ *
+ * The material always carries the ripple normal map, so `normalMap` and `tbn`
+ * exist even while the spectral style is active; that branch simply resets
+ * `normal` to the geometric one it started from and ignores the map.
  */
 export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
 {
-  vec3 nObj = normalize(vWaveDir);
-  // A stable tangent frame on the sphere; the up swap avoids a degenerate
-  // cross product at the poles.
-  vec3 up = abs(nObj.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-  vec3 tObj = normalize(cross(nObj, up));
-  vec3 bObj = cross(nObj, tObj);
+  if (uWaveStyle > 0.5) {
+    // --- The tiling ripple normal map (the "ripples" style) ------------------
+    // The base ripple layer is the material's own normal map, already applied by
+    // the standard chunk above. Ease it back toward the smooth surface at the
+    // limb and with distance, which is what stops a finely tiled map smearing or
+    // shimmering there. At the baseline uWaveFadeStrength is 0, so this is
+    // exactly the base normal.
+    float rippleFade = waterRippleFade(waterGeoNormal);
+    normal = normalize(mix(waterGeoNormal, normal, mix(1.0, rippleFade, uWaveFadeStrength)));
+    #ifdef USE_NORMALMAP_TANGENTSPACE
+    if (uWaveBlend > 0.002) {
+      // The detail layer is the *same* ripple map sampled at a different scale
+      // and scrolled a different way (its offset is advanced in Ocean.tsx).
+      // The two tangent-space normals are blended by adding them and
+      // re-normalising — the standard scrolling-normal-map technique.
+      vec2 waveUv2 = vSeaUv * uWaveRepeat2 + uWaveOffset2;
+      vec3 waveN2 = texture2D(normalMap, waveUv2).xyz * 2.0 - 1.0;
+      waveN2.xy *= uWaveScale2;
+      normal = normalize(normal + normalize(tbn * waveN2) * (uWaveBlend * rippleFade));
+    }
+    #endif
+  } else {
+    // --- The procedural wave field (the "spectral" style) --------------------
+    // Reset to the geometric normal: the standard chunk above has already
+    // replaced 'normal' with the ripple map, which this style ignores — the
+    // field is built from the smooth sphere.
+    normal = waterGeoNormal;
+    vec3 nObj = normalize(vWaveDir);
+    // A stable tangent frame on the sphere; the up swap avoids a degenerate
+    // cross product at the poles.
+    vec3 up = abs(nObj.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tObj = normalize(cross(nObj, up));
+    vec3 bObj = cross(nObj, tObj);
 
-  // The arc length one pixel covers: the screen-space LOD needs it to fade any
-  // wave that has shrunk toward the pixel grid.
-  float footprint = max(length(dFdx(vWaveDir)), length(dFdy(vWaveDir)));
+    // The arc length one pixel covers: the screen-space LOD needs it to fade any
+    // wave that has shrunk toward the pixel grid.
+    float footprint = max(length(dFdx(vWaveDir)), length(dFdy(vWaveDir)));
 
-  // --- The globe-wide wind -------------------------------------------------
-  // A smooth direction and strength over the whole planet, so the spectrum below
-  // is turned and scaled differently in every region (real wave climate is
-  // strongly regional). A second, finer octave rides on top, so the wave axis
-  // changes over a few hundred km rather than a whole ocean basin — that is what
-  // keeps neighbouring seas from sharing one axis and converging on fixed
-  // centres. The constant bias keeps the direction well-defined.
-  vec3 windRaw = vec3(
-    waveNoise(nObj * uWaveWindScale + 11.0),
-    waveNoise(nObj * uWaveWindScale + 37.0),
-    waveNoise(nObj * uWaveWindScale + 71.0)) - 0.5;
-  vec3 windFine = vec3(
-    waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 101.0),
-    waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 131.0),
-    waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 167.0)) - 0.5;
-  vec3 windDir = normalize(windRaw + windFine * 0.7 + vec3(0.25, 0.35, 0.15));
-  float windStrength = 0.45 + 0.55 * waveNoise(nObj * uWaveWindScale * 0.6 + 5.0);
+    // --- The globe-wide wind -------------------------------------------------
+    // A smooth direction and strength over the whole planet, so the spectrum below
+    // is turned and scaled differently in every region (real wave climate is
+    // strongly regional). A second, finer octave rides on top, so the wave axis
+    // changes over a few hundred km rather than a whole ocean basin — that is what
+    // keeps neighbouring seas from sharing one axis and converging on fixed
+    // centres. The constant bias keeps the direction well-defined.
+    vec3 windRaw = vec3(
+      waveNoise(nObj * uWaveWindScale + 11.0),
+      waveNoise(nObj * uWaveWindScale + 37.0),
+      waveNoise(nObj * uWaveWindScale + 71.0)) - 0.5;
+    vec3 windFine = vec3(
+      waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 101.0),
+      waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 131.0),
+      waveNoise(nObj * uWaveWindScale * uWaveWindDetail + 167.0)) - 0.5;
+    vec3 windDir = normalize(windRaw + windFine * 0.7 + vec3(0.25, 0.35, 0.15));
+    float windStrength = 0.45 + 0.55 * waveNoise(nObj * uWaveWindScale * 0.6 + 5.0);
 
-  // --- The crest warp ------------------------------------------------------
-  // A low-frequency field that offsets every component's phase, so the wavefronts
-  // wander and interleave instead of closing into rings around each component's
-  // own pole (a plane wave on a sphere is concentric circles on a fixed axis —
-  // the "point source" look). Sampled once and shared: it is the phase offset
-  // that bends the crests, so one field serves the whole spectrum. Two octaves,
-  // so the wandering is organic rather than one clean bend.
-  float warp = waveNoise(nObj * uWaveScale * uWaveWarpScale + 3.0) - 0.5
-             + (waveNoise(nObj * uWaveScale * uWaveWarpScale * 2.03 + 19.0) - 0.5) * 0.5;
+    // --- The crest warp ------------------------------------------------------
+    // A low-frequency field that offsets every component's phase, so the wavefronts
+    // wander and interleave instead of closing into rings around each component's
+    // own pole (a plane wave on a sphere is concentric circles on a fixed axis —
+    // the "point source" look). Sampled once and shared: it is the phase offset
+    // that bends the crests, so one field serves the whole spectrum. Two octaves,
+    // so the wandering is organic rather than one clean bend.
+    float warp = waveNoise(nObj * uWaveScale * uWaveWarpScale + 3.0) - 0.5
+               + (waveNoise(nObj * uWaveScale * uWaveWarpScale * 2.03 + 19.0) - 0.5) * 0.5;
 
-  // --- The swell spectrum: an analytic gradient ----------------------------
-  // For h = A sin(k dot(n,K) + phase), the tangent-plane gradient is
-  // A k cos(phase) * K_tangent. The components differ in direction, length
-  // and amplitude, and each carries its own phase, so they never march in step.
-  vec3 swellGrad = vec3(0.0);
-  for (int i = 0; i < 8; i++) {
-    float fi = float(i);
-    // Wavenumber: a JONSWAP-like falloff, so the long swell carries the energy.
-    // The band is kept fairly narrow so most components stay above the LOD
-    // cutoff and actually reach the screen; the noise chop covers the fine end.
-    float kBase = 4.5 * pow(1.2, fi);
-    float k = kBase * uWaveScale;
+    // --- The swell spectrum: an analytic gradient ----------------------------
+    // For h = A sin(k dot(n,K) + phase), the tangent-plane gradient is
+    // A k cos(phase) * K_tangent. The components differ in direction, length
+    // and amplitude, and each carries its own phase, so they never march in step.
+    vec3 swellGrad = vec3(0.0);
+    for (int i = 0; i < 8; i++) {
+      float fi = float(i);
+      // Wavenumber: a JONSWAP-like falloff, so the long swell carries the energy.
+      // The band is kept fairly narrow so most components stay above the LOD
+      // cutoff and actually reach the screen; the noise chop covers the fine end.
+      float kBase = 4.5 * pow(1.2, fi);
+      float k = kBase * uWaveScale;
 
-    // --- The swell system's life --------------------------------------------
-    // Each component is its own transient wave system: it fades in, holds, then
-    // fades out and respawns on a fresh random axis somewhere else. That turns
-    // the spectrum's fixed poles from permanent "point sources" into sources
-    // that come and go the way real wave climate does. The schedule is a pure
-    // function of the wave clock and the component index — no CPU state — and
-    // the envelope is exactly zero when the axis jumps, so a respawn never pops.
-    // uWaveLife <= 0 switches the lifecycle off and pins every axis in place.
-    float env = 1.0;
-    vec3 K0 = vec3(0.0, 1.0, 0.0);
-    if (uWaveLife > 0.0) {
-      // A staggered lifetime per component, so they do not all turn over at once.
-      float period = uWaveLife * (0.55 + 0.9 * waveHash(vec3(fi + 0.5, 23.0, 41.0)));
-      float life = uWaveTime / period + waveHash(vec3(fi + 0.5, 29.0, 47.0));
-      float gen = floor(life);
-      float f = fract(life);
-      float fadeFrac = clamp(uWaveLifeFade, 0.01, 0.49);
-      env = smoothstep(0.0, fadeFrac, f) * smoothstep(0.0, fadeFrac, 1.0 - f);
-      // Where the source respawns. A fresh random axis all too often lands right
-      // back on top of the one that just faded, so the new source would seem not
-      // to move at all. Instead, step through a fixed Fibonacci spiral of 32
-      // well-spread directions, by uWaveRespawnStride slots per generation, so
-      // consecutive respawns land far apart. The stride is forced odd (coprime to
-      // 32) so every slot is visited before any repeats; the per-component offset
-      // keeps the eight systems out of phase, and a small hash jitter stops a slot
-      // from looking stamped when it comes round again. See respawnStride in
-      // data/visuals.ts for how far each stride throws and which values to use.
-      float stride = 2.0 * floor(clamp(uWaveRespawnStride, 1.0, 31.0) * 0.5) + 1.0;
-      float slot = mod(gen * stride + fi * 5.0, 32.0);
-      float sz = 1.0 - 2.0 * (slot + 0.5) / 32.0;
-      float sr = sqrt(max(0.0, 1.0 - sz * sz));
-      float st = slot * 2.39996323; // the golden angle, for even spacing
-      vec3 axisBase = vec3(sr * cos(st), sz, sr * sin(st));
-      vec3 jitter = vec3(
-        waveHash(vec3(fi + 0.5, gen + 1.0, 5.0)),
-        waveHash(vec3(fi + 0.5, gen + 1.0, 9.0)),
-        waveHash(vec3(fi + 0.5, gen + 1.0, 13.0))) * 2.0 - 1.0;
-      K0 = normalize(axisBase + jitter * 0.15);
-    } else {
-      // The fixed fan of the plain spectrum: directions spread around the wind.
-      float spread = (waveHash(vec3(fi + 0.5, 3.0, 7.0)) - 0.5) * 2.1;
-      K0 = normalize(vec3(cos(0.6 + spread), 0.3, sin(0.6 + spread)));
+      // --- The swell system's life ------------------------------------------
+      // Each component is its own transient wave system: it fades in, holds, then
+      // fades out and respawns on a fresh random axis somewhere else. That turns
+      // the spectrum's fixed poles from permanent "point sources" into sources
+      // that come and go the way real wave climate does. The schedule is a pure
+      // function of the wave clock and the component index — no CPU state — and
+      // the envelope is exactly zero when the axis jumps, so a respawn never pops.
+      // uWaveLife <= 0 switches the lifecycle off and pins every axis in place.
+      float env = 1.0;
+      vec3 K0 = vec3(0.0, 1.0, 0.0);
+      if (uWaveLife > 0.0) {
+        // A staggered lifetime per component, so they do not all turn over at once.
+        float period = uWaveLife * (0.55 + 0.9 * waveHash(vec3(fi + 0.5, 23.0, 41.0)));
+        float life = uWaveTime / period + waveHash(vec3(fi + 0.5, 29.0, 47.0));
+        float gen = floor(life);
+        float f = fract(life);
+        float fadeFrac = clamp(uWaveLifeFade, 0.01, 0.49);
+        env = smoothstep(0.0, fadeFrac, f) * smoothstep(0.0, fadeFrac, 1.0 - f);
+        // Where the source respawns. A fresh random axis all too often lands right
+        // back on top of the one that just faded, so the new source would seem not
+        // to move at all. Instead, step through a fixed Fibonacci spiral of 32
+        // well-spread directions, by uWaveRespawnStride slots per generation, so
+        // consecutive respawns land far apart. The stride is forced odd (coprime to
+        // 32) so every slot is visited before any repeats; the per-component offset
+        // keeps the eight systems out of phase, and a small hash jitter stops a slot
+        // from looking stamped when it comes round again. See respawnStride in
+        // data/visuals.ts for how far each stride throws and which values to use.
+        float stride = 2.0 * floor(clamp(uWaveRespawnStride, 1.0, 31.0) * 0.5) + 1.0;
+        float slot = mod(gen * stride + fi * 5.0, 32.0);
+        float sz = 1.0 - 2.0 * (slot + 0.5) / 32.0;
+        float sr = sqrt(max(0.0, 1.0 - sz * sz));
+        float st = slot * 2.39996323; // the golden angle, for even spacing
+        vec3 axisBase = vec3(sr * cos(st), sz, sr * sin(st));
+        vec3 jitter = vec3(
+          waveHash(vec3(fi + 0.5, gen + 1.0, 5.0)),
+          waveHash(vec3(fi + 0.5, gen + 1.0, 9.0)),
+          waveHash(vec3(fi + 0.5, gen + 1.0, 13.0))) * 2.0 - 1.0;
+        K0 = normalize(axisBase + jitter * 0.15);
+      } else {
+        // The fixed fan of the plain spectrum: directions spread around the wind.
+        float spread = (waveHash(vec3(fi + 0.5, 3.0, 7.0)) - 0.5) * 2.1;
+        K0 = normalize(vec3(cos(0.6 + spread), 0.3, sin(0.6 + spread)));
+      }
+
+      vec3 K = normalize(K0 + uWaveWindAmount * windDir);
+      vec3 KTangent = K - dot(K, nObj) * nObj;
+      // Fade the component out where its wavefronts would collapse into a ring at
+      // its own pole (where K lines up with the surface normal). Topology forces
+      // every smooth phase field on a sphere to have such points; the crest warp
+      // has already broken the rings, and this just cleans up the residual centre.
+      float poleFade = smoothstep(0.22, 0.5, length(KTangent));
+      // Gather the system around its own pole, so it reads as a discrete wave
+      // source with a home region rather than a wave that covers the whole globe.
+      // It is the cosine of the angle to the axis, so no acos is needed: 1 at the
+      // source and ~0 at the far side. uWaveSourceFalloff 0 leaves it global.
+      float sourceFalloff = exp(-(1.0 - dot(nObj, K)) * uWaveSourceFalloff);
+      // Amplitude: the spectral energy at that wavenumber, scaled by the local wind,
+      // the system's own life envelope, and how close we are to its source.
+      float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint)
+                * poleFade * env * sourceFalloff;
+      // Deep-water dispersion: omega proportional to sqrt(k), so long waves travel
+      // faster than short ones and the sea spreads out instead of pulsing.
+      float omega = sqrt(k) * 0.22;
+      // The shared warp offsets this component's phase, scaled by kBase so every
+      // component wanders by the same fraction of its own wavelength (uWaveScale
+      // cancels: kBase is k without it).
+      float phase = k * dot(nObj, K) - omega * uWaveTime
+                  + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853
+                  + warp * uWaveWarpAmount * kBase;
+      swellGrad += (amp * kBase * cos(phase)) * KTangent;
     }
 
-    vec3 K = normalize(K0 + uWaveWindAmount * windDir);
-    vec3 KTangent = K - dot(K, nObj) * nObj;
-    // Fade the component out where its wavefronts would collapse into a ring at
-    // its own pole (where K lines up with the surface normal). Topology forces
-    // every smooth phase field on a sphere to have such points; the crest warp
-    // has already broken the rings, and this just cleans up the residual centre.
-    float poleFade = smoothstep(0.22, 0.5, length(KTangent));
-    // Gather the system around its own pole, so it reads as a discrete wave
-    // source with a home region rather than a wave that covers the whole globe.
-    // It is the cosine of the angle to the axis, so no acos is needed: 1 at the
-    // source and ~0 at the far side. uWaveSourceFalloff 0 leaves it global.
-    float sourceFalloff = exp(-(1.0 - dot(nObj, K)) * uWaveSourceFalloff);
-    // Amplitude: the spectral energy at that wavenumber, scaled by the local wind,
-    // the system's own life envelope, and how close we are to its source.
-    float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint)
-              * poleFade * env * sourceFalloff;
-    // Deep-water dispersion: omega proportional to sqrt(k), so long waves travel
-    // faster than short ones and the sea spreads out instead of pulsing.
-    float omega = sqrt(k) * 0.22;
-    // The shared warp offsets this component's phase, scaled by kBase so every
-    // component wanders by the same fraction of its own wavelength (uWaveScale
-    // cancels: kBase is k without it).
-    float phase = k * dot(nObj, K) - omega * uWaveTime
-                + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853
-                + warp * uWaveWarpAmount * kBase;
-    swellGrad += (amp * kBase * cos(phase)) * KTangent;
+    // --- The fine chop: a finite-difference gradient -------------------------
+    // The step shrinks with the waves so the differences still resolve them
+    // exactly, and the gradient is renormalised by the same factor, so
+    // uWaveStrength means the same tilt at any wave scale.
+    float e = 0.012 / uWaveScale;
+    float c0 = oceanChop(nObj, footprint);
+    float ct = oceanChop(normalize(nObj + tObj * e), footprint);
+    float cb = oceanChop(normalize(nObj + bObj * e), footprint);
+    vec3 chopGrad = ((ct - c0) * tObj + (cb - c0) * bObj) / (e * uWaveScale);
+
+    vec3 gObj = swellGrad + chopGrad;
+    vec3 gView = vWaveBasisX * gObj.x + vWaveBasisY * gObj.y + vWaveBasisZ * gObj.z;
+    float fade = waterRippleFade(normal);
+    normal = normalize(normal - gView * (uWaveStrength * fade));
   }
-
-  // --- The fine chop: a finite-difference gradient -------------------------
-  // The step shrinks with the waves so the differences still resolve them
-  // exactly, and the gradient is renormalised by the same factor, so
-  // uWaveStrength means the same tilt at any wave scale.
-  float e = 0.012 / uWaveScale;
-  float c0 = oceanChop(nObj, footprint);
-  float ct = oceanChop(normalize(nObj + tObj * e), footprint);
-  float cb = oceanChop(normalize(nObj + bObj * e), footprint);
-  vec3 chopGrad = ((ct - c0) * tObj + (cb - c0) * bObj) / (e * uWaveScale);
-
-  vec3 gObj = swellGrad + chopGrad;
-  vec3 gView = vWaveBasisX * gObj.x + vWaveBasisY * gObj.y + vWaveBasisZ * gObj.z;
-  float fade = waterRippleFade(normal);
-  normal = normalize(normal - gView * (uWaveStrength * fade));
 }
 `
