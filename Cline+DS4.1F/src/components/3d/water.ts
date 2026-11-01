@@ -91,6 +91,13 @@ export interface WaterUniforms {
      * 0 is the old, global spectrum; higher tightens the source (useful 0–3).
      */
     uWaveSourceFalloff: { value: number }
+    /**
+     * How far ahead in the respawn spiral the next source spawns — the stride of
+     * the 32-slot Fibonacci spiral. Higher throws the new source further from the
+     * old one. Forced odd; see `respawnStride` in `data/visuals.ts` for the
+     * measured distances and which values to prefer.
+     */
+    uWaveRespawnStride: { value: number }
     /** The planet's drawn radius, for the scale-invariant distance fade. */
     uWaveRadius: { value: number }
     /** The view-angle fade range (facing cosines; see `WaterWaveVisuals`). */
@@ -154,6 +161,7 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveLife: { value: binding.visuals.wave?.life ?? 0 },
       uWaveLifeFade: { value: binding.visuals.wave?.lifeFade ?? 0.3 },
       uWaveSourceFalloff: { value: binding.visuals.wave?.sourceFalloff ?? 0 },
+      uWaveRespawnStride: { value: binding.visuals.wave?.respawnStride ?? 11 },
       uWaveRadius: { value: 1 },
       uWaveLimbFade: { value: new Vector2(...(binding.visuals.wave?.limbFade ?? [0.05, 0.35])) },
       uWaveDistanceFade: {
@@ -210,6 +218,7 @@ uniform float uWaveWindDetail;
 uniform float uWaveLife;
 uniform float uWaveLifeFade;
 uniform float uWaveSourceFalloff;
+uniform float uWaveRespawnStride;
 uniform float uWaveRadius;
 uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
@@ -457,13 +466,14 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
       // Where the source respawns. A fresh random axis all too often lands right
       // back on top of the one that just faded, so the new source would seem not
       // to move at all. Instead, step through a fixed Fibonacci spiral of 32
-      // well-spread directions with a stride of 11 (coprime to 32, so every slot
-      // is visited before any repeats). That guarantees consecutive respawns land
-      // far apart — measured ~55° minimum, ~79° mean, versus ~2° and a quarter of
-      // them inside 30° for a plain hash. The per-component offset keeps the
-      // eight systems out of phase, and a small hash jitter stops a slot from
-      // looking stamped when it comes round again.
-      float slot = mod(gen * 11.0 + fi * 5.0, 32.0);
+      // well-spread directions, by uWaveRespawnStride slots per generation, so
+      // consecutive respawns land far apart. The stride is forced odd (coprime to
+      // 32) so every slot is visited before any repeats; the per-component offset
+      // keeps the eight systems out of phase, and a small hash jitter stops a slot
+      // from looking stamped when it comes round again. See respawnStride in
+      // data/visuals.ts for how far each stride throws and which values to use.
+      float stride = 2.0 * floor(clamp(uWaveRespawnStride, 1.0, 31.0) * 0.5) + 1.0;
+      float slot = mod(gen * stride + fi * 5.0, 32.0);
       float sz = 1.0 - 2.0 * (slot + 0.5) / 32.0;
       float sr = sqrt(max(0.0, 1.0 - sz * sz));
       float st = slot * 2.39996323; // the golden angle, for even spacing
