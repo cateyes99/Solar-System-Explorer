@@ -186,7 +186,14 @@ export const en = {
     'How full the ocean is. 100% keeps the full-depth sea; slide toward 0% to lower the surface into the deep basins, exposing the shallower seafloor first, until the water is gone. It works independently of the opacity slider, which only changes how see-through the water is.',
   'planet.waveIntensity': 'Wave intensity',
   'planet.waveIntensityHint':
-    'How lively the volumetric ocean is. 0% holds the surface completely still — no movement and no surf; higher settings raise the waves, quicken the flow and let them break on the coast. The waves are a living, procedural sea — real swells and churning chop that keep changing shape — not a moving picture. They are a lighting effect, so the shape of the globe never changes. This control belongs to the volumetric ocean only.',
+    'How lively the volumetric ocean is. 0% holds the surface completely still — no movement and no surf; higher settings raise the waves, quicken the flow and let them break on the coast. It is a lighting effect, so the shape of the globe never changes. This control belongs to the volumetric ocean only.',
+  'planet.waveStyle': 'Wave model',
+  'planet.waveStyle.spectral': 'Spectral',
+  'planet.waveStyle.spectralHint':
+    'A living, procedural sea: real swells and churning chop built from a directional wave spectrum that keeps changing shape — never a moving picture. It has no map to seam or slide, so the whole globe reads as one sea.',
+  'planet.waveStyle.ripples': 'Ripples',
+  'planet.waveStyle.ripplesHint':
+    'The original ocean: a tiling ripple normal map slid across the surface. Cheaper, but the pattern repeats.',
   'planet.seawaterOpacity': 'Seawater opacity',
   'planet.seawaterOpacityHint':
     'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',
@@ -578,6 +585,7 @@ export const en = {
   'texture.source.earthHeightmap': 'Reading Earth’s real elevation',
   'texture.source.earthBathymetry': 'Sounding the ocean floor',
   'texture.seafloorRamp': 'Tinting the ocean floor',
+  'texture.waterNormal': 'Rippling the ocean surface',
   'texture.source.earthClouds': 'Rolling out Earth’s real clouds',
   'texture.source.earthNight': 'Switching on the real city lights',
   'texture.source.moon': 'Surveying the Moon',

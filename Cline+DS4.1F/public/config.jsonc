@@ -61,9 +61,15 @@
   // scales the wave height, the flow speed, the churning chop and the coastal
   // surf together. 0 = completely still; 0.25 (the default) already reads as a
   // living sea; 1 = the tuned maximum, a rough sea that breaks on the coast.
-  // The waves are procedural and ever-changing, not a moving picture. It has no
-  // effect in the "surface" mode, which has no waves.
+  // It has no effect in the "surface" mode, which has no waves.
   "Earth Wave Intensity": 0.25,
+  // Which wave model the "volumetric" ocean draws. "spectral" (the default) is
+  // the living, procedural sea — a directional wave spectrum that keeps changing
+  // shape, never a moving picture. "ripples" is the original tiling ripple normal
+  // map slid across the surface: cheaper, but the pattern repeats. The planet
+  // panel's switcher is the live version of this value, and it is shown only
+  // while the "volumetric" mode is active.
+  "Wave Style": "spectral",
   // Which ocean implementation draws the sea. "surface" (the default) fades the
   // single painted ocean surface in place to reveal the seafloor; "volumetric"
   // draws a real transparent water layer over the drained seafloor, which looks

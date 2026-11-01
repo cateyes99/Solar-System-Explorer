@@ -1,7 +1,8 @@
 import { LANGUAGES } from '../i18n'
 import type { Language } from '../i18n'
-import type { SeawaterModeId } from '../types'
+import type { SeawaterModeId, WaveStyleId } from '../types'
 import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
+import { DEFAULT_WAVE_STYLE, isWaveStyleId } from '../data/waveStyles'
 import { WAVE_INTENSITY_DEFAULT } from '../utils/waves'
 import { useSimulationStore } from '../store/simulationStore'
 import type { SettingsPatch } from '../store/simulationStore'
@@ -70,6 +71,12 @@ export interface AppConfig {
    */
   earthWaveIntensity: number
   /**
+   * Which wave model the volumetric ocean draws (store: `earthWaveStyle`).
+   * `spectral` is the living, procedural sea; `ripples` is the original tiling
+   * normal map. Both are chosen under Volumetric mode. See `data/waveStyles.ts`.
+   */
+  earthWaveStyle: WaveStyleId
+  /**
    * Which ocean implementation Earth draws (store: `earthSeawaterMode`). `surface`
    * is the single-mesh fade; `volumetric` is the transparent water layer. See
    * `data/seawaterModes.ts`.
@@ -102,6 +109,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthSeawaterOpacity: 1,
   earthSeaLevel: 1,
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
+  earthWaveStyle: DEFAULT_WAVE_STYLE,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
@@ -255,6 +263,15 @@ export function validateAppConfig(raw: unknown): { config: AppConfig; issues: st
     }
   }
 
+  const waveStyle = record['Wave Style']
+  if (waveStyle !== undefined) {
+    if (isWaveStyleId(waveStyle)) {
+      config.earthWaveStyle = waveStyle
+    } else {
+      issues.push(`Wave Style: unsupported value ${JSON.stringify(waveStyle)}`)
+    }
+  }
+
   return { config, issues }
 }
 
@@ -308,6 +325,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthSeawaterOpacity: config.earthSeawaterOpacity,
     earthSeaLevel: config.earthSeaLevel,
     earthWaveIntensity: config.earthWaveIntensity,
+    earthWaveStyle: config.earthWaveStyle,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
