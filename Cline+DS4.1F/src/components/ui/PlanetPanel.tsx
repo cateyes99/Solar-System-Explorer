@@ -1,6 +1,7 @@
 import { AnimatePresence } from 'framer-motion'
 import { BODY_VISUALS } from '../../data/visuals'
 import { SEAWATER_MODES, seawaterModeFor } from '../../data/seawaterModes'
+import { WAVE_STYLES, waveStyleFor } from '../../data/waveStyles'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
@@ -45,6 +46,8 @@ export function PlanetPanel() {
   const setEarthSeaLevel = useSimulationStore((state) => state.setEarthSeaLevel)
   const earthWaveIntensity = useSimulationStore((state) => state.earthWaveIntensity)
   const setEarthWaveIntensity = useSimulationStore((state) => state.setEarthWaveIntensity)
+  const earthWaveStyle = useSimulationStore((state) => state.earthWaveStyle)
+  const setEarthWaveStyle = useSimulationStore((state) => state.setEarthWaveStyle)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
   const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
@@ -62,6 +65,9 @@ export function PlanetPanel() {
   // hints both the switcher and the shared slider show, so relabelling the
   // slider per mode needs no special-casing here.
   const seawaterMode = seawaterModeFor(earthSeawaterMode)
+  // The active wave model under Volumetric mode. Its registry entry carries the
+  // labels and hints the switcher shows, so a third model needs no change here.
+  const waveStyle = waveStyleFor(earthWaveStyle)
 
   return (
     <AnimatePresence>
@@ -218,18 +224,50 @@ export function PlanetPanel() {
                   />
                 ) : null}
                 {/* Waves are a property of the layered water body only, so the
-                    registry shows this slider for the volumetric mode alone. */}
+                    registry shows these controls for the volumetric mode alone.
+                    The switcher picks the wave model — the living spectral sea or
+                    the tiling ripples — and the slider scales whichever is
+                    active. */}
                 {seawaterMode.wave ? (
-                  <SliderRow
-                    label={t('planet.waveIntensity')}
-                    value={earthWaveIntensity}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={setEarthWaveIntensity}
-                    format={(value) => `${Math.round(value * 100)}%`}
-                    hint={t('planet.waveIntensityHint')}
-                  />
+                  <>
+                    <div
+                      role="group"
+                      aria-label={t('planet.waveStyle')}
+                      className="mb-1 flex gap-1 rounded-xl border border-white/8 bg-white/4 p-1"
+                    >
+                      {WAVE_STYLES.map((style) => {
+                        const active = style.id === earthWaveStyle
+                        return (
+                          <button
+                            key={style.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => setEarthWaveStyle(style.id)}
+                            className={`min-h-[2.25rem] flex-1 rounded-lg border px-2 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-ice/60 bg-ice/20 text-parchment'
+                                : 'border-transparent bg-transparent text-mist hover:text-parchment'
+                            }`}
+                          >
+                            {t(style.labelKey)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="mb-1 px-1 text-[0.68rem] leading-relaxed text-mist/80">
+                      {t(waveStyle.hintKey)}
+                    </p>
+                    <SliderRow
+                      label={t('planet.waveIntensity')}
+                      value={earthWaveIntensity}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onChange={setEarthWaveIntensity}
+                      format={(value) => `${Math.round(value * 100)}%`}
+                      hint={t('planet.waveIntensityHint')}
+                    />
+                  </>
                 ) : null}
                 <SliderRow
                   label={t('planet.seafloorRelief')}
