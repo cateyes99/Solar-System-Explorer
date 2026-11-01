@@ -173,13 +173,14 @@ export interface SeafloorVisuals {
  * evolve and morph the way the cloud deck does — they are never a moving picture
  * of waves.
  *
- * The `warp*`, `wind*`, `life*` and `sourceFalloff` knobs each list a useful
- * range. They are plain config values — never clamped and not exposed as
- * sliders — so those ranges are tuning guidance for the eye, not enforced
- * limits. The crest bend is roughly `2 × warpScale × warpAmount` wavelengths, so
- * the two warp knobs act as a product; keep it within about 0.2 – 1.5. Setting
- * `life` to 0 pins every source, and `warpAmount` and `windAmount` to 0 then
- * reproduces the plain sum of sines (the old, ringed sea) exactly.
+ * The `warp*`, `wind*`, `life*`, `sourceFalloff` and `respawnStride` knobs each
+ * list a useful range. They are plain config values — never clamped and not
+ * exposed as sliders — so those ranges are tuning guidance for the eye, not
+ * enforced limits. The crest bend is roughly `2 × warpScale × warpAmount`
+ * wavelengths, so the two warp knobs act as a product; keep it within about
+ * 0.2 – 1.5. Setting `life` to 0 pins every source, and `warpAmount` and
+ * `windAmount` to 0 then reproduces the plain sum of sines (the old, ringed sea)
+ * exactly.
  */
 export interface WaterWaveVisuals {
   /**
@@ -272,6 +273,13 @@ export interface WaterWaveVisuals {
    * the sources are clearly regional; much higher leaves calm gaps between them.
    */
   sourceFalloff: number
+  /**
+   * How far the next source spawns from the one that just faded out — the stride
+   * between generations of the 32-slot Fibonacci respawn spiral. Must be odd
+   * (coprime to 32) so every slot is visited before any repeats; even values are
+   * rounded up to the next odd one.
+   */
+  respawnStride: number
   /** The colour the breaking surf is tinted with. */
   foamColor: string
   /**
@@ -580,6 +588,9 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         sourceFalloff: 2.4, // 0–3; 0 = each system covers the whole globe
         life: 1, // 1–120; 0 = stationary
         lifeFade: 0.3, // 0.1–0.4; share of each lifetime spent fading
+        // How far the next source spawns from the old one. Must be odd (coprime
+        // to 32).
+        respawnStride: 11, // odd, 1–31
         foamColor: '#bfe4ff',
         // Waves hold across most of the disc and ease out over the outer band
         // (facing ≈ 0.35 → 0.05, roughly the last 15–20° to the limb).
