@@ -274,10 +274,27 @@ export interface WaterWaveVisuals {
    */
   sourceFalloff: number
   /**
-   * How far the next source spawns from the one that just faded out — the stride
-   * between generations of the 32-slot Fibonacci respawn spiral. Must be odd
-   * (coprime to 32) so every slot is visited before any repeats; even values are
-   * rounded up to the next odd one.
+   * How far the next source spawns from the one that just faded out. The respawn
+   * steps through a Fibonacci spiral of 32 evenly spread directions; this is the
+   * stride between generations — how many slots ahead it jumps.
+   *
+   * Must be odd (coprime to 32) so every slot is visited before any repeats; even
+   * values are rounded up to the next odd one. The spiral's golden-angle geometry
+   * makes the stride-to-distance relationship uneven, so read the table rather
+   * than assuming "bigger = farther". The angle the source actually jumps, averaged
+   * over many respawns — and the source is bright only at +K, so this is the
+   * distance you perceive:
+   *
+   *   `3`, `5`              → ~53°        (closest)
+   *   `13`, `19`            → ~76°
+   *   `11`, `21`            → ~80°        (default)
+   *   `1`, `31`             → ~104°
+   *   `7`, `25`             → ~112°
+   *   `9`, `15`, `17`, `23` → ~121–123°   (farthest)
+   *
+   * The far end tops out around 123°: a sphere caps any separation at 180°, and
+   * this spiral cannot reach that. (A construction that could hit ~180° — the
+   * source jumping to the exact far side — is a bigger change; ask if you want it.)
    */
   respawnStride: number
   /** The colour the breaking surf is tinted with. */
@@ -588,8 +605,9 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         sourceFalloff: 2.4, // 0–3; 0 = each system covers the whole globe
         life: 1, // 1–120; 0 = stationary
         lifeFade: 0.3, // 0.1–0.4; share of each lifetime spent fading
-        // How far the next source spawns from the old one. Must be odd (coprime
-        // to 32).
+        // How far the next source spawns from the old one. Must be odd; see the
+        // interface docs for the measured distances. 9/15/17/23 = farthest
+        // (~121°), 11/21 = mid, 3/5 = closest (~53°).
         respawnStride: 11, // odd, 1–31
         foamColor: '#bfe4ff',
         // Waves hold across most of the disc and ease out over the outer band
