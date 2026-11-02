@@ -73,8 +73,30 @@ export interface WaterUniforms {
     uWaveStrength: { value: number }
     /** The fine chop's share of the height field. */
     uWaveChop: { value: number }
+    /**
+     * How far the chop's cells wander from their uniform drift, in cell-widths.
+     * 0 keeps the old rigid slide; higher lets neighbouring cells drift in
+     * different directions, so the fine texture churns instead of sliding.
+     */
+    uWaveChopFlow: { value: number }
+    /**
+     * How fast the chop's flow turns over: 1 is the shipped rate, 0 freezes the
+     * flow (the cells still drift uniformly, just without eddying).
+     */
+    uWaveChopFlowRate: { value: number }
+    /**
+     * How fast the whole chop pattern travels, as a multiple of the shipped
+     * rate: 1 is shipped, 100 is a hundred times faster, 0 freezes it. It scales
+     * both the uniform drift and the flow's turnover.
+     */
+    uWaveChopDrift: { value: number }
     /** The swell spectrum's overall amplitude. */
     uWaveSwell: { value: number }
+    /**
+     * A multiplier on the swell (the directional spectrum's ring/crest pattern):
+     * 0 removes it entirely, leaving only the fine chop; 1 is the shipped look.
+     */
+    uWaveSwellIntensity: { value: number }
     /** How many times the base wave pattern is tiled across the globe. */
     uWaveScale: { value: number }
     /** The crest warp's spatial frequency, relative to `uWaveScale` (useful 0.2–3). */
@@ -179,7 +201,11 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveTime: { value: 0 },
       uWaveStrength: { value: 0 },
       uWaveChop: { value: 0 },
+      uWaveChopFlow: { value: binding.visuals.wave?.chopFlow ?? 0 },
+      uWaveChopFlowRate: { value: binding.visuals.wave?.chopFlowRate ?? 1 },
+      uWaveChopDrift: { value: binding.visuals.wave?.chopDrift ?? 1 },
       uWaveSwell: { value: binding.visuals.wave?.swell ?? 0.26 },
+      uWaveSwellIntensity: { value: binding.visuals.wave?.swellIntensity ?? 1 },
       uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
       uWaveWarpScale: { value: binding.visuals.wave?.warpScale ?? 1 },
       uWaveWarpAmount: { value: binding.visuals.wave?.warpAmount ?? 0.7 },
@@ -251,7 +277,11 @@ uniform float uWaveStyle;
 uniform float uWaveTime;
 uniform float uWaveStrength;
 uniform float uWaveChop;
+uniform float uWaveChopFlow;
+uniform float uWaveChopFlowRate;
+uniform float uWaveChopDrift;
 uniform float uWaveSwell;
+uniform float uWaveSwellIntensity;
 uniform float uWaveScale;
 uniform float uWaveWarpScale;
 uniform float uWaveWarpAmount;
@@ -336,7 +366,25 @@ float waveFbmLod(vec3 p, float scale, float footprint) {
  */
 float oceanChop(vec3 dir, float footprint) {
   float s = uWaveScale;
-  vec3 q = dir * s + vec3(uWaveTime * 0.05, uWaveTime * 0.04, -uWaveTime * 0.045) * sqrt(s);
+  // The chop runs on its own clock: uWaveChopDrift speeds the whole pattern up
+  // (or down) without touching the swell, so the cells can travel as fast as the
+  // eye needs. It scales both the uniform drift and the flow below.
+  float ct = uWaveTime * uWaveChopDrift;
+  // A slow, irregular flow that carries the cells. It is a low-frequency noise
+  // field (0.3·s, so it varies over a few cells), itself drifting through time,
+  // so neighbouring cells are pushed in different directions and the pattern
+  // churns instead of sliding as one rigid sheet. uWaveChopFlow is the wander
+  // in cell-widths; 0 leaves just the uniform drift below. uWaveChopFlowRate
+  // scales how fast the flow itself turns over — 0.021 per wave-clock second at
+  // the shipped rate of 1 — and the three axes use slightly different rates
+  // (0.86, 1.0, 1.14) so it eddies rather than sliding as one body.
+  float flowRate = uWaveChopFlowRate * 0.021;
+  vec3 flow = vec3(
+    waveNoise(dir * s * 0.3 + vec3(0.0, 0.0, ct * flowRate)),
+    waveNoise(dir * s * 0.3 + vec3(ct * flowRate * 0.86, 0.0, 0.0) + 31.0),
+    waveNoise(dir * s * 0.3 + vec3(0.0, ct * flowRate * 1.14, 0.0) + 57.0)) - 0.5;
+  vec3 q = dir * s + flow * uWaveChopFlow
+         + vec3(ct * 0.05, ct * 0.04, -ct * 0.045) * sqrt(s);
   return (waveFbmLod(q, s, footprint) - 0.5) * (0.5 + uWaveChop);
 }
 
@@ -593,8 +641,8 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
       float sourceFalloff = exp(-(1.0 - dot(nObj, K)) * uWaveSourceFalloff);
       // Amplitude: the spectral energy at that wavenumber, scaled by the local wind,
       // the system's own life envelope, and how close we are to its source.
-      float amp = uWaveSwell * windStrength / (1.0 + fi * 0.9) * waveLod(k, footprint)
-                * poleFade * env * sourceFalloff;
+      float amp = uWaveSwell * uWaveSwellIntensity * windStrength / (1.0 + fi * 0.9)
+                * waveLod(k, footprint) * poleFade * env * sourceFalloff;
       // Deep-water dispersion: omega proportional to sqrt(k), so long waves travel
       // faster than short ones and the sea spreads out instead of pulsing.
       float omega = sqrt(k) * 0.22;
