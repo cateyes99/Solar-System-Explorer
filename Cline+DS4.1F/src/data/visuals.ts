@@ -175,10 +175,10 @@ export interface SeafloorVisuals {
  * evolve and morph the way the cloud deck does — they are never a moving picture
  * of waves.
  *
- * The `warp*`, `wind*`, `life*`, `sourceFalloff` and `respawnStride` knobs each
- * list a useful range. They are plain config values — never clamped and not
- * exposed as sliders — so those ranges are tuning guidance for the eye, not
- * enforced limits. The crest bend is roughly `2 × warpScale × warpAmount`
+ * The `swellIntensity`, `chop*`, `warp*`, `wind*`, `life*`, `sourceFalloff` and
+ * `respawnStride` knobs each list a useful range. They are plain config values — never clamped
+ * and not exposed as sliders — so those ranges are tuning guidance for the eye,
+ * not enforced limits. The crest bend is roughly `2 × warpScale × warpAmount`
  * wavelengths, so the two warp knobs act as a product; keep it within about
  * 0.2 – 1.5. Setting `life` to 0 pins every source, and `warpAmount` and
  * `windAmount` to 0 then reproduces the plain sum of sines (the old, ringed sea)
@@ -203,8 +203,47 @@ export interface WaterWaveVisuals {
   maxStrength: number
   /** The chop's share of the height field at full variability. */
   maxChop: number
+  /**
+   * How far the chop's cells wander from their uniform drift, in cell-widths.
+   * The chop always translates as one sheet; this adds a slow, low-frequency
+   * flow on top, so neighbouring cells drift in different directions and the
+   * fine texture churns and eddies instead of sliding rigidly.
+   *
+   * Useful range **0 – 3** (default 1.5). 0 keeps the old rigid slide; around
+   * 1.5 the cells wander by roughly a cell as the flow turns over; much higher
+   * smears the texture into mush.
+   */
+  chopFlow: number
+  /**
+   * How fast that flow turns over, as a multiple of the shipped rate (0.021 per
+   * wave-clock second). Higher makes the cells eddy more quickly; 0 freezes the
+   * flow, so the chop becomes a fixed warp sliding rigidly (see `chopFlow`).
+   *
+   * Useful range **0 – 4** (default 1). It scales the *flow's* turnover only —
+   * the cells' uniform travel is set by the wave clock, not this.
+   */
+  chopFlowRate: number
+  /**
+   * How fast the whole chop pattern travels, as a multiple of the shipped rate.
+   * This is the master speed for the fine texture: 1 is shipped, and it goes up
+   * to 100 so the cells can be made to move as briskly as the eye needs. It
+   * scales both the uniform drift and the flow's turnover (see `chopFlow`).
+   *
+   * Useful range **0 – 100** (default 1). 0 freezes the chop entirely; ~10 is
+   * already a brisk, obvious drift; very high reads as fast-moving static.
+   */
+  chopDrift: number
   /** The swell spectrum's overall amplitude. */
   swell: number
+  /**
+   * A multiplier on the swell — the directional spectrum's ring/crest pattern,
+   * which is the dense arcs and loops seen across the sea. 0 removes it
+   * completely (leaving only the fine chop), 1 is the shipped look.
+   *
+   * Useful range **0 – 2** (default 1). Lower it to calm the ring pattern; 0
+   * turns the sea into pure chop; above 1 gives a heavier, more banded sea.
+   */
+  swellIntensity: number
   /**
    * The crest warp's spatial frequency, relative to `scale`. Every spectral
    * component's phase is offset by a shared low-frequency field of this scale,
@@ -648,11 +687,23 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // How much the "Wave variability" slider swells the fine chop against
         // the long swell.
         maxChop: 0.7,
+        // How far the chop's cells wander from their uniform drift, in
+        // cell-widths. 0 = the old rigid slide; higher lets the cells churn.
+        chopFlow: 1.5, // 0–3
+        // How fast that flow turns over, as a multiple of the shipped rate.
+        // 0 = a frozen flow (the cells just slide); higher eddies faster.
+        chopFlowRate: 1, // 0–4
+        // Master speed for the whole chop pattern: 1 = shipped, up to 100 for a
+        // fast, obvious drift. Scales both the uniform drift and the flow.
+        chopDrift: 1, // 0–100
         // The swell spectrum's amplitude, and the globe-wide wind that turns and
         // scales it per region: ~1/3.5 radian features means the wave direction
         // changes over roughly 1,000–2,000 km, and it bends each swell by up to
         // ~40°, so no two regions carry the same sea.
         swell: 0.36,
+        // A multiplier on the swell — the directional spectrum's dense ring/crest
+        // pattern. 0 = no swell at all (pure chop); 1 = the shipped look.
+        swellIntensity: 1, // 0–2
         // The crest warp: a low-frequency field that offsets every component's
         // phase, so the swells wander and interleave instead of closing into
         // rings around each plane wave's pole. ~1 wavelength of wander. Tune the
