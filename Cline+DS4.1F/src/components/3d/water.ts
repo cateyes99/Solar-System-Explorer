@@ -97,6 +97,26 @@ export interface WaterUniforms {
      * 0 removes it entirely, leaving only the fine chop; 1 is the shipped look.
      */
     uWaveSwellIntensity: { value: number }
+    /**
+     * How far the swell's crests are carried by the travel flow, in wavelengths.
+     * 0 pins them to their poles (the old, fixed-ring look); higher lets the
+     * rings wander in varying directions and at varying speeds.
+     */
+    uWaveSwellFlow: { value: number }
+    /** How fast that travel flow evolves: 1 is the shipped rate. */
+    uWaveSwellFlowRate: { value: number }
+    /**
+     * The travel flow's spatial frequency, relative to `uWaveScale`. Smaller =
+     * larger, smoother flow cells, which let a big uWaveSwellFlow carry the
+     * crests coherently instead of tearing them.
+     */
+    uWaveSwellFlowScale: { value: number }
+    /**
+     * A steady march on top of the flow, in wavelengths per wave-clock second:
+     * 0 leaves just the flow's out-and-back sweep; higher makes the crests keep
+     * travelling one way. The lifecycle bounds the accumulation.
+     */
+    uWaveSwellDrift: { value: number }
     /** How many times the base wave pattern is tiled across the globe. */
     uWaveScale: { value: number }
     /** The crest warp's spatial frequency, relative to `uWaveScale` (useful 0.2–3). */
@@ -206,6 +226,10 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveChopDrift: { value: binding.visuals.wave?.chopDrift ?? 1 },
       uWaveSwell: { value: binding.visuals.wave?.swell ?? 0.26 },
       uWaveSwellIntensity: { value: binding.visuals.wave?.swellIntensity ?? 1 },
+      uWaveSwellFlow: { value: binding.visuals.wave?.swellFlow ?? 0 },
+      uWaveSwellFlowRate: { value: binding.visuals.wave?.swellFlowRate ?? 1 },
+      uWaveSwellFlowScale: { value: binding.visuals.wave?.swellFlowScale ?? 0.25 },
+      uWaveSwellDrift: { value: binding.visuals.wave?.swellDrift ?? 0 },
       uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
       uWaveWarpScale: { value: binding.visuals.wave?.warpScale ?? 1 },
       uWaveWarpAmount: { value: binding.visuals.wave?.warpAmount ?? 0.7 },
@@ -282,6 +306,10 @@ uniform float uWaveChopFlowRate;
 uniform float uWaveChopDrift;
 uniform float uWaveSwell;
 uniform float uWaveSwellIntensity;
+uniform float uWaveSwellFlow;
+uniform float uWaveSwellFlowRate;
+uniform float uWaveSwellFlowScale;
+uniform float uWaveSwellDrift;
 uniform float uWaveScale;
 uniform float uWaveWarpScale;
 uniform float uWaveWarpAmount;
@@ -570,6 +598,34 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     float warp = waveNoise(nObj * uWaveScale * uWaveWarpScale + 3.0) - 0.5
                + (waveNoise(nObj * uWaveScale * uWaveWarpScale * 2.03 + 19.0) - 0.5) * 0.5;
 
+    // --- The swell's travel --------------------------------------------------
+    // A slow, evolving flow that carries the crests across the surface, so the
+    // rings wander in varying directions instead of only pulsing out of their
+    // fixed poles. It is a low-frequency noise field (0.25·s), itself drifting
+    // through time, and each component's phase is displaced along its own
+    // wavefronts by it — in wavelengths — so neighbouring crests travel at
+    // different speeds and on different paths. uWaveSwellFlow 0 leaves the old
+    // fixed-pole behaviour; uWaveSwellFlowRate scales how fast it evolves.
+    float swellFlowRate = uWaveSwellFlowRate * 0.03;
+    vec3 swellFlow = vec3(
+      waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + vec3(0.0, 0.0, uWaveTime * swellFlowRate)),
+      waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + vec3(uWaveTime * swellFlowRate * 0.83, 0.0, 0.0) + 41.0),
+      waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + vec3(0.0, uWaveTime * swellFlowRate * 1.17, 0.0) + 67.0)) - 0.5;
+
+    // --- The swell's drift ---------------------------------------------------
+    // A steady march on top of the flow: the crests are displaced along their own
+    // wavefronts at a rate that varies slowly across the globe, so they keep
+    // travelling in their own directions instead of sweeping out and back. The
+    // displacement accumulates with time — uWaveSwellDrift is the rate, in
+    // wavelengths per wave-clock second — and the lifecycle resets it whenever a
+    // system respawns, so it never shears without bound. The direction is a
+    // second low-frequency noise field, so neighbouring regions march different
+    // ways.
+    vec3 swellDrift = vec3(
+      waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + 91.0),
+      waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + 123.0),
+      waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + 157.0)) - 0.5;
+
     // --- The swell spectrum: an analytic gradient ----------------------------
     // For h = A sin(k dot(n,K) + phase), the tangent-plane gradient is
     // A k cos(phase) * K_tangent. The components differ in direction, length
@@ -651,7 +707,9 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
       // cancels: kBase is k without it).
       float phase = k * dot(nObj, K) - omega * uWaveTime
                   + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853
-                  + warp * uWaveWarpAmount * kBase;
+                  + warp * uWaveWarpAmount * kBase
+                  + dot(swellFlow, KTangent) * k * uWaveSwellFlow
+                  + dot(swellDrift, KTangent) * k * uWaveSwellDrift * uWaveTime;
       swellGrad += (amp * kBase * cos(phase)) * KTangent;
     }
 
