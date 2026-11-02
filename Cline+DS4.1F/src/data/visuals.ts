@@ -175,7 +175,7 @@ export interface SeafloorVisuals {
  * evolve and morph the way the cloud deck does — they are never a moving picture
  * of waves.
  *
- * The `swellIntensity`, `chop*`, `warp*`, `wind*`, `life*`, `sourceFalloff` and
+ * The `swell*`, `chop*`, `warp*`, `wind*`, `life*`, `sourceFalloff` and
  * `respawnStride` knobs each list a useful range. They are plain config values — never clamped
  * and not exposed as sliders — so those ranges are tuning guidance for the eye,
  * not enforced limits. The crest bend is roughly `2 × warpScale × warpAmount`
@@ -225,12 +225,12 @@ export interface WaterWaveVisuals {
   chopFlowRate: number
   /**
    * How fast the whole chop pattern travels, as a multiple of the shipped rate.
-   * This is the master speed for the fine texture: 1 is shipped, and it goes up
+   * This is the master speed for the fine texture: 2 is shipped, and it goes up
    * to 100 so the cells can be made to move as briskly as the eye needs. It
    * scales both the uniform drift and the flow's turnover (see `chopFlow`).
    *
-   * Useful range **0 – 100** (default 1). 0 freezes the chop entirely; ~10 is
-   * already a brisk, obvious drift; very high reads as fast-moving static.
+   * Useful range **0 – 100** (default 2). 0 freezes the chop entirely; ~10 is
+   * a fast, obvious drift; very high reads as fast-moving static.
    */
   chopDrift: number
   /** The swell spectrum's overall amplitude. */
@@ -244,6 +244,50 @@ export interface WaterWaveVisuals {
    * turns the sea into pure chop; above 1 gives a heavier, more banded sea.
    */
   swellIntensity: number
+  /**
+   * How far the swell's crests are carried by a slow travel flow, in
+   * wavelengths. The crests are arcs on a fixed axis, so without this they only
+   * pulse out of their poles; this displaces them along their own wavefronts by
+   * a drifting noise field, so they wander in varying directions and at varying
+   * speeds. It combines with the lifecycle (`life`), which fades whole systems
+   * out and respawns them elsewhere.
+   *
+   * Useful range **0 – 20** (default 4). 0 pins the crests to their poles (the
+   * old look); a few wavelengths is a strong, obvious travel. Very large values
+   * need a smaller `swellFlowScale`, or the crests tear instead of travelling.
+   */
+  swellFlow: number
+  /**
+   * How fast that travel flow evolves, as a multiple of the shipped rate.
+   *
+   * Useful range **0 – 100** (default 8). 0 freezes the flow (the crests hold
+   * their displaced positions); higher makes them wander more briskly.
+   */
+  swellFlowRate: number
+  /**
+   * The travel flow's spatial frequency, relative to `scale`. Smaller values
+   * make larger, smoother flow cells — a wide region is carried the same way —
+   * so a large `swellFlow` moves the crests coherently instead of shredding
+   * them.
+   *
+   * Useful range **0.03 – 1** (default 0.1). Lower it when you raise
+   * `swellFlow`; raise it for a finer, more jittery flow.
+   */
+  swellFlowScale: number
+  /**
+   * A steady march on top of the flow, in wavelengths per wave-clock second.
+   * `swellFlow` is bounded — the crests sweep out and come back — so this adds a
+   * displacement that keeps accumulating, making the crests travel continuously
+   * one way. The direction is a slow noise field, so neighbouring regions march
+   * different ways, and the lifecycle resets the accumulation whenever a system
+   * respawns, so it never shears without bound.
+   *
+   * Useful range **0 – 10** (default 1.5). 0 leaves just the flow's sweep; ~1–2
+   * is a clear, steady march; above ~3 the crests shear noticeably within a
+   * single lifetime. A lifetime is about one wave-clock second, so the number is
+   * roughly the wavelengths travelled per lifetime.
+   */
+  swellDrift: number
   /**
    * The crest warp's spatial frequency, relative to `scale`. Every spectral
    * component's phase is offset by a shared low-frequency field of this scale,
@@ -695,7 +739,7 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         chopFlowRate: 1, // 0–4
         // Master speed for the whole chop pattern: 1 = shipped, up to 100 for a
         // fast, obvious drift. Scales both the uniform drift and the flow.
-        chopDrift: 1, // 0–100
+        chopDrift: 2, // 0–100
         // The swell spectrum's amplitude, and the globe-wide wind that turns and
         // scales it per region: ~1/3.5 radian features means the wave direction
         // changes over roughly 1,000–2,000 km, and it bends each swell by up to
@@ -704,6 +748,18 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // A multiplier on the swell — the directional spectrum's dense ring/crest
         // pattern. 0 = no swell at all (pure chop); 1 = the shipped look.
         swellIntensity: 1, // 0–2
+        // How far the swell's crests are carried by the travel flow, in
+        // wavelengths. 0 = the old fixed-pole rings; higher lets them wander.
+        swellFlow: 4, // 0–20
+        // How fast that travel flow evolves, as a multiple of the shipped rate.
+        swellFlowRate: 8, // 0–100
+        // The travel flow's spatial frequency, relative to `scale`. Lower = larger
+        // flow cells, so a big swellFlow carries the crests instead of tearing them.
+        swellFlowScale: 0.1, // 0.03–1
+        // A steady march on top of the flow, in wavelengths per wave-clock
+        // second (~per lifetime). 0 = the flow's out-and-back sweep only;
+        // higher marches the crests one way. ~1–2 clear; above ~3 shears.
+        swellDrift: 1.5, // 0–10
         // The crest warp: a low-frequency field that offsets every component's
         // phase, so the swells wander and interleave instead of closing into
         // rings around each plane wave's pole. ~1 wavelength of wander. Tune the
