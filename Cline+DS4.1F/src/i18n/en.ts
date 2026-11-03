@@ -187,6 +187,9 @@ export const en = {
   'planet.waveIntensity': 'Wave intensity',
   'planet.waveIntensityHint':
     'How lively the volumetric ocean is. 0% holds the surface completely still — no movement and no surf; higher settings raise the waves, quicken the flow and let them break on the coast. It is a lighting effect, so the shape of the globe never changes. This control belongs to the volumetric ocean only.',
+  'planet.swellDetail': 'Ring detail',
+  'planet.swellDetailHint':
+    'How fine and dense the spectral sea is. 0% keeps the normal, shipped ring size; raising it gradually scrunches the crests smaller and more numerous, up to a very fine, dense sea. It is a lighting effect, so the shape of the globe never changes.',
   'planet.waveStyle': 'Wave model',
   'planet.waveStyle.spectral': 'Spectral',
   'planet.waveStyle.spectralHint':

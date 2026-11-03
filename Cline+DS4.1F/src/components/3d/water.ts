@@ -117,6 +117,12 @@ export interface WaterUniforms {
      * travelling one way. The lifecycle bounds the accumulation.
      */
     uWaveSwellDrift: { value: number }
+    /**
+     * A static shear that scrunches the crests finer and denser, in the same
+     * units as the drift: 0 is the normal ring size, higher makes them
+     * progressively smaller and more numerous.
+     */
+    uWaveSwellDetail: { value: number }
     /** How many times the base wave pattern is tiled across the globe. */
     uWaveScale: { value: number }
     /** The crest warp's spatial frequency, relative to `uWaveScale` (useful 0.2–3). */
@@ -230,6 +236,7 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveSwellFlowRate: { value: binding.visuals.wave?.swellFlowRate ?? 1 },
       uWaveSwellFlowScale: { value: binding.visuals.wave?.swellFlowScale ?? 0.25 },
       uWaveSwellDrift: { value: binding.visuals.wave?.swellDrift ?? 0 },
+      uWaveSwellDetail: { value: binding.visuals.wave?.swellDetail ?? 0 },
       uWaveScale: { value: binding.visuals.wave?.scale ?? 1 },
       uWaveWarpScale: { value: binding.visuals.wave?.warpScale ?? 1 },
       uWaveWarpAmount: { value: binding.visuals.wave?.warpAmount ?? 0.7 },
@@ -310,6 +317,7 @@ uniform float uWaveSwellFlow;
 uniform float uWaveSwellFlowRate;
 uniform float uWaveSwellFlowScale;
 uniform float uWaveSwellDrift;
+uniform float uWaveSwellDetail;
 uniform float uWaveScale;
 uniform float uWaveWarpScale;
 uniform float uWaveWarpAmount;
@@ -714,7 +722,9 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
                   + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853
                   + warp * uWaveWarpAmount * kBase
                   + dot(swellFlow, KTangent) * k * uWaveSwellFlow
-                  + dot(swellDrift, KTangent) * k * uWaveSwellDrift * age;
+                  // A static shear on the same field: uWaveSwellDetail scrunches the
+                  // crests finer and denser (the drift term is the moving version).
+                  + dot(swellDrift, KTangent) * k * (uWaveSwellDrift * age + uWaveSwellDetail);
       swellGrad += (amp * kBase * cos(phase)) * KTangent;
     }
 

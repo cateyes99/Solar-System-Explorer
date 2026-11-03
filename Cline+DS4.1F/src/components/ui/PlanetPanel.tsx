@@ -46,6 +46,8 @@ export function PlanetPanel() {
   const setEarthSeaLevel = useSimulationStore((state) => state.setEarthSeaLevel)
   const earthWaveIntensity = useSimulationStore((state) => state.earthWaveIntensity)
   const setEarthWaveIntensity = useSimulationStore((state) => state.setEarthWaveIntensity)
+  const earthSwellDetail = useSimulationStore((state) => state.earthSwellDetail)
+  const setEarthSwellDetail = useSimulationStore((state) => state.setEarthSwellDetail)
   const earthWaveStyle = useSimulationStore((state) => state.earthWaveStyle)
   const setEarthWaveStyle = useSimulationStore((state) => state.setEarthWaveStyle)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
@@ -267,6 +269,20 @@ export function PlanetPanel() {
                       format={(value) => `${Math.round(value * 100)}%`}
                       hint={t('planet.waveIntensityHint')}
                     />
+                    {/* Only the spectral sea has rings/arcs to scrunch, so this
+                        slider is shown for that wave model alone. */}
+                    {earthWaveStyle === 'spectral' ? (
+                      <SliderRow
+                        label={t('planet.swellDetail')}
+                        value={earthSwellDetail}
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        onChange={setEarthSwellDetail}
+                        format={(value) => `${Math.round(value * 100)}%`}
+                        hint={t('planet.swellDetailHint')}
+                      />
+                    ) : null}
                   </>
                 ) : null}
                 <SliderRow
