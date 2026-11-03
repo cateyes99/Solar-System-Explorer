@@ -185,6 +185,9 @@ export const zh: Record<TranslationKey, string> = {
   'planet.waveIntensity': '海浪强度',
   'planet.waveIntensityHint':
     '体积水层的生动程度。0% 让海面完全静止——没有起伏，也没有浪花；数值越高，海浪越高、流动越快，并会在岸边激起浪花。它属于光照效果，球体的形状不会改变。此控件只属于体积水层。',
+  'planet.swellDetail': '环形细节',
+  'planet.swellDetailHint':
+    '频谱海洋的细密程度。0% 保持默认的环纹大小；数值越高，波峰逐渐变小、变密，最终成为非常细密的海面。它属于光照效果，球体的形状不会改变。',
   'planet.waveStyle': '海浪模型',
   'planet.waveStyle.spectral': '频谱',
   'planet.waveStyle.spectralHint':

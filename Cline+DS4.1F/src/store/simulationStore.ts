@@ -45,6 +45,8 @@ export interface SettingsPatch {
   earthSeaLevel?: number
   /** How strong the volumetric ocean's waves are, 0…1 (see `earthWaveIntensity`). */
   earthWaveIntensity?: number
+  /** How fine/dense the volumetric ocean's rings are, 0…1 (see `earthSwellDetail`). */
+  earthSwellDetail?: number
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
   /** Which wave model the volumetric ocean draws (see `data/waveStyles.ts`). */
@@ -181,6 +183,14 @@ export interface SimulationState {
    */
   earthWaveIntensity: number
   /**
+   * How fine and dense the "volumetric" ocean's rings/arcs (the swell's crests)
+   * are, 0…1. At 0 they are the normal shipped size; as it rises a static shear
+   * scrunches them progressively smaller and more numerous, up to a very fine,
+   * dense sea. Only the layered water mesh acts on it. See `data/visuals.ts`
+   * (`swellDetail`) and the panel's "Ring detail" slider.
+   */
+  earthSwellDetail: number
+  /**
    * Which wave model the "volumetric" ocean draws: the living, procedural
    * "spectral" sea (the default) or the original tiling "ripples" normal map.
    * Both are chosen under Volumetric mode, and only the layered water mesh acts
@@ -273,6 +283,7 @@ export interface SimulationActions {
   setEarthSeawaterOpacity: (value: number) => void
   setEarthSeaLevel: (value: number) => void
   setEarthWaveIntensity: (value: number) => void
+  setEarthSwellDetail: (value: number) => void
   setEarthWaveStyle: (style: WaveStyleId) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
@@ -392,6 +403,9 @@ const initialState: SimulationState = {
   // little chop, with room to calm it to a still mirror or build it into a
   // rough, breaking sea.
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
+  // The normal ring size by default: the finer, denser sea is opt-in via the
+  // panel's "Ring detail" slider.
+  earthSwellDetail: 0,
   // The living, procedural sea is the default wave model; the tiling ripples are
   // the alternative the viewer can switch to under Volumetric mode.
   earthWaveStyle: DEFAULT_WAVE_STYLE,
@@ -558,6 +572,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthWaveIntensity: (value) =>
     set({ earthWaveIntensity: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSwellDetail: (value) =>
+    set({ earthSwellDetail: Math.max(0, Math.min(1, value)) }),
 
   setEarthWaveStyle: (style) => {
     if (!isWaveStyleId(style)) return
@@ -734,6 +751,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
       earthSeaLevel: clamp01(patch.earthSeaLevel, state.earthSeaLevel),
       earthWaveIntensity: clamp01(patch.earthWaveIntensity, state.earthWaveIntensity),
+      earthSwellDetail: clamp01(patch.earthSwellDetail, state.earthSwellDetail),
       earthWaveStyle: isWaveStyleId(patch.earthWaveStyle)
         ? patch.earthWaveStyle
         : state.earthWaveStyle,

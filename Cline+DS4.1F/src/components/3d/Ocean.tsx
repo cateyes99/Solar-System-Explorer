@@ -203,6 +203,9 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
       uniforms.uniforms.uWaveStrength.value = (wave?.maxStrength ?? 0) * params.amplitude
       uniforms.uniforms.uWaveChop.value = (wave?.maxChop ?? 0) * params.variability
       uniforms.uniforms.uCoastal.value = params.coastal
+      // The "Ring detail" slider, 0…1: 0 is the normal ring size and 1 the
+      // finest, so it maps onto the shader's 0…10 shear range.
+      uniforms.uniforms.uWaveSwellDetail.value = (wave?.swellDetailMax ?? 10) * store.earthSwellDetail
       // Reduced motion freezes the field; the slider's speed scales it otherwise.
       if (!reducedMotion) uniforms.uniforms.uWaveTime.value += step * params.speed
     }
