@@ -190,6 +190,9 @@ export const en = {
   'planet.swellDetail': 'Ring detail',
   'planet.swellDetailHint':
     'How fine and dense the spectral sea is. 0% keeps the normal, shipped ring size; raising it gradually scrunches the crests smaller and more numerous, up to a very fine, dense sea. It is a lighting effect, so the shape of the globe never changes.',
+  'planet.skyReflection': 'Sky reflection',
+  'planet.skyReflectionHint':
+    'How much the sea mirrors the sky. Water reflects almost nothing when you look straight down at it and almost everything at a glancing angle, so this is what puts a bright, view-dependent sheen on the limb and keeps the ocean from looking like flat blue plastic — especially from a high altitude or from space. 100% is the full, physically-inspired reflection, and 0% leaves only the dark body colour and the Sun’s glint; the 60% default sits just under the atmosphere’s own glow. It is a lighting effect, so the shape of the globe never changes, and it belongs to the volumetric ocean only.',
   'planet.waveStyle': 'Wave model',
   'planet.waveStyle.spectral': 'Spectral',
   'planet.waveStyle.spectralHint':

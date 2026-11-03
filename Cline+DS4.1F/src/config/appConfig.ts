@@ -78,6 +78,15 @@ export interface AppConfig {
    */
   earthSwellDetail: number
   /**
+   * How strong the volumetric ocean's Fresnel sky reflection is, 0…1 (store:
+   * `earthSkyReflection`). 0 leaves only the dark body colour and the Sun's
+   * point-light glint (the flat, plastic look); 1 is the full physical Fresnel
+   * weight, and the 60% default sits just under the atmosphere's own glow. It is
+   * what makes the sea read as water from orbit. Only the layered water body
+   * acts on it. See `WaterSurfaceVisuals` in `data/visuals.ts`.
+   */
+  earthSkyReflection: number
+  /**
    * Which wave model the volumetric ocean draws (store: `earthWaveStyle`).
    * `spectral` is the living, procedural sea; `ripples` is the original tiling
    * normal map. Both are chosen under Volumetric mode. See `data/waveStyles.ts`.
@@ -117,6 +126,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthSeaLevel: 1,
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
   earthSwellDetail: 0,
+  earthSkyReflection: 0.6,
   earthWaveStyle: DEFAULT_WAVE_STYLE,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
@@ -147,6 +157,7 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Sea Level', min: 0, max: 1, set: (c, v) => { c.earthSeaLevel = v } },
   { key: 'Earth Wave Intensity', min: 0, max: 1, set: (c, v) => { c.earthWaveIntensity = v } },
   { key: 'Earth Swell Detail', min: 0, max: 1, set: (c, v) => { c.earthSwellDetail = v } },
+  { key: 'Earth Sky Reflection', min: 0, max: 1, set: (c, v) => { c.earthSkyReflection = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -335,6 +346,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthSeaLevel: config.earthSeaLevel,
     earthWaveIntensity: config.earthWaveIntensity,
     earthSwellDetail: config.earthSwellDetail,
+    earthSkyReflection: config.earthSkyReflection,
     earthWaveStyle: config.earthWaveStyle,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,

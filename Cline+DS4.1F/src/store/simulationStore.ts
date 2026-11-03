@@ -47,6 +47,8 @@ export interface SettingsPatch {
   earthWaveIntensity?: number
   /** How fine/dense the volumetric ocean's rings are, 0…1 (see `earthSwellDetail`). */
   earthSwellDetail?: number
+  /** How strong the volumetric ocean's sky reflection is, 0…1 (see `earthSkyReflection`). */
+  earthSkyReflection?: number
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
   /** Which wave model the volumetric ocean draws (see `data/waveStyles.ts`). */
@@ -191,6 +193,15 @@ export interface SimulationState {
    */
   earthSwellDetail: number
   /**
+   * How strong the "volumetric" ocean's Fresnel reflection of the sky is, 0…1.
+   * At 0 the surface shows only its dark body colour and the Sun's point-light
+   * glint (the flat, plastic look); at 1 it reflects the full tuned amount, so
+   * the limb picks up the bright, view-dependent sheen that reads as water from
+   * orbit. One slider scales the surface's `skyStrength` (see `WaterSurfaceVisuals`
+   * in `data/visuals.ts`). Only the layered water mesh acts on it.
+   */
+  earthSkyReflection: number
+  /**
    * Which wave model the "volumetric" ocean draws: the living, procedural
    * "spectral" sea (the default) or the original tiling "ripples" normal map.
    * Both are chosen under Volumetric mode, and only the layered water mesh acts
@@ -284,6 +295,7 @@ export interface SimulationActions {
   setEarthSeaLevel: (value: number) => void
   setEarthWaveIntensity: (value: number) => void
   setEarthSwellDetail: (value: number) => void
+  setEarthSkyReflection: (value: number) => void
   setEarthWaveStyle: (style: WaveStyleId) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
@@ -406,6 +418,10 @@ const initialState: SimulationState = {
   // The normal ring size by default: the finer, denser sea is opt-in via the
   // panel's "Ring detail" slider.
   earthSwellDetail: 0,
+  // The sky reflection at 60% by default: it is what makes the sea read as water
+  // rather than plastic, while sitting just under the atmosphere's own glow. The
+  // slider can thin it to nothing or push it to the full physical weight.
+  earthSkyReflection: 0.6,
   // The living, procedural sea is the default wave model; the tiling ripples are
   // the alternative the viewer can switch to under Volumetric mode.
   earthWaveStyle: DEFAULT_WAVE_STYLE,
@@ -575,6 +591,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthSwellDetail: (value) =>
     set({ earthSwellDetail: Math.max(0, Math.min(1, value)) }),
+
+  setEarthSkyReflection: (value) =>
+    set({ earthSkyReflection: Math.max(0, Math.min(1, value)) }),
 
   setEarthWaveStyle: (style) => {
     if (!isWaveStyleId(style)) return
@@ -752,6 +771,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthSeaLevel: clamp01(patch.earthSeaLevel, state.earthSeaLevel),
       earthWaveIntensity: clamp01(patch.earthWaveIntensity, state.earthWaveIntensity),
       earthSwellDetail: clamp01(patch.earthSwellDetail, state.earthSwellDetail),
+      earthSkyReflection: clamp01(patch.earthSkyReflection, state.earthSkyReflection),
       earthWaveStyle: isWaveStyleId(patch.earthWaveStyle)
         ? patch.earthWaveStyle
         : state.earthWaveStyle,

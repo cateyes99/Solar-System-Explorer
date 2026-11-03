@@ -69,6 +69,14 @@
   // no effect in the "surface" mode or on the "ripples" wave model. The planet
   // panel's "Ring detail" slider is the live version of this value.
   "Earth Swell Detail": 0,
+  // How strongly the "volumetric" ocean reflects the sky, 0 to 1. This is the
+  // Fresnel sheen that makes the sea read as water rather than plastic from a
+  // high altitude: 1 is the full physical weight, 0 leaves only the dark body
+  // colour and the Sun's glint, and 0.6 (the default) sits just under the
+  // atmosphere's own glow. It applies to both wave models and has no effect in
+  // the "surface" mode. The planet panel's "Sky reflection" slider is the live
+  // version of this value.
+  "Earth Sky Reflection": 0.6,
   // Which wave model the "volumetric" ocean draws. "spectral" (the default) is
   // the living, procedural sea — a directional wave spectrum that keeps changing
   // shape, never a moving picture. "ripples" is the original tiling ripple normal
