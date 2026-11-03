@@ -551,6 +551,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               maxDepthRadius={seafloorFloor?.maxDepthRadius ?? 0}
               deepestFraction={seafloorFloor?.deepestFraction ?? 0}
               reducedMotion={reducedMotion}
+              sunPosition={SUN_POSITION}
             />
           ) : null}
 

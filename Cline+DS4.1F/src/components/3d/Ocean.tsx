@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { MeshStandardMaterial, RepeatWrapping } from 'three'
-import type { BufferGeometry, Mesh, Texture } from 'three'
+import type { BufferGeometry, Mesh, Texture, Vector3 } from 'three'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
 import { seaLevelDrop } from '../../utils/seawater'
@@ -10,6 +10,7 @@ import { useSimulationStore } from '../../store/simulationStore'
 import {
   WATER_FRAGMENT_BODY,
   WATER_FRAGMENT_PARS,
+  WATER_FRAGMENT_SKY_REFLECTION,
   WATER_FRAGMENT_WAVE_NORMAL,
   WATER_VERTEX_PARS,
   WATER_VERTEX_UV,
@@ -63,9 +64,15 @@ interface OceanProps {
    * of the app calms its effects.
    */
   reducedMotion: boolean
+  /**
+   * The Sun's world position. The Fresnel sky reflection is gated by the same
+   * soft day/night term the atmosphere shell uses, so it needs the Sun's
+   * position to fade out on the night side rather than glowing there.
+   */
+  sunPosition: Vector3
 }
 
-export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius, deepestFraction, reducedMotion }: OceanProps) {
+export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthExponent, uvOffset, maxDepthRadius, deepestFraction, reducedMotion, sunPosition }: OceanProps) {
   const meshRef = useRef<Mesh>(null)
   const opacity = useSimulationStore((state) => state.earthSeawaterOpacity)
   const seaLevel = useSimulationStore((state) => state.earthSeaLevel)
@@ -153,6 +160,12 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           '#include <normal_fragment_maps>',
           `vec3 waterGeoNormal = normal;\n#include <normal_fragment_maps>\n${WATER_FRAGMENT_WAVE_NORMAL}`,
         )
+        // The Fresnel sky reflection is added to the finished specular lighting,
+        // so it goes in right after the light accumulation and before the output.
+        .replace(
+          '#include <lights_fragment_end>',
+          `#include <lights_fragment_end>\n${WATER_FRAGMENT_SKY_REFLECTION}`,
+        )
     }
     return water
   }, [visuals, waterMask, normalMap, uniforms])
@@ -167,6 +180,13 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
     const style = store.earthWaveStyle
     const intensity = store.earthWaveIntensity
     const step = Math.min(delta, 0.05)
+    // The Sun barely moves, but keeping the uniform fresh costs nothing and keeps
+    // the sky reflection's day/night term correct in every scale mode.
+    uniforms.uniforms.uWaterSunPosition.value.copy(sunPosition)
+    // The "Sky reflection" slider scales the surface's tuned Fresnel strength:
+    // 100% is the shipped sheen, 0% leaves only the body colour and the glint.
+    uniforms.uniforms.uWaterSkyStrength.value =
+      (visuals.surface?.skyStrength ?? 0) * store.earthSkyReflection
     // Tell the shader which branch to take (0 = spectral, 1 = ripples), and give
     // the surface that style's own specular roughness.
     uniforms.uniforms.uWaveStyle.value = style === 'ripples' ? 1 : 0
