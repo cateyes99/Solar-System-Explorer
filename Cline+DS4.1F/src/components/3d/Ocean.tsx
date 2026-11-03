@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { MeshStandardMaterial, RepeatWrapping } from 'three'
 import type { BufferGeometry, Mesh, Texture, Vector3 } from 'three'
+import { oceanColourFor } from '../../data/oceanColours'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
 import { seaLevelDrop } from '../../utils/seawater'
@@ -119,6 +120,8 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           maxDepthRadius > 0
             ? seaLevelDrop(useSimulationStore.getState().earthSeaLevel) * deepestFraction
             : 0,
+        // The active body colour; `useFrame` keeps it live as the switcher moves.
+        colour: oceanColourFor(useSimulationStore.getState().earthOceanColour),
       }),
     [visuals, waterMask, bathymetry, depthExponent, uvOffset],
   )
@@ -187,6 +190,15 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
     // 100% is the shipped sheen, 0% leaves only the body colour and the glint.
     uniforms.uniforms.uWaterSkyStrength.value =
       (visuals.surface?.skyStrength ?? 0) * store.earthSkyReflection
+    // The "Ocean colour" switcher writes the body colour straight into its
+    // uniforms, so changing preset never rebuilds the material.
+    const colour = oceanColourFor(store.earthOceanColour)
+    uniforms.uniforms.uWaterAbsorption.value.set(
+      colour.absorption[0],
+      colour.absorption[1],
+      colour.absorption[2],
+    )
+    uniforms.uniforms.uWaterTint.value.set(colour.waterTint)
     // Tell the shader which branch to take (0 = spectral, 1 = ripples), and give
     // the surface that style's own specular roughness.
     uniforms.uniforms.uWaveStyle.value = style === 'ripples' ? 1 : 0
