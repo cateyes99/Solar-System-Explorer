@@ -182,6 +182,18 @@ export interface WaterUniforms {
     uCoastal: { value: number }
     /** The colour the breaking surf is tinted with. */
     uFoamColor: { value: Color }
+    /* The physically-inspired surface shading (see `WaterSurfaceVisuals`) */
+    /** The colour the surface reflects at a grazing angle — the sky. */
+    uWaterSky: { value: Color }
+    /** The Fresnel sky reflection, driven live by the "Sky reflection" slider. */
+    uWaterSkyStrength: { value: number }
+    /**
+     * Extra roughness added where the waves are unresolved — at the grazing limb
+     * and with distance — so the sun glint broadens into a sheen.
+     */
+    uWaterGlintBroaden: { value: number }
+    /** The Sun's world position, for the reflection's day/night term. */
+    uWaterSunPosition: { value: Vector3 }
   }
 }
 
@@ -268,6 +280,13 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaveDistanceFade: { value: new Vector2(...binding.visuals.distanceFade) },
       uCoastal: { value: 0 },
       uFoamColor: { value: new Color(binding.visuals.foamColor) },
+      // The Fresnel sky reflection and the glint broadening (see
+      // `WaterSurfaceVisuals`). `Ocean.tsx` keeps the sky strength and the Sun
+      // position live every frame, so these are only the starting values.
+      uWaterSky: { value: new Color(binding.visuals.surface?.skyColor ?? '#6fb4ff') },
+      uWaterSkyStrength: { value: binding.visuals.surface?.skyStrength ?? 0 },
+      uWaterGlintBroaden: { value: binding.visuals.surface?.glintBroaden ?? 0 },
+      uWaterSunPosition: { value: new Vector3() },
     },
   }
 }
@@ -285,6 +304,8 @@ varying vec3 vWaveDir;
 varying vec3 vWaveBasisX;
 varying vec3 vWaveBasisY;
 varying vec3 vWaveBasisZ;
+varying vec3 vWaterWorldNormal;
+varying vec3 vWaterWorldPosition;
 `
 
 export const WATER_VERTEX_UV = /* glsl */ `
@@ -293,6 +314,10 @@ vWaveDir = normalize(position);
 vWaveBasisX = normalize(normalMatrix[0]);
 vWaveBasisY = normalize(normalMatrix[1]);
 vWaveBasisZ = normalize(normalMatrix[2]);
+// World-space normal and position, for the sky reflection's day/night term.
+vec4 waterWorld = modelMatrix * vec4(position, 1.0);
+vWaterWorldPosition = waterWorld.xyz;
+vWaterWorldNormal = normalize(mat3(modelMatrix) * normal);
 `
 
 export const WATER_FRAGMENT_PARS = /* glsl */ `
@@ -338,11 +363,17 @@ uniform vec2 uWaveLimbFade;
 uniform vec2 uWaveDistanceFade;
 uniform float uCoastal;
 uniform vec3 uFoamColor;
+uniform vec3 uWaterSky;
+uniform float uWaterSkyStrength;
+uniform float uWaterGlintBroaden;
+uniform vec3 uWaterSunPosition;
 varying vec2 vSeaUv;
 varying vec3 vWaveDir;
 varying vec3 vWaveBasisX;
 varying vec3 vWaveBasisY;
 varying vec3 vWaveBasisZ;
+varying vec3 vWaterWorldNormal;
+varying vec3 vWaterWorldPosition;
 
 // 3D value noise, sampled along the sphere's own direction: a solid field, so it
 // is continuous everywhere — no seam at longitude 0, nothing pinched at the
@@ -743,5 +774,43 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     float fade = waterRippleFade(normal);
     normal = normalize(normal - gView * (uWaveStrength * fade));
   }
+
+  // Real water roughens where its waves fall below the pixel grid: the view
+  // grazes the surface at the limb, and the globe recedes until the fine slopes
+  // are averaged away. Those unresolved slopes spread the sun glint into a broad
+  // sheen instead of the mirror highlight that makes a low-roughness sphere read
+  // as plastic. Reuse the same view/distance fade that eases the normals, so the
+  // two stay in step.
+  float glintFade = waterRippleFade(normal);
+  roughnessFactor = clamp(roughnessFactor + uWaterGlintBroaden * (1.0 - glintFade), 0.0, 1.0);
+}
+`
+
+/**
+ * The Fresnel reflection of the sky, injected after `lights_fragment_end` so it
+ * is added to the finished specular lighting.
+ *
+ * This is the single biggest cue that separates water from plastic at a
+ * distance. A smooth dielectric lit only by a point light shows one hard
+ * highlight and a flat body colour; real water instead mirrors the sky, and how
+ * much it mirrors depends strongly on the view angle — almost nothing head-on,
+ * almost everything at the grazing limb. `waterFresnel` is Schlick's
+ * approximation with water's normal-incidence reflectance (0.02), and the
+ * reflected colour is the atmosphere blue the surface actually sees.
+ *
+ * It is gated by the same soft day/night term the atmosphere shell uses, so the
+ * reflection fades out where night begins instead of glowing on the dark side.
+ * (A constant sky reflection would make the night limb glow blue, which is why
+ * the Sun's world position is carried in for this one test.)
+ */
+export const WATER_FRAGMENT_SKY_REFLECTION = /* glsl */ `
+{
+  vec3 waterViewDir = normalize(vViewPosition);
+  float waterCos = clamp(dot(normal, waterViewDir), 0.0, 1.0);
+  // Schlick: 0.02 head-on, rising to 1 at the grazing limb.
+  float waterFresnel = 0.02 + 0.98 * pow(1.0 - waterCos, 5.0);
+  vec3 waterSunDir = normalize(uWaterSunPosition - vWaterWorldPosition);
+  float waterLit = smoothstep(-0.28, 0.6, dot(normalize(vWaterWorldNormal), waterSunDir));
+  reflectedLight.indirectSpecular += uWaterSky * (waterFresnel * uWaterSkyStrength * waterLit);
 }
 `

@@ -48,6 +48,8 @@ export function PlanetPanel() {
   const setEarthWaveIntensity = useSimulationStore((state) => state.setEarthWaveIntensity)
   const earthSwellDetail = useSimulationStore((state) => state.earthSwellDetail)
   const setEarthSwellDetail = useSimulationStore((state) => state.setEarthSwellDetail)
+  const earthSkyReflection = useSimulationStore((state) => state.earthSkyReflection)
+  const setEarthSkyReflection = useSimulationStore((state) => state.setEarthSkyReflection)
   const earthWaveStyle = useSimulationStore((state) => state.earthWaveStyle)
   const setEarthWaveStyle = useSimulationStore((state) => state.setEarthWaveStyle)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
@@ -283,6 +285,18 @@ export function PlanetPanel() {
                         hint={t('planet.swellDetailHint')}
                       />
                     ) : null}
+                    {/* The sky reflection belongs to the water surface itself,
+                        so it is shown for both wave models. */}
+                    <SliderRow
+                      label={t('planet.skyReflection')}
+                      value={earthSkyReflection}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onChange={setEarthSkyReflection}
+                      format={(value) => `${Math.round(value * 100)}%`}
+                      hint={t('planet.skyReflectionHint')}
+                    />
                   </>
                 ) : null}
                 <SliderRow
