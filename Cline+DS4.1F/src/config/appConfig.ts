@@ -1,8 +1,9 @@
 import { LANGUAGES } from '../i18n'
 import type { Language } from '../i18n'
-import type { SeawaterModeId, WaveStyleId } from '../types'
+import type { OceanColourId, SeawaterModeId, WaveStyleId } from '../types'
 import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
 import { DEFAULT_WAVE_STYLE, isWaveStyleId } from '../data/waveStyles'
+import { DEFAULT_OCEAN_COLOUR, isOceanColourId } from '../data/oceanColours'
 import { WAVE_INTENSITY_DEFAULT } from '../utils/waves'
 import { useSimulationStore } from '../store/simulationStore'
 import type { SettingsPatch } from '../store/simulationStore'
@@ -87,6 +88,13 @@ export interface AppConfig {
    */
   earthSkyReflection: number
   /**
+   * The volumetric ocean's body colour (store: `earthOceanColour`). `blue` is
+   * the shipped Blue Marble blue, `deep` a deeper and more saturated blue,
+   * `abyss` an almost black ink-blue, and `tropical` a bright turquoise. Only
+   * the layered water body acts on it. See `data/oceanColours.ts`.
+   */
+  earthOceanColour: OceanColourId
+  /**
    * Which wave model the volumetric ocean draws (store: `earthWaveStyle`).
    * `spectral` is the living, procedural sea; `ripples` is the original tiling
    * normal map. Both are chosen under Volumetric mode. See `data/waveStyles.ts`.
@@ -127,6 +135,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
   earthSwellDetail: 0,
   earthSkyReflection: 0.6,
+  earthOceanColour: DEFAULT_OCEAN_COLOUR,
   earthWaveStyle: DEFAULT_WAVE_STYLE,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
@@ -292,6 +301,15 @@ export function validateAppConfig(raw: unknown): { config: AppConfig; issues: st
     }
   }
 
+  const oceanColour = record['Ocean Colour']
+  if (oceanColour !== undefined) {
+    if (isOceanColourId(oceanColour)) {
+      config.earthOceanColour = oceanColour
+    } else {
+      issues.push(`Ocean Colour: unsupported value ${JSON.stringify(oceanColour)}`)
+    }
+  }
+
   return { config, issues }
 }
 
@@ -347,6 +365,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthWaveIntensity: config.earthWaveIntensity,
     earthSwellDetail: config.earthSwellDetail,
     earthSkyReflection: config.earthSkyReflection,
+    earthOceanColour: config.earthOceanColour,
     earthWaveStyle: config.earthWaveStyle,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,

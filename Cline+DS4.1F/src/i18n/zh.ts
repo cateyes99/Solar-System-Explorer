@@ -198,6 +198,19 @@ export const zh: Record<TranslationKey, string> = {
   'planet.waveStyle.ripples': '波纹',
   'planet.waveStyle.ripplesHint':
     '最初的海洋：一层平铺的波纹法线贴图在表面滑动。开销更低，但图案会重复。',
+  'planet.oceanColour': '海洋颜色',
+  'planet.oceanColour.blue': '蓝色',
+  'planet.oceanColour.blueHint':
+    '蓝色弹珠的蓝。水深处的颜色仍能透出白昼贴图本身的色彩，因此大陆架与深海盆地都保留真实的变化——就像地球照片里的海洋。',
+  'planet.oceanColour.deep': '深蓝',
+  'planet.oceanColour.deepHint':
+    '更深、更饱和的蓝。海水更强地吸收白昼贴图，并散射出更浓郁的蓝，让开阔大洋呈现为一整片深色——正是避开阳光炫光后，从轨道上看到的海洋颜色。',
+  'planet.oceanColour.abyss': '深渊',
+  'planet.oceanColour.abyssHint':
+    '最深的选项：近乎黑色的墨蓝。白昼贴图几乎被完全吸收，只剩阳光反光与天空反射把它提亮——一片几乎无光的深海之蓝。',
+  'planet.oceanColour.tropical': '热带',
+  'planet.oceanColour.tropicalHint':
+    '明亮的泻湖青绿。海水吸收很少，白昼贴图的浅滩依旧明亮，整体偏绿——热带大陆架清澈、被阳光照亮的海水。',
   'planet.seawaterOpacity': '海水不透明度',
   'planet.seawaterOpacityHint':
     '能透过海水看到多少。100% 时海洋与原来完全一样；滑向 0% 就会排干海水，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。水越深、视线越贴近海面，海底就越被水遮住，就像真实的海水一样。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',

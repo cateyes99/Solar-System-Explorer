@@ -77,6 +77,15 @@
   // the "surface" mode. The planet panel's "Sky reflection" slider is the live
   // version of this value.
   "Earth Sky Reflection": 0.6,
+  // The body colour of the "volumetric" ocean. "blue" (the default) is the
+  // shipped Blue Marble blue; "deep" is a deeper, more saturated blue; "abyss"
+  // is an almost black ink-blue; "tropical" is a bright lagoon turquoise. Each
+  // option carries its own Beer's-law absorption and water tint, so they change
+  // only the water's colour, never its waves or reflections. It has no effect in
+  // the "surface" mode. The planet panel's "Ocean colour" switcher is the live
+  // version of this value, and it is shown only while the "volumetric" mode is
+  // active.
+  "Ocean Colour": "blue",
   // Which wave model the "volumetric" ocean draws. "spectral" (the default) is
   // the living, procedural sea — a directional wave spectrum that keeps changing
   // shape, never a moving picture. "ripples" is the original tiling ripple normal

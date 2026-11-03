@@ -7,6 +7,7 @@ import type {
   FocusTargetId,
   LessonId,
   OrbitModel,
+  OceanColourId,
   QualityLevel,
   ScaleMode,
   SeawaterModeId,
@@ -15,6 +16,7 @@ import type {
 } from '../types'
 import { DEFAULT_SEAWATER_MODE, isSeawaterModeId } from '../data/seawaterModes'
 import { DEFAULT_WAVE_STYLE, isWaveStyleId } from '../data/waveStyles'
+import { DEFAULT_OCEAN_COLOUR, isOceanColourId } from '../data/oceanColours'
 import { WAVE_INTENSITY_DEFAULT } from '../utils/waves'
 import { DEFAULT_CUSTOM_SCALE } from '../utils/scale'
 import { clampSpacecraftSize, DEFAULT_SPACECRAFT_SIZE } from '../utils/spacecraftSize'
@@ -49,6 +51,8 @@ export interface SettingsPatch {
   earthSwellDetail?: number
   /** How strong the volumetric ocean's sky reflection is, 0…1 (see `earthSkyReflection`). */
   earthSkyReflection?: number
+  /** The volumetric ocean's body colour (see `data/oceanColours.ts`). */
+  earthOceanColour?: OceanColourId
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
   /** Which wave model the volumetric ocean draws (see `data/waveStyles.ts`). */
@@ -202,6 +206,14 @@ export interface SimulationState {
    */
   earthSkyReflection: number
   /**
+   * The body colour of the "volumetric" ocean: the shipped Blue Marble blue, a
+   * deeper and more saturated blue, an almost black abyss, or a bright tropical
+   * turquoise. Each option carries its own Beer's-law `absorption` and
+   * `waterTint` (see `data/oceanColours.ts`), and only the layered water mesh
+   * acts on it. It is the panel's "Ocean colour" switcher.
+   */
+  earthOceanColour: OceanColourId
+  /**
    * Which wave model the "volumetric" ocean draws: the living, procedural
    * "spectral" sea (the default) or the original tiling "ripples" normal map.
    * Both are chosen under Volumetric mode, and only the layered water mesh acts
@@ -296,6 +308,7 @@ export interface SimulationActions {
   setEarthWaveIntensity: (value: number) => void
   setEarthSwellDetail: (value: number) => void
   setEarthSkyReflection: (value: number) => void
+  setEarthOceanColour: (colour: OceanColourId) => void
   setEarthWaveStyle: (style: WaveStyleId) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
@@ -422,6 +435,9 @@ const initialState: SimulationState = {
   // rather than plastic, while sitting just under the atmosphere's own glow. The
   // slider can thin it to nothing or push it to the full physical weight.
   earthSkyReflection: 0.6,
+  // The Blue Marble blue by default: the colour the rest of the ocean's look was
+  // tuned against, with the deeper blues and the turquoise a switch away.
+  earthOceanColour: DEFAULT_OCEAN_COLOUR,
   // The living, procedural sea is the default wave model; the tiling ripples are
   // the alternative the viewer can switch to under Volumetric mode.
   earthWaveStyle: DEFAULT_WAVE_STYLE,
@@ -594,6 +610,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthSkyReflection: (value) =>
     set({ earthSkyReflection: Math.max(0, Math.min(1, value)) }),
+
+  setEarthOceanColour: (colour) => {
+    if (!isOceanColourId(colour)) return
+    set({ earthOceanColour: colour })
+  },
 
   setEarthWaveStyle: (style) => {
     if (!isWaveStyleId(style)) return
@@ -772,6 +793,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthWaveIntensity: clamp01(patch.earthWaveIntensity, state.earthWaveIntensity),
       earthSwellDetail: clamp01(patch.earthSwellDetail, state.earthSwellDetail),
       earthSkyReflection: clamp01(patch.earthSkyReflection, state.earthSkyReflection),
+      earthOceanColour: isOceanColourId(patch.earthOceanColour)
+        ? patch.earthOceanColour
+        : state.earthOceanColour,
       earthWaveStyle: isWaveStyleId(patch.earthWaveStyle)
         ? patch.earthWaveStyle
         : state.earthWaveStyle,
