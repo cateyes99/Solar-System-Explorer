@@ -448,6 +448,47 @@ export interface WaterRippleVisuals {
 }
 
 /**
+ * The physically-inspired surface shading, shared by both wave styles. It is
+ * what makes the sea read as water rather than plastic from a high altitude or
+ * from space, where individual waves are too small to see:
+ *
+ *  - **A Fresnel reflection of the sky.** Real water reflects almost nothing
+ *    head-on and almost everything at a grazing angle, so the disc centre keeps
+ *    its dark body colour while the limb picks up a bright, view-dependent
+ *    sheen. Without it the only reflection is the Sun's point light, which reads
+ *    as a single hard plastic highlight; a uniform blue with no view-dependent
+ *    light is exactly what makes a smooth sphere look like painted plastic.
+ *  - **A glint that broadens as the waves fall below the pixel grid.** A real
+ *    sun glint is a broad, broken swath of glitter, not a mirror spot. Adding
+ *    roughness where the view grazes the surface (the limb) and where the globe
+ *    recedes (so the sub-pixel wave slopes are unresolved) spreads the highlight
+ *    into a soft sheen instead of a "shiny ball".
+ *
+ * Both are pure shading: they change only how the water catches the light, never
+ * the shape of the globe.
+ */
+export interface WaterSurfaceVisuals {
+  /** The colour the surface reflects at a grazing angle — the sky/atmosphere. */
+  skyColor: string
+  /**
+   * The sky reflection at the panel's "Sky reflection" slider top end. 1 is the
+   * physical Fresnel weight; the shipped default sits at 60% (see
+   * `earthSkyReflection`), so the limb glows without competing with the
+   * atmosphere shell drawn over it.
+   */
+  skyStrength: number
+  /**
+   * Extra surface roughness added where the waves are unresolved — at the
+   * grazing limb and as the globe recedes — so the sun glint broadens into a
+   * sheen. It is added on top of the style's own `roughness`.
+   *
+   * Useful range **0 – 0.4** (default 0.22). 0 leaves the glint a mirror; much
+   * higher turns the sea matte and kills the sparkle.
+   */
+  glintBroaden: number
+}
+
+/**
  * The ocean **surface**: a genuinely transparent water layer drawn on top of the
  * seafloor, not a fade of it (see `components/3d/Ocean.tsx`).
  *
@@ -468,7 +509,8 @@ export interface WaterRippleVisuals {
  *    tells you this is a liquid surface and not a painted texture. Each wave
  *    style carries its own `roughness` (see `WaterWaveVisuals` and
  *    `WaterRippleVisuals`), because the glint was tuned against its normal
- *    source.
+ *    source. The `surface` block then adds the sky reflection and the glint
+ *    broadening that keep it from reading as plastic at a distance.
  *
  * `revealGamma` shapes how fast the slider thins the water: the layer's alpha is
  * `1 − (1 − opacity) ^ revealGamma`, so a half-way slider already shows most of
@@ -501,6 +543,8 @@ export interface WaterVisuals {
    * both wave styles.
    */
   distanceFade: [number, number]
+  /** The Fresnel sky reflection and glint broadening (see `WaterSurfaceVisuals`). */
+  surface?: WaterSurfaceVisuals
   /** The procedural directional-spectrum sea — the "spectral" style. */
   wave?: WaterWaveVisuals
   /** The tiling ripple normal map — the "ripples" style. */
@@ -729,6 +773,20 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       // Full waves out to 30 Earth radii — well past a close, framed Earth —
       // and a smooth mirror beyond 80, where the whole globe is a small dot.
       distanceFade: [30, 80],
+      // The physically-inspired surface shading (see `WaterSurfaceVisuals`):
+      // the Fresnel sky reflection and the glint broadening. This is what keeps
+      // the sea from reading as a smooth blue plastic ball at a distance.
+      surface: {
+        // The sky the sea reflects at a grazing angle is Earth's own blue air.
+        skyColor: '#6fb4ff',
+        // The reflection at the slider's top end: the full physical Fresnel
+        // weight. The shipped default is 60% (see `earthSkyReflection`), which
+        // glows without competing with the atmosphere shell drawn over it.
+        skyStrength: 1,
+        // Spread the glint into a sheen where the waves are unresolved: at the
+        // grazing limb and as the globe recedes into the distance.
+        glintBroaden: 0.22,
+      },
       // The "spectral" style: the living, procedural sea.
       wave: {
         // A little rougher than a mirror: the procedural field breaks a single
