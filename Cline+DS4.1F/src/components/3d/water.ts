@@ -1,5 +1,6 @@
 import { Color, Vector2, Vector3 } from 'three'
 import type { Texture } from 'three'
+import type { OceanColour } from '../../data/oceanColours'
 import type { WaterVisuals } from '../../data/visuals'
 
 /**
@@ -209,6 +210,12 @@ export interface WaterBinding {
   opacity: number
   /** How far the sea surface has dropped, 0…1 (see `utils/seawater.ts`). */
   seaLevelDrop: number
+  /**
+   * The active body colour (see `data/oceanColours.ts`). It seeds the initial
+   * `uWaterAbsorption`/`uWaterTint`; `Ocean.tsx` keeps them live so switching
+   * colour never rebuilds the material.
+   */
+  colour: OceanColour
 }
 
 /**
@@ -231,8 +238,8 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uUvOffset: { value: binding.uvOffset },
       uWaterAlpha: { value: waterAlpha(binding.opacity, binding.visuals.revealGamma) },
       uSeaLevelDrop: { value: binding.seaLevelDrop },
-      uWaterAbsorption: { value: new Vector3(...binding.visuals.absorption) },
-      uWaterTint: { value: new Color(binding.visuals.waterTint) },
+      uWaterAbsorption: { value: new Vector3(...binding.colour.absorption) },
+      uWaterTint: { value: new Color(binding.colour.waterTint) },
       // 0 = spectral (the default); `Ocean.tsx` writes 1 for the ripples style.
       uWaveStyle: { value: 0 },
       // Inert until the slider is raised: a flat field, no chop, no surf.

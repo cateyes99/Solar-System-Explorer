@@ -497,10 +497,13 @@ export interface WaterSurfaceVisuals {
  * parallax that comes from the two surfaces being at different radii. The layer
  * carries three things a liquid surface needs:
  *
- *  - **Beer's-law body colour.** `absorption` is the per-channel extinction of
- *    the water itself, so a shallow shelf keeps the bright day-map blue while the
- *    abyss falls away through teal to navy, driven by the real depth under each
- *    pixel.
+ *  - **Beer's-law body colour**, chosen by the panel's "Ocean colour" switcher
+ *    (see `data/oceanColours.ts`). Each option's `absorption` is the per-channel
+ *    extinction of the water itself and its `waterTint` is the colour it scatters
+ *    back, so a shallow shelf keeps the bright day-map blue while the abyss falls
+ *    away through teal to navy, driven by the real depth under each pixel. The
+ *    options are the deep blues (and one tropical turquoise) that read from a
+ *    high altitude or from space.
  *  - **A wave field**, chosen by the panel's wave-style switcher (see
  *    `data/waveStyles.ts`). Either the living, procedural sea (`wave`) or the
  *    original tiling ripple normal map (`ripple`), so the surface is never the
@@ -519,10 +522,6 @@ export interface WaterSurfaceVisuals {
  */
 export interface WaterVisuals {
   metalness: number
-  /** Beer's-law extinction of the water body, linear RGB. */
-  absorption: [number, number, number]
-  /** The colour the water scatters back where it is deep. */
-  waterTint: string
   /** The reveal curve's exponent (see above). */
   revealGamma: number
   /** The colour the breaking surf is tinted with. Shared by both wave styles. */
@@ -755,14 +754,13 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       revealGamma: 0.65,
     },
     // The ocean surface itself: a transparent, specular water layer at sea
-    // level, through which the seafloor above is seen. Its own absorption runs
-    // the shallows bright and the abyss navy, and its waves come from whichever
-    // style the panel's switcher selects (see `data/waveStyles.ts`): the
-    // procedural sea (`wave`) or the tiling ripple map (`ripple`).
+    // level, through which the seafloor above is seen. Its body colour comes from
+    // the panel's "Ocean colour" switcher (see `data/oceanColours.ts`), and its
+    // waves come from whichever style the switcher selects (see
+    // `data/waveStyles.ts`): the procedural sea (`wave`) or the tiling ripple map
+    // (`ripple`).
     water: {
       metalness: 0,
-      absorption: [0.95, 0.5, 0.32],
-      waterTint: '#0a2b4d',
       revealGamma: 0.7,
       // The surf colour and the view/distance fade are shared by both wave
       // styles; only the normal source below differs.

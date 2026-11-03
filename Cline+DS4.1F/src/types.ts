@@ -174,6 +174,25 @@ export type SeawaterModeId = 'surface' | 'volumetric'
  */
 export type WaveStyleId = 'spectral' | 'ripples'
 
+/**
+ * The body colour of the volumetric ocean. The panel's "Ocean colour" switcher
+ * offers them side by side (see `data/oceanColours.ts`); only the layered
+ * "volumetric" mode has a body of water to tint, so the switcher is shown only
+ * while that mode is active.
+ *
+ * Each is a Beer's-law water body: an `absorption` (how fast the day map's own
+ * colour is extinguished with depth) and a `waterTint` (the colour the water
+ * scatters back). Together they set how deep and how saturated the sea reads
+ * from orbit, where only the large-scale colour is visible.
+ *
+ *  - `blue`     : the shipped Blue Marble blue — the default.
+ *  - `deep`     : a deeper, more saturated blue, with the day map suppressed
+ *                 harder so the water's own colour dominates.
+ *  - `abyss`    : the darkest option, an almost black ink-blue.
+ *  - `tropical` : a bright turquoise, with the day map's shelves kept bright.
+ */
+export type OceanColourId = 'blue' | 'deep' | 'abyss' | 'tropical'
+
 export interface CustomScale {
   /** 0.2 = strongly compressed sizes, 1 = true relative sizes. */
   sizeExponent: number
