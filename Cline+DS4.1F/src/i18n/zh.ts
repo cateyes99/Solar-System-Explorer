@@ -188,6 +188,9 @@ export const zh: Record<TranslationKey, string> = {
   'planet.swellDetail': '环形细节',
   'planet.swellDetailHint':
     '频谱海洋的细密程度。0% 保持默认的环纹大小；数值越高，波峰逐渐变小、变密，最终成为非常细密的海面。它属于光照效果，球体的形状不会改变。',
+  'planet.skyReflection': '天空反射',
+  'planet.skyReflectionHint':
+    '海面映照天空的程度。垂直俯视水面时几乎没有反射，而掠射角度下几乎全部反射，因此它会在球体边缘形成明亮、随视角变化的波光，让海洋不再像一块扁平的蓝色塑料——从高空或太空看尤其明显。100% 是完整的、符合物理的反射，0% 则只剩深色水体本色和太阳的反光；默认的 60% 略低于大气层自身的光晕。它属于光照效果，球体的形状不会改变，且只属于体积水层。',
   'planet.waveStyle': '海浪模型',
   'planet.waveStyle.spectral': '频谱',
   'planet.waveStyle.spectralHint':
