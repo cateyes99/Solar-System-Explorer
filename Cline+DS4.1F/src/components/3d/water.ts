@@ -615,12 +615,13 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
     // --- The swell's drift ---------------------------------------------------
     // A steady march on top of the flow: the crests are displaced along their own
     // wavefronts at a rate that varies slowly across the globe, so they keep
-    // travelling in their own directions instead of sweeping out and back. The
-    // displacement accumulates with time — uWaveSwellDrift is the rate, in
-    // wavelengths per wave-clock second — and the lifecycle resets it whenever a
-    // system respawns, so it never shears without bound. The direction is a
-    // second low-frequency noise field, so neighbouring regions march different
-    // ways.
+    // travelling in their own directions instead of sweeping out and back.
+    // uWaveSwellDrift is the rate, in wavelengths per wave-clock second, and the
+    // displacement accumulates over the system's *current generation* (see the
+    // age variable below) — so it resets whenever the axis jumps, and the shear
+    // stays bounded.
+    // The direction is a second low-frequency noise field, so neighbouring
+    // regions march different ways.
     vec3 swellDrift = vec3(
       waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + 91.0),
       waveNoise(nObj * uWaveScale * uWaveSwellFlowScale + 123.0),
@@ -648,6 +649,9 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
       // the envelope is exactly zero when the axis jumps, so a respawn never pops.
       // uWaveLife <= 0 switches the lifecycle off and pins every axis in place.
       float env = 1.0;
+      // How long this system has been alive in its current generation — the clock
+      // the drift accumulates on, so it resets when the axis jumps.
+      float age = uWaveTime;
       vec3 K0 = vec3(0.0, 1.0, 0.0);
       if (uWaveLife > 0.0) {
         // A staggered lifetime per component, so they do not all turn over at once.
@@ -655,6 +659,7 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
         float life = uWaveTime / period + waveHash(vec3(fi + 0.5, 29.0, 47.0));
         float gen = floor(life);
         float f = fract(life);
+        age = f * period;
         float fadeFrac = clamp(uWaveLifeFade, 0.01, 0.49);
         env = smoothstep(0.0, fadeFrac, f) * smoothstep(0.0, fadeFrac, 1.0 - f);
         // Where the source respawns. A fresh random axis all too often lands right
@@ -709,7 +714,7 @@ export const WATER_FRAGMENT_WAVE_NORMAL = /* glsl */ `
                   + waveHash(vec3(fi + 0.5, 11.0, 5.0)) * 6.2831853
                   + warp * uWaveWarpAmount * kBase
                   + dot(swellFlow, KTangent) * k * uWaveSwellFlow
-                  + dot(swellDrift, KTangent) * k * uWaveSwellDrift * uWaveTime;
+                  + dot(swellDrift, KTangent) * k * uWaveSwellDrift * age;
       swellGrad += (amp * kBase * cos(phase)) * KTangent;
     }
 

@@ -739,7 +739,7 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         chopFlowRate: 1, // 0–4
         // Master speed for the whole chop pattern: 1 = shipped, up to 100 for a
         // fast, obvious drift. Scales both the uniform drift and the flow.
-        chopDrift: 2, // 0–100
+        chopDrift: 3, // 0–100
         // The swell spectrum's amplitude, and the globe-wide wind that turns and
         // scales it per region: ~1/3.5 radian features means the wave direction
         // changes over roughly 1,000–2,000 km, and it bends each swell by up to
