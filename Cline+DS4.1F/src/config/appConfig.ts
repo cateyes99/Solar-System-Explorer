@@ -71,6 +71,13 @@ export interface AppConfig {
    */
   earthWaveIntensity: number
   /**
+   * How fine and dense the volumetric ocean's rings/arcs are, 0…1 (store:
+   * `earthSwellDetail`). 0 is the normal shipped ring size; higher scrunches the
+   * crests progressively smaller and more numerous. Only the layered water body
+   * acts on it. See `data/visuals.ts` (`swellDetail`).
+   */
+  earthSwellDetail: number
+  /**
    * Which wave model the volumetric ocean draws (store: `earthWaveStyle`).
    * `spectral` is the living, procedural sea; `ripples` is the original tiling
    * normal map. Both are chosen under Volumetric mode. See `data/waveStyles.ts`.
@@ -109,6 +116,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthSeawaterOpacity: 1,
   earthSeaLevel: 1,
   earthWaveIntensity: WAVE_INTENSITY_DEFAULT,
+  earthSwellDetail: 0,
   earthWaveStyle: DEFAULT_WAVE_STYLE,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
@@ -138,6 +146,7 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Seawater Opacity', min: 0, max: 1, set: (c, v) => { c.earthSeawaterOpacity = v } },
   { key: 'Earth Sea Level', min: 0, max: 1, set: (c, v) => { c.earthSeaLevel = v } },
   { key: 'Earth Wave Intensity', min: 0, max: 1, set: (c, v) => { c.earthWaveIntensity = v } },
+  { key: 'Earth Swell Detail', min: 0, max: 1, set: (c, v) => { c.earthSwellDetail = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -325,6 +334,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthSeawaterOpacity: config.earthSeawaterOpacity,
     earthSeaLevel: config.earthSeaLevel,
     earthWaveIntensity: config.earthWaveIntensity,
+    earthSwellDetail: config.earthSwellDetail,
     earthWaveStyle: config.earthWaveStyle,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,

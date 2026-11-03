@@ -289,6 +289,22 @@ export interface WaterWaveVisuals {
    */
   swellDrift: number
   /**
+   * A static shear that scrunches the crests finer and denser — the same field
+   * as `swellDrift`, but held still instead of marching. This is the "fine,
+   * dense rings" look: 0 keeps the normal ring size, and higher makes the crests
+   * progressively smaller and more numerous.
+   *
+   * Useful range **0 – 80** (default 0). ~10 is a mild finer texture; ~40–60 is
+   * the very fine, dense sea (the old drift bug's look); beyond ~100 it reads as
+   * noise. It is driven live by the panel's "Ring detail" slider.
+   */
+  swellDetail: number
+  /**
+   * The shear value the "Ring detail" slider reaches at 100% (the slider itself
+   * is 0…1). ~80 reaches the very fine, dense sea.
+   */
+  swellDetailMax: number
+  /**
    * The crest warp's spatial frequency, relative to `scale`. Every spectral
    * component's phase is offset by a shared low-frequency field of this scale,
    * so the wavefronts wander instead of closing into rings around each plane
@@ -760,6 +776,11 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // second (~per lifetime). 0 = the flow's out-and-back sweep only;
         // higher marches the crests one way. ~1–2 clear; above ~3 shears.
         swellDrift: 1.5, // 0–10
+        // A static shear that scrunches the crests finer and denser. 0 = the
+        // normal ring size; higher = progressively finer and more numerous.
+        // Driven live by the panel's "Ring detail" slider.
+        swellDetail: 0, // 0–80
+        swellDetailMax: 80, // the "Ring detail" slider's top end
         // The crest warp: a low-frequency field that offsets every component's
         // phase, so the swells wander and interleave instead of closing into
         // rings around each plane wave's pole. ~1 wavelength of wander. Tune the

@@ -63,6 +63,12 @@
   // living sea; 1 = the tuned maximum, a rough sea that breaks on the coast.
   // It has no effect in the "surface" mode, which has no waves.
   "Earth Wave Intensity": 0.25,
+  // How fine and dense the spectral sea's rings and arcs are, 0 to 1. 0 (the
+  // default) keeps the normal shipped ring size; raising it scrunches the crests
+  // progressively smaller and more numerous, up to a very fine, dense sea. It has
+  // no effect in the "surface" mode or on the "ripples" wave model. The planet
+  // panel's "Ring detail" slider is the live version of this value.
+  "Earth Swell Detail": 0,
   // Which wave model the "volumetric" ocean draws. "spectral" (the default) is
   // the living, procedural sea — a directional wave spectrum that keeps changing
   // shape, never a moving picture. "ripples" is the original tiling ripple normal
