@@ -180,18 +180,23 @@ export type WaveStyleId = 'spectral' | 'ripples'
  * "volumetric" mode has a body of water to tint, so the switcher is shown only
  * while that mode is active.
  *
- * Each is a Beer's-law water body: an `absorption` (how fast the day map's own
- * colour is extinguished with depth) and a `waterTint` (the colour the water
- * scatters back). Together they set how deep and how saturated the sea reads
- * from orbit, where only the large-scale colour is visible.
+ * Most are a `waterTint` — the colour the sea takes on — plus an `absorption`
+ * that darkens the deep basins. The day map's own ocean colour is recoloured by
+ * the tint (its brightness kept, its own blue replaced), so the chosen colour is
+ * the colour seen from orbit, where only the large-scale colour is visible.
  *
- *  - `blue`     : the shipped Blue Marble blue — the default.
- *  - `deep`     : a deeper, more saturated blue, with the day map suppressed
- *                 harder so the water's own colour dominates.
+ * The three words `data/oceanColours.ts` defines — **default**, **natural** and
+ * **original** — mean the same here:
+ *
+ *  - `natural`  : no tint at all, so the day map's own ocean colour is kept
+ *                 exactly as it is, with no recolouring. It leads the switcher as
+ *                 the reference every other preset recolours from.
+ *  - `blue`     : the **default** — a deep navy recolour of the day map.
+ *  - `deep`     : a deeper, more saturated blue.
  *  - `abyss`    : the darkest option, an almost black ink-blue.
- *  - `tropical` : a bright turquoise, with the day map's shelves kept bright.
+ *  - `tropical` : a bright turquoise.
  */
-export type OceanColourId = 'blue' | 'deep' | 'abyss' | 'tropical'
+export type OceanColourId = 'blue' | 'deep' | 'abyss' | 'tropical' | 'natural'
 
 export interface CustomScale {
   /** 0.2 = strongly compressed sizes, 1 = true relative sizes. */

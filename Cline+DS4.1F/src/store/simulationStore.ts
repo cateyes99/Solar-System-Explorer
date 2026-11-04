@@ -206,11 +206,12 @@ export interface SimulationState {
    */
   earthSkyReflection: number
   /**
-   * The body colour of the "volumetric" ocean: the shipped Blue Marble blue, a
-   * deeper and more saturated blue, an almost black abyss, or a bright tropical
-   * turquoise. Each option carries its own Beer's-law `absorption` and
-   * `waterTint` (see `data/oceanColours.ts`), and only the layered water mesh
-   * acts on it. It is the panel's "Ocean colour" switcher.
+   * The body colour of the "volumetric" ocean: a deep navy (the default), a
+   * deeper and more saturated blue, an almost black abyss, a bright tropical
+   * turquoise, or the day map's own colour left unrecoloured ("natural"). Most
+   * options are a `waterTint` (the hue the sea takes on) plus an `absorption`
+   * that darkens the deep basins (see `data/oceanColours.ts`), and only the
+   * layered water mesh acts on it. It is the panel's "Ocean colour" switcher.
    */
   earthOceanColour: OceanColourId
   /**
@@ -435,8 +436,8 @@ const initialState: SimulationState = {
   // rather than plastic, while sitting just under the atmosphere's own glow. The
   // slider can thin it to nothing or push it to the full physical weight.
   earthSkyReflection: 0.6,
-  // The Blue Marble blue by default: the colour the rest of the ocean's look was
-  // tuned against, with the deeper blues and the turquoise a switch away.
+  // The deep navy by default: the colour the rest of the water's look was tuned
+  // against, with the day map's own colour and the other tints a switch away.
   earthOceanColour: DEFAULT_OCEAN_COLOUR,
   // The living, procedural sea is the default wave model; the tiling ripples are
   // the alternative the viewer can switch to under Volumetric mode.

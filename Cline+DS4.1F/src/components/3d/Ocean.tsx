@@ -127,10 +127,12 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
   )
 
   const material = useMemo(() => {
-    // The material always carries the ripple normal map: it is the base layer of
-    // the "ripples" style, and the spectral style resets `normal` to the
-    // geometric one so it costs only the (unused) fetch. The day map still
-    // supplies the ocean's real colour, which Beer's law then attenuates.
+    // The day map is kept only for its *brightness*: `water.ts` recolours its
+    // ocean by the chosen "Ocean colour" preset, keeping the real sediment and
+    // shelf shading but replacing the day map's own blue with the preset's tint.
+    // The material also carries the ripple normal map, which is the base layer
+    // of the "ripples" style; the spectral style resets `normal` to the
+    // geometric one and ignores it.
     const water = new MeshStandardMaterial({
       map: getTexture('earth'),
       // Each wave style has its own roughness; this is the default style's, and
@@ -198,7 +200,10 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
       colour.absorption[1],
       colour.absorption[2],
     )
-    uniforms.uniforms.uWaterTint.value.set(colour.waterTint)
+    // `natural` has no tint, so it keeps the day map's own ocean colour; the
+    // rest recolour it.
+    uniforms.uniforms.uWaterTint.value.set(colour.waterTint ?? '#ffffff')
+    uniforms.uniforms.uWaterRecolour.value = colour.waterTint ? 1 : 0
     // Tell the shader which branch to take (0 = spectral, 1 = ripples), and give
     // the surface that style's own specular roughness.
     uniforms.uniforms.uWaveStyle.value = style === 'ripples' ? 1 : 0

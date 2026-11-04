@@ -88,10 +88,11 @@ export interface AppConfig {
    */
   earthSkyReflection: number
   /**
-   * The volumetric ocean's body colour (store: `earthOceanColour`). `blue` is
-   * the shipped Blue Marble blue, `deep` a deeper and more saturated blue,
-   * `abyss` an almost black ink-blue, and `tropical` a bright turquoise. Only
-   * the layered water body acts on it. See `data/oceanColours.ts`.
+   * The volumetric ocean's body colour (store: `earthOceanColour`). `blue` is a
+   * deep navy (the default), `deep` a deeper and more saturated blue, `abyss` an
+   * almost black ink-blue, `tropical` a bright turquoise, and `natural` the day
+   * map's own ocean colour left unrecoloured. Only the layered water body acts
+   * on it. See `data/oceanColours.ts`.
    */
   earthOceanColour: OceanColourId
   /**
