@@ -57,6 +57,12 @@ export interface WaterUniforms {
     uWaterAbsorption: { value: Vector3 }
     uWaterTint: { value: Color }
     /**
+     * 1 to recolour the day map's ocean by `uWaterTint`, 0 to leave the day
+     * map's own colour exactly as it is (the `natural` preset). See
+     * `data/oceanColours.ts`.
+     */
+    uWaterRecolour: { value: number }
+    /**
      * Which wave model draws the surface: 0 = the procedural "spectral" field,
      * 1 = the tiling "ripples" normal map. Both are compiled into the shader and
      * the choice is a uniform, so switching styles never rebuilds the material
@@ -239,7 +245,10 @@ export function createWaterUniforms(binding: WaterBinding): WaterUniforms {
       uWaterAlpha: { value: waterAlpha(binding.opacity, binding.visuals.revealGamma) },
       uSeaLevelDrop: { value: binding.seaLevelDrop },
       uWaterAbsorption: { value: new Vector3(...binding.colour.absorption) },
-      uWaterTint: { value: new Color(binding.colour.waterTint) },
+      // `natural` has no tint, so it keeps the day map's colour (`uWaterRecolour`
+      // is 0); the others recolour it.
+      uWaterTint: { value: new Color(binding.colour.waterTint ?? '#ffffff') },
+      uWaterRecolour: { value: binding.colour.waterTint ? 1 : 0 },
       // 0 = spectral (the default); `Ocean.tsx` writes 1 for the ripples style.
       uWaveStyle: { value: 0 },
       // Inert until the slider is raised: a flat field, no chop, no surf.
@@ -336,6 +345,7 @@ uniform float uWaterAlpha;
 uniform float uSeaLevelDrop;
 uniform vec3 uWaterAbsorption;
 uniform vec3 uWaterTint;
+uniform float uWaterRecolour;
 uniform float uWaveStyle;
 uniform float uWaveTime;
 uniform float uWaveStrength;
@@ -481,14 +491,17 @@ float waterRippleFade(vec3 viewNormal) {
 
 /**
  * Injected after `map_fragment`, so `diffuseColor` already holds the day map's
- * own ocean colour — the water keeps the planet's real hue and simply attenuates
- * it with depth. The alpha is the water mask (1 over open water, fading out
- * across the coast) times the slider's alpha.
+ * own ocean colour. The water **recolours** that colour with the chosen preset's
+ * tint (see `data/oceanColours.ts`): the day map's brightness is kept — it
+ * carries the real sediment and shelf shading — but its hue is replaced, because
+ * mixing it in per channel was what made every preset drift back toward the
+ * day map's own blue. The alpha is still the water mask (1 over open water,
+ * fading out across the coast) times the slider's alpha.
  *
  * The sea-level drop trims the water column: `waterDepth` becomes the *filled*
- * depth, so the Beer's-law tint is measured through the water that is actually
- * there, and anything above the new waterline (where the floor now stands proud
- * of the lowered surface) is discarded, exposing the seafloor mesh beneath.
+ * depth, so the tint is measured through the water that is actually there, and
+ * anything above the new waterline (where the floor now stands proud of the
+ * lowered surface) is discarded, exposing the seafloor mesh beneath.
  */
 export const WATER_FRAGMENT_BODY = /* glsl */ `
 {
@@ -501,11 +514,25 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
   // Above the waterline the floor is exposed; the opaque seafloor mesh already
   // covers these pixels, so the water steps aside.
   if (waterDepth <= 0.0) discard;
-  // Beer's law, per channel: the water body absorbs its own colour with depth,
-  // so a shallow shelf stays the bright day-map blue while the abyss falls away
-  // through teal to navy — driven by the real depth under each pixel.
-  vec3 transmittance = exp(-uWaterAbsorption * waterDepth);
-  diffuseColor.rgb = diffuseColor.rgb * transmittance + uWaterTint * (1.0 - transmittance);
+  // The water's colour. For a tinted preset the day map's ocean is recoloured:
+  // its *hue* is the day map's own blue, which the preset replaces — mixing it
+  // in per channel was what made every preset drift back toward blue — but its
+  // *brightness* carries the real sediment, shelf and basin shading, so the
+  // recoloured sea keeps that texture instead of going flat. It is normalised
+  // against a typical open-ocean brightness and gently compressed, so a normal
+  // sea is about the tint itself, the shelves a little brighter and the deep
+  // basins a little darker. The "natural" preset instead leaves the day map's
+  // own colour untouched, which is what uWaterRecolour selects.
+  const float DAY_OCEAN_LUMA = 0.12;
+  float dayLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float texture = mix(0.78, 1.22, clamp(dayLuma / DAY_OCEAN_LUMA, 0.0, 1.0));
+  // The deepest basins also sit a touch darker than the shelves, from the water's
+  // own absorption, so the abyssal plains read deep even where the day map's own
+  // shading is flat.
+  float waterAbsorb = dot(uWaterAbsorption, vec3(0.2126, 0.7152, 0.0722));
+  float depthFade = 1.0 - exp(-waterAbsorb * waterDepth * 3.0);
+  vec3 recoloured = uWaterTint * texture * mix(1.12, 1.0, depthFade);
+  diffuseColor.rgb = mix(diffuseColor.rgb, recoloured, uWaterRecolour);
   diffuseColor.a = waterMask * uWaterAlpha;
   // The coastal surf: a soft band on the *water* side of the shore, gated to the
   // shallows, brightened by an animated foam term. It is invisible in a gentle
