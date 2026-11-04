@@ -497,12 +497,14 @@ export interface WaterSurfaceVisuals {
  * parallax that comes from the two surfaces being at different radii. The layer
  * carries three things a liquid surface needs:
  *
- *  - **Beer's-law body colour**, chosen by the panel's "Ocean colour" switcher
- *    (see `data/oceanColours.ts`). Each option's `absorption` is the per-channel
- *    extinction of the water itself and its `waterTint` is the colour it scatters
- *    back, so a shallow shelf keeps the bright day-map blue while the abyss falls
- *    away through teal to navy, driven by the real depth under each pixel. The
- *    options are the deep blues (and one tropical turquoise) that read from a
+ *  - **A water-body colour**, chosen by the panel's "Ocean colour" switcher (see
+ *    `data/oceanColours.ts`). The preset's `waterTint` sets the sea's hue: the
+ *    day map's own ocean colour is recoloured by it, keeping the real sediment
+ *    and shelf shading as a brightness variation but replacing the day map's own
+ *    blue.
+ *    The preset's `absorption` then darkens the deep basins a touch, and one
+ *    option (`natural`) instead leaves the day map's colour untouched. The
+ *    options are the deep blues (plus a tropical turquoise) that read from a
  *    high altitude or from space.
  *  - **A wave field**, chosen by the panel's wave-style switcher (see
  *    `data/waveStyles.ts`). Either the living, procedural sea (`wave`) or the

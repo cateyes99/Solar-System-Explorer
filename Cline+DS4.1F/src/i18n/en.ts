@@ -203,16 +203,19 @@ export const en = {
   'planet.oceanColour': 'Ocean colour',
   'planet.oceanColour.blue': 'Blue',
   'planet.oceanColour.blueHint':
-    'The Blue Marble blue. The day map’s own colour still shows through at depth, so the shelves and the deep basins keep their real variation — the ocean as it appears in a photograph of Earth.',
+    'A deep navy, and the default. The real ocean’s sediment and shelf shading is kept, but its colour is recoloured to this deeper blue — the sea as it looks from orbit, away from the sun’s glare. Choose “Natural” for the day map’s own colour instead.',
   'planet.oceanColour.deep': 'Deep blue',
   'planet.oceanColour.deepHint':
-    'A deeper, more saturated blue. The water absorbs the day map harder and scatters back a richer blue, so the open ocean reads as one deep field — the colour of the sea seen from orbit, away from the sun’s glare.',
+    'A deeper, more saturated blue than the default. The real ocean’s shading is kept, but recoloured to a richer blue, so the open ocean reads as one deep field — the colour of the sea seen from orbit, away from the sun’s glare.',
   'planet.oceanColour.abyss': 'Abyss',
   'planet.oceanColour.abyssHint':
-    'The darkest option: an almost black ink-blue. Nearly all of the day map is absorbed, so only the sun glint and the sky reflection lift it — a near-lightless, deep-ocean blue.',
+    'The darkest option: an almost black ink-blue. The real shading is kept but recoloured so dark that only the sun glint and the sky reflection lift it — a near-lightless, deep-ocean blue.',
   'planet.oceanColour.tropical': 'Tropical',
   'planet.oceanColour.tropicalHint':
-    'A bright lagoon turquoise. The water absorbs little, so the day map’s shallow shelves stay luminous and the sea leans green — the clear, sunlit water of a tropical shelf.',
+    'A bright lagoon turquoise. Recoloured green-leaning with the basins darkened only gently, so the shallow shelves stay luminous — the clear, sunlit water of a tropical shelf.',
+  'planet.oceanColour.natural': 'Natural',
+  'planet.oceanColour.naturalHint':
+    'The day map’s own ocean colour, kept exactly as it is with no recolouring — the real Blue Marble sea. Sediment plumes, the bright shelves and the deep basins all read as they were actually photographed.',
   'planet.seawaterOpacity': 'Seawater opacity',
   'planet.seawaterOpacityHint':
     'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',

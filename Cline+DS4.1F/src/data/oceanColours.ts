@@ -3,12 +3,25 @@ import type { OceanColourId } from '../types'
 /**
  * The body colours the volumetric ocean can be tinted with.
  *
- * They are the choices under the panel's "Ocean colour" switcher. The ocean is a
- * Beer's-law water body, so each option is two numbers rather than one: an
- * `absorption` — the per-channel extinction that decides how fast the day map's
- * own colour is swallowed with depth — and a `waterTint`, the colour the water
- * scatters back where it is deep. Together they set how deep and how saturated
- * the sea reads from orbit, where all you can see is the large-scale colour.
+ * They are the choices under the panel's "Ocean colour" switcher. Most options
+ * are a `waterTint` — the colour the sea takes on, which is what you see from
+ * orbit — plus an `absorption` that darkens the deep basins. The day map's own
+ * ocean colour is recoloured by the tint: its real sediment and shelf shading
+ * survives as a brightness variation, but its own blue does not, so the colour
+ * you pick is the colour you get (a black tint really is black).
+ *
+ * The exception is `natural`, which has **no** `waterTint`: it leaves the day
+ * map's own ocean colour exactly as it is, with no recolouring at all.
+ *
+ * Three words are used consistently across these docs and the panel:
+ *
+ *  - **default** — the preset the app starts on, `blue` (see
+ *    `DEFAULT_OCEAN_COLOUR`). It is not the first entry in the list.
+ *  - **natural** — the preset with no tint, which keeps the day map's own ocean
+ *    colour. Its look is "the day map's own colour".
+ *  - **original** — the ocean's appearance *before* these presets existed (the
+ *    old `dayMap * T + tint * (1 − T)` mix). Neither `blue` nor `natural`
+ *    reproduces it exactly, so the word is only used historically.
  *
  * The numbers are tuned for the view from a high altitude or from space, not for
  * a close-up: they change the body colour only, never the waves, the sky
@@ -21,22 +34,37 @@ export interface OceanColour {
   /** i18n key for the one-line description shown under the switcher. */
   hintKey: string
   /**
-   * Beer–Lambert extinction of the water body, linear RGB. Red is absorbed
-   * first, which is what leaves deep water blue; raising all three darkens the
-   * sea and lets the tint take over from the day map.
+   * Beer–Lambert extinction of the water body, linear RGB. Its overall level
+   * sets how quickly the water reaches its deep colour: the higher it is, the
+   * sooner the basins fall away from the brighter shelves. Unused by `natural`,
+   * whose depth shading already comes from the day map.
    */
   absorption: [number, number, number]
-  /** The colour the water scatters back where it is deep. */
-  waterTint: string
+  /**
+   * The colour the water is — the tint it takes on, deep or shallow. Omitted by
+   * `natural`, which keeps the day map's own ocean colour instead.
+   */
+  waterTint?: string
 }
 
 export const OCEAN_COLOURS: readonly OceanColour[] = [
   {
+    id: 'natural',
+    labelKey: 'planet.oceanColour.natural',
+    hintKey: 'planet.oceanColour.naturalHint',
+    // No tint: the day map's own ocean colour is left exactly as it is, with no
+    // recolouring — sediment, shelves and basins and all. It leads the switcher
+    // as the reference every other preset recolours from. The absorption is
+    // unused here (the day map already carries the depth shading), but kept for
+    // the shared shape.
+    absorption: [0.95, 0.5, 0.32],
+  },
+  {
     id: 'blue',
     labelKey: 'planet.oceanColour.blue',
     hintKey: 'planet.oceanColour.blueHint',
-    // The shipped Blue Marble blue: the day map's own colour still reads at
-    // depth, so the shelves and basins keep their real variation.
+    // The default: a deep navy. The day map's real sediment and shelf shading is
+    // kept as a brightness variation, but its colour is recoloured to this blue.
     absorption: [0.95, 0.5, 0.32],
     waterTint: '#0a2b4d',
   },
@@ -70,14 +98,19 @@ export const OCEAN_COLOURS: readonly OceanColour[] = [
 ]
 
 /**
- * The colour the app ships with: the Blue Marble blue. It is the one the rest of
- * the ocean's look was tuned against, so it is the default.
+ * The **default** preset: a deep navy that recolours the day map's ocean. It is
+ * the one the rest of the water's look was tuned against, so the app starts on
+ * it — and note it is not the first entry in the list, which is `natural`.
  */
 export const DEFAULT_OCEAN_COLOUR: OceanColourId = 'blue'
 
 /** Looks a colour up by id, falling back to the default for an unknown value. */
 export function oceanColourFor(id: OceanColourId | undefined): OceanColour {
-  return OCEAN_COLOURS.find((colour) => colour.id === id) ?? OCEAN_COLOURS[0]
+  return (
+    OCEAN_COLOURS.find((colour) => colour.id === id) ??
+    OCEAN_COLOURS.find((colour) => colour.id === DEFAULT_OCEAN_COLOUR) ??
+    OCEAN_COLOURS[0]
+  )
 }
 
 /** True when the value names an ocean colour the app knows about. */
