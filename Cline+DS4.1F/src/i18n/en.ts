@@ -203,16 +203,16 @@ export const en = {
   'planet.oceanColour': 'Ocean colour',
   'planet.oceanColour.blue': 'Blue',
   'planet.oceanColour.blueHint':
-    'A deep navy, and the default. The real ocean’s sediment and shelf shading is kept, but its colour is recoloured to this deeper blue — the sea as it looks from orbit, away from the sun’s glare. Choose “Natural” for the day map’s own colour instead.',
+    'The default: a teal-blue over the shallow shelves that deepens to navy in the basins. The real ocean’s sediment and shelf shading is kept, but its colour is recoloured to this blue — the sea as it looks from orbit. Choose “Natural” for the day map’s own colour instead.',
   'planet.oceanColour.deep': 'Deep blue',
   'planet.oceanColour.deepHint':
-    'A deeper, more saturated blue than the default. The real ocean’s shading is kept, but recoloured to a richer blue, so the open ocean reads as one deep field — the colour of the sea seen from orbit, away from the sun’s glare.',
+    'A deeper, more saturated pair than the default: a blue-teal shelf over a richer, purer blue basin, so the open ocean reads as one deep field — the colour of the sea seen from orbit, away from the sun’s glare.',
   'planet.oceanColour.abyss': 'Abyss',
   'planet.oceanColour.abyssHint':
-    'The darkest option: an almost black ink-blue. The real shading is kept but recoloured so dark that only the sun glint and the sky reflection lift it — a near-lightless, deep-ocean blue.',
+    'The darkest option: a dark steel shelf falling to an almost black ink-blue basin that only the sun glint and the sky reflection lift — a near-lightless, deep-ocean blue.',
   'planet.oceanColour.tropical': 'Tropical',
   'planet.oceanColour.tropicalHint':
-    'A bright lagoon turquoise. Recoloured green-leaning with the basins darkened only gently, so the shallow shelves stay luminous — the clear, sunlit water of a tropical shelf.',
+    'A bright lagoon turquoise over a slightly deeper teal, with the basins darkened only gently, so the shallow shelves stay luminous — the clear, sunlit water of a tropical shelf.',
   'planet.oceanColour.natural': 'Natural',
   'planet.oceanColour.naturalHint':
     'The day map’s own ocean colour, kept exactly as it is with no recolouring — the real Blue Marble sea. Sediment plumes, the bright shelves and the deep basins all read as they were actually photographed.',
