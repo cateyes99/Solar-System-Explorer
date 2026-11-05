@@ -6,6 +6,10 @@ textured with **real, NASA-derived map data** (Blue Marble for Earth, MESSENGER 
 Cassini for Saturn and its rings, and so on), shipped inside the app so nothing is fetched while
 it runs.
 
+Built with AI coding agents: ***Cline*** with the free ***DeepSeek V4.1 Flash*** to begin with,
+then ***OpenCode CLI V2*** with the free ***DeepSeek V4.1 Flash*** offered by ***Token Harbor***,
+and finally ***OpenCode CLI V2*** with the free ***DeepSeek V4.1 Flash*** on ***Nvidia***.
+
 > **Real spacing, honest sizes.** The app opens in **Real Distances** mode, where the planets sit at
 > their true relative distances from the Sun — Mercury huddles close, Neptune stands alone in the
 > dark — while planet sizes are compressed just enough to stay visible and clickable. Three other
