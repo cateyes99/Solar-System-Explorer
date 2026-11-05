@@ -77,17 +77,17 @@
   // the "surface" mode. The planet panel's "Sky reflection" slider is the live
   // version of this value.
   "Earth Sky Reflection": 0.6,
-  // The body colour of the "volumetric" ocean. "natural" (the first option)
-  // leaves the day map's own ocean colour exactly as it is, with no recolouring;
-  // the others recolour it, and are two-tone — a shallow shelf colour falling to
-  // a deep basin colour. "blue" (the default) is a teal shelf over a deep navy
+  // The body colour of the "volumetric" ocean. "natural" (the default, and the
+  // first option) leaves the day map's own ocean colour exactly as it is, with no
+  // recolouring; the others recolour it, and are two-tone — a shallow shelf colour
+  // falling to a deep basin colour. "blue" is a teal shelf over a deep navy
   // basin; "deep" is a deeper, more saturated pair; "abyss" is a steel shelf over
   // an almost black ink-blue basin; and "tropical" is a bright lagoon turquoise
   // over a slightly deeper teal. They change only the water's colour, never its
   // waves or reflections. It has no effect in the "surface" mode. The planet
   // panel's "Ocean colour" switcher is the live version of this value, and it is
   // shown only while the "volumetric" mode is active.
-  "Ocean Colour": "blue",
+  "Ocean Colour": "natural",
   // How wide the "volumetric" ocean's shallow-shelf band is, from 0 to 0.2.
   // This is the water depth (as a fraction of the ocean's full depth) at which
   // the shallow shelf colour has fully given way to the deep basin colour, so a
