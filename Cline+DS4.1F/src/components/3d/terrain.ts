@@ -212,6 +212,7 @@ export const TERRAIN_VERTEX_DISPLACE = /* glsl */ `
 /** The seafloor's own vertex uniforms (shared by the surface material only). */
 export const SEAFLOOR_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uBathyMap;
+uniform sampler2D uWaterMask;
 uniform float uSeafloorScale;
 uniform float uSeafloorExponent;
 uniform float uSeafloorRevealGamma;
@@ -224,8 +225,9 @@ varying vec2 vSeaUv;
  * Sinks the ocean floor by the bathymetry, scaled by the seafloor-relief slider
  * and gated by the seawater opacity. At 100% opacity the term is exactly zero,
  * so the ocean is the same flat sphere it has always been; at 0% the floor drops
- * to its true (exaggerated) depth. Land texels are zero, so the continents never
- * move.
+ * to its true (exaggerated) depth. The drop is also gated by the water mask, so
+ * only water moves: land never does (the bathymetry is zero there), and neither do
+ * the polar ice caps, which sit on deep ocean but are not water.
  *
  * The drop follows the same `(1 − opacity) ^ revealGamma` curve as the colour,
  * so the geometry and the shading always agree on how drained the ocean is. In
@@ -235,10 +237,16 @@ varying vec2 vSeaUv;
 export const SEAFLOOR_VERTEX_DISPLACE = /* glsl */ `
 vSeaUv = uv;
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
-  float bathyTexel = texture2D(uBathyMap, uv + vec2(uTerrainUvOffset, 0.0)).r;
+  vec2 seaUv = uv + vec2(uTerrainUvOffset, 0.0);
+  float bathyTexel = texture2D(uBathyMap, seaUv).r;
   float seaDepth = pow(bathyTexel, uSeafloorExponent);
+  // Only genuine water sinks. The bathymetry grid knows the *sea floor*, not what
+  // floats on it, so it also marks the ice-covered Arctic as deep ocean; the water
+  // mask is 0 there (and over land), which keeps the sea ice — and the continents —
+  // at sea level instead of dropping them to the floor.
+  float water = texture2D(uWaterMask, seaUv).a;
   float drained = pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma);
-  transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained);
+  transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water);
 }
 `
 
