@@ -11,16 +11,16 @@ import {
 /**
  * The ocean-colour registry. Run with `npm test`.
  *
- * The guarantees that matter: the app defaults to the "blue" preset, every
+ * The guarantees that matter: the app defaults to the "natural" preset, every
  * colour carries a usable Beer's-law absorption with a unique id and valid hex
- * tints, the deeper options really do absorb more than the default blue (so
- * their basins read darker), the two-tone presets really do differ end to end,
- * and an unknown id falls back to the default.
+ * tints, the deeper options really do absorb more than blue (so their basins
+ * read darker), the two-tone presets really do differ end to end, and an unknown
+ * id falls back to the default.
  */
 
-test('the default ocean colour is "blue"', () => {
-  assert.equal(DEFAULT_OCEAN_COLOUR, 'blue')
-  assert.equal(oceanColourFor(DEFAULT_OCEAN_COLOUR).id, 'blue')
+test('the default ocean colour is "natural"', () => {
+  assert.equal(DEFAULT_OCEAN_COLOUR, 'natural')
+  assert.equal(oceanColourFor(DEFAULT_OCEAN_COLOUR).id, 'natural')
 })
 
 test('every colour has a unique id, usable numbers and valid tints', () => {
@@ -62,7 +62,7 @@ test('the two-tone presets really are two-tone', () => {
   }
 })
 
-test('the deeper colours absorb more than the default blue', () => {
+test('the deeper colours absorb more than blue', () => {
   const absorbed = (colour: { absorption: number[] }) =>
     colour.absorption.reduce((total, channel) => total + channel, 0)
   const blue = absorbed(oceanColourFor('blue'))
@@ -72,7 +72,7 @@ test('the deeper colours absorb more than the default blue', () => {
   assert.ok(abyss > deep, 'abyss should absorb more than deep')
 })
 
-test('the tropical colour absorbs less than the default blue', () => {
+test('the tropical colour absorbs less than blue', () => {
   const absorbed = (colour: { absorption: number[] }) =>
     colour.absorption.reduce((total, channel) => total + channel, 0)
   assert.ok(absorbed(oceanColourFor('tropical')) < absorbed(oceanColourFor('blue')))

@@ -16,8 +16,10 @@ import type { OceanColourId } from '../types'
  *
  * Three words are used consistently across these docs and the panel:
  *
- *  - **default** — the preset the app starts on, `blue` (see
- *    `DEFAULT_OCEAN_COLOUR`). It is not the first entry in the list.
+ *  - **default** — the preset the app starts on, `natural` (see
+ *    `DEFAULT_OCEAN_COLOUR`), so a new session opens on the unrecoloured day map
+ *    and the other presets are there to be explored. It is the first entry in the
+ *    list.
  *  - **natural** — the preset with no tint, which keeps the day map's own ocean
  *    colour. Its look is "the day map's own colour".
  *  - **original** — the ocean's appearance *before* these presets existed (the
@@ -62,20 +64,20 @@ export const OCEAN_COLOURS: readonly OceanColour[] = [
     id: 'natural',
     labelKey: 'planet.oceanColour.natural',
     hintKey: 'planet.oceanColour.naturalHint',
-    // No tint: the day map's own ocean colour is left exactly as it is, with no
-    // recolouring — sediment, shelves and basins and all. It leads the switcher
-    // as the reference every other preset recolours from. The absorption is
-    // unused here (the day map already carries the depth shading), but kept for
-    // the shared shape.
+    // The default. No tint: the day map's own ocean colour is left exactly as it
+    // is, with no recolouring — sediment, shelves and basins and all. It leads
+    // the switcher as the reference every other preset recolours from, so a new
+    // session opens on the true day map. The absorption is unused here (the day
+    // map already carries the depth shading), but kept for the shared shape.
     absorption: [0.95, 0.5, 0.32],
   },
   {
     id: 'blue',
     labelKey: 'planet.oceanColour.blue',
     hintKey: 'planet.oceanColour.blueHint',
-    // The default: a teal-blue over the shelves falling to a deep navy in the
-    // basins. The day map's real sediment and shelf shading is kept as a
-    // brightness variation; only the hue is replaced.
+    // A teal-blue over the shelves falling to a deep navy in the basins. The day
+    // map's real sediment and shelf shading is kept as a brightness variation;
+    // only the hue is replaced.
     absorption: [0.95, 0.5, 0.32],
     shallowTint: '#1a6b8f',
     deepTint: '#0a2b4d',
@@ -113,11 +115,12 @@ export const OCEAN_COLOURS: readonly OceanColour[] = [
 ]
 
 /**
- * The **default** preset: a teal shelf falling to a deep navy basin. It is the
- * one the rest of the water's look was tuned against, so the app starts on it —
- * and note it is not the first entry in the list, which is `natural`.
+ * The **default** preset: `natural`, which leaves the day map's own ocean colour
+ * unrecoloured. A new session opens on the true day map, with the recolouring
+ * presets as things to explore rather than the starting point. It is also the
+ * first entry in the list.
  */
-export const DEFAULT_OCEAN_COLOUR: OceanColourId = 'blue'
+export const DEFAULT_OCEAN_COLOUR: OceanColourId = 'natural'
 
 /** Looks a colour up by id, falling back to the default for an unknown value. */
 export function oceanColourFor(id: OceanColourId | undefined): OceanColour {

@@ -208,10 +208,10 @@ export interface SimulationState {
    */
   earthSkyReflection: number
   /**
-   * The body colour of the "volumetric" ocean: four two-tone recolours — a teal
-   * shelf over a deep navy basin (`blue`, the default), a deeper pair, a steel
-   * shelf over an ink-blue abyss, and a bright turquoise — plus `natural`, which
-   * leaves the day map's own colour unrecoloured. Most options give a
+   * The body colour of the "volumetric" ocean: `natural` (the default), which
+   * leaves the day map's own colour unrecoloured, plus four two-tone recolours —
+   * a teal shelf over a deep navy basin (`blue`), a deeper pair, a steel shelf
+   * over an ink-blue abyss, and a bright turquoise. Most options give a
    * `shallowTint`/`deepTint` pair (or a single `waterTint`) and an `absorption`
    * that sets how quickly the shelves fall away (see `data/oceanColours.ts`),
    * and only the layered water mesh acts on it. It is the panel's "Ocean colour"
@@ -455,9 +455,8 @@ const initialState: SimulationState = {
   // rather than plastic, while sitting just under the atmosphere's own glow. The
   // slider can thin it to nothing or push it to the full physical weight.
   earthSkyReflection: 0.6,
-  // The teal-over-navy default: the colour the rest of the water's look was
-  // tuned against, with the day map's own colour and the other pairs a switch
-  // away.
+  // The natural default: a new session opens on the day map's own ocean colour,
+  // with the recolouring presets a switch away.
   earthOceanColour: DEFAULT_OCEAN_COLOUR,
   // A thin coastal shelf by default: the deep tint takes over by ~1 km of depth,
   // so the deep basins read as one field and the bathymetry stays off the water.
