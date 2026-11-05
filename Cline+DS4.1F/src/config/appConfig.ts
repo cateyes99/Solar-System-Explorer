@@ -88,11 +88,11 @@ export interface AppConfig {
    */
   earthSkyReflection: number
   /**
-   * The volumetric ocean's body colour (store: `earthOceanColour`). `blue` (the
-   * default), `deep`, `abyss` and `tropical` each recolour the day map as a
-   * two-tone sea — a shallow shelf colour falling to a deep basin colour — while
-   * `natural` leaves the day map's own ocean colour unrecoloured. Only the
-   * layered water body acts on it. See `data/oceanColours.ts`.
+   * The volumetric ocean's body colour (store: `earthOceanColour`). `natural`
+   * (the default) leaves the day map's own ocean colour unrecoloured; `blue`,
+   * `deep`, `abyss` and `tropical` each recolour it as a two-tone sea — a shallow
+   * shelf colour falling to a deep basin colour. Only the layered water body acts
+   * on it. See `data/oceanColours.ts`.
    */
   earthOceanColour: OceanColourId
   /**

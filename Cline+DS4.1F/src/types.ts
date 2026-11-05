@@ -190,10 +190,11 @@ export type WaveStyleId = 'spectral' | 'ripples'
  * The three words `data/oceanColours.ts` defines — **default**, **natural** and
  * **original** — mean the same here:
  *
- *  - `natural`  : no tint at all, so the day map's own ocean colour is kept
- *                 exactly as it is, with no recolouring. It leads the switcher as
- *                 the reference every other preset recolours from.
- *  - `blue`     : the **default** — a teal shelf falling to a deep navy basin.
+ *  - `natural`  : the **default** — no tint at all, so the day map's own ocean
+ *                 colour is kept exactly as it is, with no recolouring. It leads
+ *                 the switcher as the reference every other preset recolours
+ *                 from.
+ *  - `blue`     : a teal shelf falling to a deep navy basin.
  *  - `deep`     : a deeper, more saturated pair.
  *  - `abyss`    : the darkest option, a steel shelf over an ink-blue basin.
  *  - `tropical` : a bright turquoise over a slightly deeper teal.
