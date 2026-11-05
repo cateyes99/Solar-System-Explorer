@@ -53,6 +53,8 @@ export interface SettingsPatch {
   earthSkyReflection?: number
   /** The volumetric ocean's body colour (see `data/oceanColours.ts`). */
   earthOceanColour?: OceanColourId
+  /** How wide the volumetric ocean's shallow-shelf band is (see `earthShallowDepth`). */
+  earthShallowDepth?: number
   /** Which ocean implementation Earth draws (see `data/seawaterModes.ts`). */
   earthSeawaterMode?: SeawaterModeId
   /** Which wave model the volumetric ocean draws (see `data/waveStyles.ts`). */
@@ -206,14 +208,26 @@ export interface SimulationState {
    */
   earthSkyReflection: number
   /**
-   * The body colour of the "volumetric" ocean: a deep navy (the default), a
-   * deeper and more saturated blue, an almost black abyss, a bright tropical
-   * turquoise, or the day map's own colour left unrecoloured ("natural"). Most
-   * options are a `waterTint` (the hue the sea takes on) plus an `absorption`
-   * that darkens the deep basins (see `data/oceanColours.ts`), and only the
-   * layered water mesh acts on it. It is the panel's "Ocean colour" switcher.
+   * The body colour of the "volumetric" ocean: four two-tone recolours — a teal
+   * shelf over a deep navy basin (`blue`, the default), a deeper pair, a steel
+   * shelf over an ink-blue abyss, and a bright turquoise — plus `natural`, which
+   * leaves the day map's own colour unrecoloured. Most options give a
+   * `shallowTint`/`deepTint` pair (or a single `waterTint`) and an `absorption`
+   * that sets how quickly the shelves fall away (see `data/oceanColours.ts`),
+   * and only the layered water mesh acts on it. It is the panel's "Ocean colour"
+   * switcher.
    */
   earthOceanColour: OceanColourId
+  /**
+   * How wide the "volumetric" ocean's shallow-shelf band is: the water depth
+   * (0…1 of the full column) at which the preset's shallow tint has fully given
+   * way to its deep tint. A small value (0.007, the default) leaves only a thin
+   * coastal shelf and keeps the deep basins one uniform field; a large one lets
+   * the shallow tint cover much of the ocean and shows the seafloor's shape. It
+   * is the shader's `smoothstep` edge (see `data/visuals.ts`, `shallowDepth`),
+   * and only the layered water mesh acts on it.
+   */
+  earthShallowDepth: number
   /**
    * Which wave model the "volumetric" ocean draws: the living, procedural
    * "spectral" sea (the default) or the original tiling "ripples" normal map.
@@ -310,6 +324,7 @@ export interface SimulationActions {
   setEarthSwellDetail: (value: number) => void
   setEarthSkyReflection: (value: number) => void
   setEarthOceanColour: (colour: OceanColourId) => void
+  setEarthShallowDepth: (value: number) => void
   setEarthWaveStyle: (style: WaveStyleId) => void
   setEarthSeawaterMode: (mode: SeawaterModeId) => void
 
@@ -380,6 +395,10 @@ const prefersReducedMotion = (): boolean => {
 const clamp01 = (value: number | undefined, fallback: number): number =>
   value === undefined || !Number.isFinite(value) ? fallback : Math.max(0, Math.min(1, value))
 
+/** Keeps the shallow-shelf width inside its accepted 0…0.2 range. */
+const clampShallowDepth = (value: number | undefined, fallback: number): number =>
+  value === undefined || !Number.isFinite(value) ? fallback : Math.max(0, Math.min(0.2, value))
+
 const initialState: SimulationState = {
   paused: false,
   speedIndex: DEFAULT_SPEED_INDEX,
@@ -436,9 +455,13 @@ const initialState: SimulationState = {
   // rather than plastic, while sitting just under the atmosphere's own glow. The
   // slider can thin it to nothing or push it to the full physical weight.
   earthSkyReflection: 0.6,
-  // The deep navy by default: the colour the rest of the water's look was tuned
-  // against, with the day map's own colour and the other tints a switch away.
+  // The teal-over-navy default: the colour the rest of the water's look was
+  // tuned against, with the day map's own colour and the other pairs a switch
+  // away.
   earthOceanColour: DEFAULT_OCEAN_COLOUR,
+  // A thin coastal shelf by default: the deep tint takes over by ~1 km of depth,
+  // so the deep basins read as one field and the bathymetry stays off the water.
+  earthShallowDepth: 0.007,
   // The living, procedural sea is the default wave model; the tiling ripples are
   // the alternative the viewer can switch to under Volumetric mode.
   earthWaveStyle: DEFAULT_WAVE_STYLE,
@@ -616,6 +639,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     if (!isOceanColourId(colour)) return
     set({ earthOceanColour: colour })
   },
+
+  setEarthShallowDepth: (value) =>
+    set({ earthShallowDepth: Math.max(0, Math.min(0.2, value)) }),
 
   setEarthWaveStyle: (style) => {
     if (!isWaveStyleId(style)) return
@@ -797,6 +823,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthOceanColour: isOceanColourId(patch.earthOceanColour)
         ? patch.earthOceanColour
         : state.earthOceanColour,
+      earthShallowDepth: clampShallowDepth(patch.earthShallowDepth, state.earthShallowDepth),
       earthWaveStyle: isWaveStyleId(patch.earthWaveStyle)
         ? patch.earthWaveStyle
         : state.earthWaveStyle,

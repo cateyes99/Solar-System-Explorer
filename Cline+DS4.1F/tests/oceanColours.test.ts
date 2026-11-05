@@ -11,19 +11,21 @@ import {
 /**
  * The ocean-colour registry. Run with `npm test`.
  *
- * The guarantees that matter: the app defaults to the shipped Blue Marble blue,
- * every colour carries a usable Beer's-law absorption and tint with a unique id,
- * the deeper options really do absorb more than the shipped blue (so they read
- * darker and more saturated), and an unknown id falls back to the default.
+ * The guarantees that matter: the app defaults to the "blue" preset, every
+ * colour carries a usable Beer's-law absorption with a unique id and valid hex
+ * tints, the deeper options really do absorb more than the default blue (so
+ * their basins read darker), the two-tone presets really do differ end to end,
+ * and an unknown id falls back to the default.
  */
 
-test('the default ocean colour is the deep navy "blue"', () => {
+test('the default ocean colour is "blue"', () => {
   assert.equal(DEFAULT_OCEAN_COLOUR, 'blue')
   assert.equal(oceanColourFor(DEFAULT_OCEAN_COLOUR).id, 'blue')
 })
 
-test('every colour has a unique id and usable Beer’s-law numbers', () => {
+test('every colour has a unique id, usable numbers and valid tints', () => {
   const ids = new Set<string>()
+  const hex = /^#[0-9a-f]{6}$/i
   for (const colour of OCEAN_COLOURS) {
     assert.ok(!ids.has(colour.id), `duplicate id ${colour.id}`)
     ids.add(colour.id)
@@ -32,19 +34,32 @@ test('every colour has a unique id and usable Beer’s-law numbers', () => {
     for (const channel of colour.absorption) {
       assert.ok(Number.isFinite(channel) && channel > 0, `bad absorption ${channel}`)
     }
-    // `natural` has no tint (it keeps the day map's own colour); the rest do.
-    if (colour.waterTint !== undefined) {
-      assert.match(colour.waterTint, /^#[0-9a-f]{6}$/i)
+    for (const tint of [colour.waterTint, colour.shallowTint, colour.deepTint]) {
+      if (tint !== undefined) assert.match(tint, hex)
     }
   }
 })
 
-test('exactly one colour, "natural", has no tint', () => {
-  const untinted = OCEAN_COLOURS.filter((colour) => colour.waterTint === undefined)
+test('exactly one colour, "natural", has no tint at all', () => {
+  const untinted = OCEAN_COLOURS.filter(
+    (colour) =>
+      colour.waterTint === undefined &&
+      colour.shallowTint === undefined &&
+      colour.deepTint === undefined,
+  )
   assert.deepEqual(
     untinted.map((colour) => colour.id),
     ['natural'],
   )
+})
+
+test('the two-tone presets really are two-tone', () => {
+  for (const id of ['blue', 'deep', 'abyss', 'tropical'] as const) {
+    const colour = oceanColourFor(id)
+    assert.ok(colour.shallowTint !== undefined, `${id} should have a shallow tint`)
+    assert.ok(colour.deepTint !== undefined, `${id} should have a deep tint`)
+    assert.notEqual(colour.shallowTint, colour.deepTint, `${id} should differ end to end`)
+  }
 })
 
 test('the deeper colours absorb more than the default blue', () => {

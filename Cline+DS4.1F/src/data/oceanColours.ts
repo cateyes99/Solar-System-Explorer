@@ -4,14 +4,15 @@ import type { OceanColourId } from '../types'
  * The body colours the volumetric ocean can be tinted with.
  *
  * They are the choices under the panel's "Ocean colour" switcher. Most options
- * are a `waterTint` — the colour the sea takes on, which is what you see from
- * orbit — plus an `absorption` that darkens the deep basins. The day map's own
- * ocean colour is recoloured by the tint: its real sediment and shelf shading
- * survives as a brightness variation, but its own blue does not, so the colour
- * you pick is the colour you get (a black tint really is black).
+ * recolour the day map's ocean: its real sediment and shelf shading survives as a
+ * brightness variation, but its own blue does not, so the colour you pick is the
+ * colour you get (a black tint really is black). A preset gives its colour as a
+ * single `waterTint` — or, for a two-tone sea, as a `shallowTint` for the shelves
+ * and a `deepTint` for the basins, mixed by depth. The `absorption` sets how
+ * quickly the water reaches its deep colour.
  *
- * The exception is `natural`, which has **no** `waterTint`: it leaves the day
- * map's own ocean colour exactly as it is, with no recolouring at all.
+ * The exception is `natural`, which has **no** tint: it leaves the day map's own
+ * ocean colour exactly as it is, with no recolouring at all.
  *
  * Three words are used consistently across these docs and the panel:
  *
@@ -41,10 +42,19 @@ export interface OceanColour {
    */
   absorption: [number, number, number]
   /**
-   * The colour the water is — the tint it takes on, deep or shallow. Omitted by
-   * `natural`, which keeps the day map's own ocean colour instead.
+   * The single colour the water is, used for both the shallow and the deep end
+   * unless `shallowTint`/`deepTint` override them. Omitted by `natural`, which
+   * keeps the day map's own ocean colour instead.
    */
   waterTint?: string
+  /**
+   * The colour of the shallow shelves, where it differs from `waterTint`. The
+   * water mixes from this at the waterline to `deepTint` in the deepest basin,
+   * so a preset can be turquoise over the shelves and navy in the deep.
+   */
+  shallowTint?: string
+  /** The colour of the deep basins, where it differs from `waterTint`. */
+  deepTint?: string
 }
 
 export const OCEAN_COLOURS: readonly OceanColour[] = [
@@ -63,44 +73,49 @@ export const OCEAN_COLOURS: readonly OceanColour[] = [
     id: 'blue',
     labelKey: 'planet.oceanColour.blue',
     hintKey: 'planet.oceanColour.blueHint',
-    // The default: a deep navy. The day map's real sediment and shelf shading is
-    // kept as a brightness variation, but its colour is recoloured to this blue.
+    // The default: a teal-blue over the shelves falling to a deep navy in the
+    // basins. The day map's real sediment and shelf shading is kept as a
+    // brightness variation; only the hue is replaced.
     absorption: [0.95, 0.5, 0.32],
-    waterTint: '#0a2b4d',
+    shallowTint: '#1a6b8f',
+    deepTint: '#0a2b4d',
   },
   {
     id: 'deep',
     labelKey: 'planet.oceanColour.deep',
     hintKey: 'planet.oceanColour.deepHint',
-    // Deeper and more saturated: the day map is suppressed harder, and the tint
-    // is a richer, purer blue, so the open ocean reads as one deep field.
+    // Deeper and more saturated: a blue-teal shelf over a richer, purer blue
+    // basin, so the open ocean reads as one deep field.
     absorption: [1.7, 1, 0.6],
-    waterTint: '#051b4a',
+    shallowTint: '#155a78',
+    deepTint: '#051b4a',
   },
   {
     id: 'abyss',
     labelKey: 'planet.oceanColour.abyss',
     hintKey: 'planet.oceanColour.abyssHint',
-    // The darkest option: nearly all of the day map is absorbed, leaving an
-    // almost black ink-blue that only the sun glint and the sky lift.
+    // The darkest option: a dark steel shelf over an almost black ink-blue basin
+    // that only the sun glint and the sky lift.
     absorption: [2.4, 1.4, 0.85],
-    waterTint: '#03122b',
+    shallowTint: '#0b3a55',
+    deepTint: '#03122b',
   },
   {
     id: 'tropical',
     labelKey: 'planet.oceanColour.tropical',
     hintKey: 'planet.oceanColour.tropicalHint',
-    // Bright and green-leaning: the absorption is low, so the day map's shallow
-    // shelves stay luminous, and the tint is a clear lagoon turquoise.
+    // Bright and green-leaning: a clear lagoon turquoise over a slightly deeper
+    // teal, with the basins darkened only gently.
     absorption: [0.55, 0.28, 0.2],
-    waterTint: '#0f7ba3',
+    shallowTint: '#2f9fb0',
+    deepTint: '#0f7ba3',
   },
 ]
 
 /**
- * The **default** preset: a deep navy that recolours the day map's ocean. It is
- * the one the rest of the water's look was tuned against, so the app starts on
- * it — and note it is not the first entry in the list, which is `natural`.
+ * The **default** preset: a teal shelf falling to a deep navy basin. It is the
+ * one the rest of the water's look was tuned against, so the app starts on it —
+ * and note it is not the first entry in the list, which is `natural`.
  */
 export const DEFAULT_OCEAN_COLOUR: OceanColourId = 'blue'
 
