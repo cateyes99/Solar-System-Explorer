@@ -7,6 +7,7 @@ import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
 import { createBuildQueue } from './buildQueue'
 import { maxTextureSize } from './webgl'
 import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
+import { waterMaskFromColor } from './waterMask'
 
 /**
  * Every surface in the Solar System is mapped here.
@@ -1327,20 +1328,17 @@ function drawScaled(image: HTMLImageElement, targetWidth: number): HTMLCanvasEle
 /**
  * Which pixels of Earth are water?
  *
- * Deep ocean is the only strongly blue-dominant surface on the planet: ice is
- * white (no colour lead at all), deserts lean red and vegetation leans green. So
- * the blue lead of a pixel is a robust water indicator, and a blur afterwards
- * turns coastlines into a gradient instead of a step.
+ * Each pixel is classified by `waterMaskFromColor` (see `utils/waterMask.ts`):
+ * blue-dominant *and* saturated, so the near-neutral polar ice caps read as land
+ * rather than as faintly-blue ocean. A blur afterwards turns coastlines into a
+ * gradient instead of a step.
  */
 function waterMaskFromImage(canvas: HTMLCanvasElement): Float32Array {
   const { width, height } = canvas
   const data = context2d(canvas).getImageData(0, 0, width, height).data
   const mask = new Float32Array(width * height)
   for (let i = 0; i < mask.length; i += 1) {
-    const r = data[i * 4]
-    const g = data[i * 4 + 1]
-    const b = data[i * 4 + 2]
-    mask[i] = clamp((b - Math.max(r, g)) / 30, 0, 1)
+    mask[i] = waterMaskFromColor(data[i * 4], data[i * 4 + 1], data[i * 4 + 2])
   }
   return mask
 }
