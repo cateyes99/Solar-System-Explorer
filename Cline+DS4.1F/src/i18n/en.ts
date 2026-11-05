@@ -200,6 +200,22 @@ export const en = {
   'planet.waveStyle.ripples': 'Ripples',
   'planet.waveStyle.ripplesHint':
     'The original ocean: a tiling ripple normal map slid across the surface. Cheaper, but the pattern repeats.',
+  'planet.oceanColour': 'Ocean colour',
+  'planet.oceanColour.blue': 'Blue',
+  'planet.oceanColour.blueHint':
+    'A teal-blue over the shallow shelves that deepens to navy in the basins. The real ocean’s sediment and shelf shading is kept, but its colour is recoloured to this blue — the sea as it looks from orbit.',
+  'planet.oceanColour.deep': 'Deep blue',
+  'planet.oceanColour.deepHint':
+    'A deeper, more saturated pair than Blue: a blue-teal shelf over a richer, purer blue basin, so the open ocean reads as one deep field — the colour of the sea seen from orbit, away from the sun’s glare.',
+  'planet.oceanColour.abyss': 'Abyss',
+  'planet.oceanColour.abyssHint':
+    'The darkest option: a dark steel shelf falling to an almost black ink-blue basin that only the sun glint and the sky reflection lift — a near-lightless, deep-ocean blue.',
+  'planet.oceanColour.tropical': 'Tropical',
+  'planet.oceanColour.tropicalHint':
+    'A bright lagoon turquoise over a slightly deeper teal, with the basins darkened only gently, so the shallow shelves stay luminous — the clear, sunlit water of a tropical shelf.',
+  'planet.oceanColour.natural': 'Natural',
+  'planet.oceanColour.naturalHint':
+    'The default: the day map’s own ocean colour, kept exactly as it is with no recolouring — the real Blue Marble sea. Sediment plumes, the bright shelves and the deep basins all read as they were actually photographed.',
   'planet.seawaterOpacity': 'Seawater opacity',
   'planet.seawaterOpacityHint':
     'How much of the ocean you can see through. 100% keeps the ocean exactly as it looks; slide toward 0% to drain it and reveal the real seafloor — the trenches, ridges and abyssal plains of the public-domain ETOPO 2022 bathymetry grid. Deeper water, and a view grazing across the surface, hides the floor more, as real water does. The floor is exaggerated vertically, and most of it is predicted from satellite gravity rather than surveyed, so read the shape as a guide, not a chart.',

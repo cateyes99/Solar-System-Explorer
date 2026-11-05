@@ -174,6 +174,33 @@ export type SeawaterModeId = 'surface' | 'volumetric'
  */
 export type WaveStyleId = 'spectral' | 'ripples'
 
+/**
+ * The body colour of the volumetric ocean. The panel's "Ocean colour" switcher
+ * offers them side by side (see `data/oceanColours.ts`); only the layered
+ * "volumetric" mode has a body of water to tint, so the switcher is shown only
+ * while that mode is active.
+ *
+ * Most give their colour as a `waterTint` — or, for a two-tone sea, a
+ * `shallowTint` for the shelves and a `deepTint` for the basins — plus an
+ * `absorption` that sets how quickly the shelves fall away to the deep colour.
+ * The day map's own ocean colour is recoloured by that tint (its brightness
+ * kept, its own blue replaced), so the chosen colour is the colour seen from
+ * orbit, where only the large-scale colour is visible.
+ *
+ * The three words `data/oceanColours.ts` defines — **default**, **natural** and
+ * **original** — mean the same here:
+ *
+ *  - `natural`  : the **default** — no tint at all, so the day map's own ocean
+ *                 colour is kept exactly as it is, with no recolouring. It leads
+ *                 the switcher as the reference every other preset recolours
+ *                 from.
+ *  - `blue`     : a teal shelf falling to a deep navy basin.
+ *  - `deep`     : a deeper, more saturated pair.
+ *  - `abyss`    : the darkest option, a steel shelf over an ink-blue basin.
+ *  - `tropical` : a bright turquoise over a slightly deeper teal.
+ */
+export type OceanColourId = 'blue' | 'deep' | 'abyss' | 'tropical' | 'natural'
+
 export interface CustomScale {
   /** 0.2 = strongly compressed sizes, 1 = true relative sizes. */
   sizeExponent: number

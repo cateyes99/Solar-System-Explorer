@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { MeshStandardMaterial, RepeatWrapping } from 'three'
 import type { BufferGeometry, Mesh, Texture, Vector3 } from 'three'
+import { oceanColourFor } from '../../data/oceanColours'
 import type { WaterVisuals } from '../../data/visuals'
 import { getTexture } from '../../utils/textures'
 import { seaLevelDrop } from '../../utils/seawater'
@@ -119,15 +120,19 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
           maxDepthRadius > 0
             ? seaLevelDrop(useSimulationStore.getState().earthSeaLevel) * deepestFraction
             : 0,
+        // The active body colour; `useFrame` keeps it live as the switcher moves.
+        colour: oceanColourFor(useSimulationStore.getState().earthOceanColour),
       }),
     [visuals, waterMask, bathymetry, depthExponent, uvOffset],
   )
 
   const material = useMemo(() => {
-    // The material always carries the ripple normal map: it is the base layer of
-    // the "ripples" style, and the spectral style resets `normal` to the
-    // geometric one so it costs only the (unused) fetch. The day map still
-    // supplies the ocean's real colour, which Beer's law then attenuates.
+    // The day map is kept only for its *brightness*: `water.ts` recolours its
+    // ocean by the chosen "Ocean colour" preset, keeping the real sediment and
+    // shelf shading but replacing the day map's own blue with the preset's tint.
+    // The material also carries the ripple normal map, which is the base layer
+    // of the "ripples" style; the spectral style resets `normal` to the
+    // geometric one and ignores it.
     const water = new MeshStandardMaterial({
       map: getTexture('earth'),
       // Each wave style has its own roughness; this is the default style's, and
@@ -187,6 +192,24 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
     // 100% is the shipped sheen, 0% leaves only the body colour and the glint.
     uniforms.uniforms.uWaterSkyStrength.value =
       (visuals.surface?.skyStrength ?? 0) * store.earthSkyReflection
+    // The "Ocean colour" switcher writes the body colour straight into its
+    // uniforms, so changing preset never rebuilds the material.
+    const colour = oceanColourFor(store.earthOceanColour)
+    uniforms.uniforms.uWaterAbsorption.value.set(
+      colour.absorption[0],
+      colour.absorption[1],
+      colour.absorption[2],
+    )
+    // The shallow-shelf width is a config value, read live like the rest.
+    uniforms.uniforms.uWaterShallowDepth.value = store.earthShallowDepth
+    // `natural` has no tint, so it keeps the day map's own ocean colour; the
+    // rest recolour it, from the shallow tint over the shelves to the deep tint
+    // in the basins. A preset with only a `waterTint` uses it for both ends.
+    const shallow = colour.shallowTint ?? colour.waterTint
+    const deep = colour.deepTint ?? colour.waterTint
+    uniforms.uniforms.uWaterShallowTint.value.set(shallow ?? '#ffffff')
+    uniforms.uniforms.uWaterDeepTint.value.set(deep ?? '#ffffff')
+    uniforms.uniforms.uWaterRecolour.value = shallow || deep ? 1 : 0
     // Tell the shader which branch to take (0 = spectral, 1 = ripples), and give
     // the surface that style's own specular roughness.
     uniforms.uniforms.uWaveStyle.value = style === 'ripples' ? 1 : 0
