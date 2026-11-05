@@ -79,14 +79,24 @@
   "Earth Sky Reflection": 0.6,
   // The body colour of the "volumetric" ocean. "natural" (the first option)
   // leaves the day map's own ocean colour exactly as it is, with no recolouring;
-  // "blue" (the default) is a deep navy; "deep" is a deeper,
-  // more saturated blue; "abyss" is an almost black ink-blue; and "tropical" is
-  // a bright lagoon turquoise. The tinted options recolour the day map's ocean
-  // (keeping its real sediment and shelf shading); they change only the water's
-  // colour, never its waves or reflections. It has no effect in the "surface"
-  // mode. The planet panel's "Ocean colour" switcher is the live version of this
-  // value, and it is shown only while the "volumetric" mode is active.
+  // the others recolour it, and are two-tone — a shallow shelf colour falling to
+  // a deep basin colour. "blue" (the default) is a teal shelf over a deep navy
+  // basin; "deep" is a deeper, more saturated pair; "abyss" is a steel shelf over
+  // an almost black ink-blue basin; and "tropical" is a bright lagoon turquoise
+  // over a slightly deeper teal. They change only the water's colour, never its
+  // waves or reflections. It has no effect in the "surface" mode. The planet
+  // panel's "Ocean colour" switcher is the live version of this value, and it is
+  // shown only while the "volumetric" mode is active.
   "Ocean Colour": "blue",
+  // How wide the "volumetric" ocean's shallow-shelf band is, from 0 to 0.2.
+  // This is the water depth (as a fraction of the ocean's full depth) at which
+  // the shallow shelf colour has fully given way to the deep basin colour, so a
+  // small value leaves only a thin coastal shelf — the deep ocean stays one
+  // uniform colour, as it looks from orbit — while a large value lets the
+  // shallow colour cover much of the ocean and shows the seafloor's shape.
+  // 0.007 (the default) is a narrow shelf; 0.05 is very wide. It applies to
+  // every "Ocean Colour" except "natural", which keeps the day map's own colour.
+  "Earth Shallow Depth": 0.007,
   // Which wave model the "volumetric" ocean draws. "spectral" (the default) is
   // the living, procedural sea — a directional wave spectrum that keeps changing
   // shape, never a moving picture. "ripples" is the original tiling ripple normal

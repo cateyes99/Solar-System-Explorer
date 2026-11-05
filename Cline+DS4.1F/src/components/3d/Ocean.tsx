@@ -200,10 +200,16 @@ export function Ocean({ radius, geometry, visuals, bathymetry, waterMask, depthE
       colour.absorption[1],
       colour.absorption[2],
     )
+    // The shallow-shelf width is a config value, read live like the rest.
+    uniforms.uniforms.uWaterShallowDepth.value = store.earthShallowDepth
     // `natural` has no tint, so it keeps the day map's own ocean colour; the
-    // rest recolour it.
-    uniforms.uniforms.uWaterTint.value.set(colour.waterTint ?? '#ffffff')
-    uniforms.uniforms.uWaterRecolour.value = colour.waterTint ? 1 : 0
+    // rest recolour it, from the shallow tint over the shelves to the deep tint
+    // in the basins. A preset with only a `waterTint` uses it for both ends.
+    const shallow = colour.shallowTint ?? colour.waterTint
+    const deep = colour.deepTint ?? colour.waterTint
+    uniforms.uniforms.uWaterShallowTint.value.set(shallow ?? '#ffffff')
+    uniforms.uniforms.uWaterDeepTint.value.set(deep ?? '#ffffff')
+    uniforms.uniforms.uWaterRecolour.value = shallow || deep ? 1 : 0
     // Tell the shader which branch to take (0 = spectral, 1 = ripples), and give
     // the surface that style's own specular roughness.
     uniforms.uniforms.uWaveStyle.value = style === 'ripples' ? 1 : 0

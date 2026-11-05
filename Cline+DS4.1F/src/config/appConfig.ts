@@ -88,13 +88,22 @@ export interface AppConfig {
    */
   earthSkyReflection: number
   /**
-   * The volumetric ocean's body colour (store: `earthOceanColour`). `blue` is a
-   * deep navy (the default), `deep` a deeper and more saturated blue, `abyss` an
-   * almost black ink-blue, `tropical` a bright turquoise, and `natural` the day
-   * map's own ocean colour left unrecoloured. Only the layered water body acts
-   * on it. See `data/oceanColours.ts`.
+   * The volumetric ocean's body colour (store: `earthOceanColour`). `blue` (the
+   * default), `deep`, `abyss` and `tropical` each recolour the day map as a
+   * two-tone sea — a shallow shelf colour falling to a deep basin colour — while
+   * `natural` leaves the day map's own ocean colour unrecoloured. Only the
+   * layered water body acts on it. See `data/oceanColours.ts`.
    */
   earthOceanColour: OceanColourId
+  /**
+   * How wide the volumetric ocean's shallow-shelf band is, 0…0.2 (store:
+   * `earthShallowDepth`). It is the water depth (0…1 of the full column) at
+   * which a preset's shallow tint has fully given way to its deep tint, so a
+   * small value leaves only a thin coastal shelf and a large one lets the
+   * shallow tint cover much of the ocean (and shows the seafloor's shape). The
+   * 0.007 default is a narrow shelf. See `data/visuals.ts` (`shallowDepth`).
+   */
+  earthShallowDepth: number
   /**
    * Which wave model the volumetric ocean draws (store: `earthWaveStyle`).
    * `spectral` is the living, procedural sea; `ripples` is the original tiling
@@ -137,6 +146,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthSwellDetail: 0,
   earthSkyReflection: 0.6,
   earthOceanColour: DEFAULT_OCEAN_COLOUR,
+  earthShallowDepth: 0.007,
   earthWaveStyle: DEFAULT_WAVE_STYLE,
   earthSeawaterMode: DEFAULT_SEAWATER_MODE,
   leftPanelOpacity: 1,
@@ -168,6 +178,7 @@ const NUMBER_FIELDS: NumberField[] = [
   { key: 'Earth Wave Intensity', min: 0, max: 1, set: (c, v) => { c.earthWaveIntensity = v } },
   { key: 'Earth Swell Detail', min: 0, max: 1, set: (c, v) => { c.earthSwellDetail = v } },
   { key: 'Earth Sky Reflection', min: 0, max: 1, set: (c, v) => { c.earthSkyReflection = v } },
+  { key: 'Earth Shallow Depth', min: 0, max: 0.2, set: (c, v) => { c.earthShallowDepth = v } },
   { key: 'SimulationControls Opacity', min: 0, max: 1, set: (c, v) => { c.leftPanelOpacity = v } },
   { key: 'PlanetPanel Opacity', min: 0, max: 1, set: (c, v) => { c.rightPanelOpacity = v } },
   {
@@ -367,6 +378,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthSwellDetail: config.earthSwellDetail,
     earthSkyReflection: config.earthSkyReflection,
     earthOceanColour: config.earthOceanColour,
+    earthShallowDepth: config.earthShallowDepth,
     earthWaveStyle: config.earthWaveStyle,
     earthSeawaterMode: config.earthSeawaterMode,
     leftPanelOpacity: config.leftPanelOpacity,
