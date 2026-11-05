@@ -1,0 +1,19 @@
+{
+  // The tests are Node programs, not part of the browser bundle: they run under
+  // `node --test` (see package.json) and import `node:test` / `node:assert`.
+  // The app's tsconfig excludes them and allows only `vite/client` types, so the
+  // editor fell back to an inferred project with no Node declarations and flagged
+  // those imports. This project gives the tests `@types/node` instead.
+  //
+  // `include` is intentionally overridden to `["."]` so this config covers the
+  // test files rather than the base config's `["src", "vite.config.ts"]`.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // The tests import their modules with an explicit `.ts` extension because
+    // Node runs them directly (native type-stripping) — unlike `src`, which Vite
+    // resolves without one.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["."]
+}
