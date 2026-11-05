@@ -198,6 +198,22 @@ export const zh: Record<TranslationKey, string> = {
   'planet.waveStyle.ripples': '波纹',
   'planet.waveStyle.ripplesHint':
     '最初的海洋：一层平铺的波纹法线贴图在表面滑动。开销更低，但图案会重复。',
+  'planet.oceanColour': '海洋颜色',
+  'planet.oceanColour.blue': '蓝色',
+  'planet.oceanColour.blueHint':
+    '浅滩偏青蓝，向深海盆地加深为海军蓝。真实海洋的泥沙与浅滩明暗被保留，但颜色被重新着成这种蓝——从轨道上看到的海洋。',
+  'planet.oceanColour.deep': '深蓝',
+  'planet.oceanColour.deepHint':
+    '比蓝色更深、更饱和的一组：浅滩为蓝青，盆地为更浓郁、更纯粹的蓝，让开阔大洋呈现为一整片深色——正是避开阳光炫光后，从轨道上看到的海洋颜色。',
+  'planet.oceanColour.abyss': '深渊',
+  'planet.oceanColour.abyssHint':
+    '最深的选项：浅滩为暗钢蓝，向近乎黑色的墨蓝盆地过渡，只剩阳光反光与天空反射把它提亮——一片几乎无光的深海之蓝。',
+  'planet.oceanColour.tropical': '热带',
+  'planet.oceanColour.tropicalHint':
+    '明亮的泻湖青绿，向略深的青色过渡，深海盆地只略微变暗，浅滩依旧明亮——热带大陆架清澈、被阳光照亮的海水。',
+  'planet.oceanColour.natural': '自然',
+  'planet.oceanColour.naturalHint':
+    '默认值：白昼贴图自身的海洋颜色，原样保留，不做任何重新着色——真实的蓝色弹珠海面。泥沙羽流、明亮的浅滩与深海盆地都呈现拍摄时的真实样貌。',
   'planet.seawaterOpacity': '海水不透明度',
   'planet.seawaterOpacityHint':
     '能透过海水看到多少。100% 时海洋与原来完全一样；滑向 0% 就会排干海水，露出真实的海底——公共领域 ETOPO 2022 水深网格中的海沟、洋脊和深海平原。水越深、视线越贴近海面，海底就越被水遮住，就像真实的海水一样。海底的高度经过夸张处理，而且大部分是由卫星重力推算而非实测，所以请把它当作大致形状，而不是海图。',

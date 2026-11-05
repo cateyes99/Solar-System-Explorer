@@ -2,6 +2,7 @@ import { AnimatePresence } from 'framer-motion'
 import { BODY_VISUALS } from '../../data/visuals'
 import { SEAWATER_MODES, seawaterModeFor } from '../../data/seawaterModes'
 import { WAVE_STYLES, waveStyleFor } from '../../data/waveStyles'
+import { OCEAN_COLOURS, oceanColourFor } from '../../data/oceanColours'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
@@ -50,6 +51,8 @@ export function PlanetPanel() {
   const setEarthSwellDetail = useSimulationStore((state) => state.setEarthSwellDetail)
   const earthSkyReflection = useSimulationStore((state) => state.earthSkyReflection)
   const setEarthSkyReflection = useSimulationStore((state) => state.setEarthSkyReflection)
+  const earthOceanColour = useSimulationStore((state) => state.earthOceanColour)
+  const setEarthOceanColour = useSimulationStore((state) => state.setEarthOceanColour)
   const earthWaveStyle = useSimulationStore((state) => state.earthWaveStyle)
   const setEarthWaveStyle = useSimulationStore((state) => state.setEarthWaveStyle)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
@@ -72,6 +75,9 @@ export function PlanetPanel() {
   // The active wave model under Volumetric mode. Its registry entry carries the
   // labels and hints the switcher shows, so a third model needs no change here.
   const waveStyle = waveStyleFor(earthWaveStyle)
+  // The active body colour under Volumetric mode. Its registry entry carries the
+  // label and hint the switcher shows, so a new colour needs no change here.
+  const oceanColour = oceanColourFor(earthOceanColour)
 
   return (
     <AnimatePresence>
@@ -226,6 +232,41 @@ export function PlanetPanel() {
                     format={(value) => `${Math.round(value * 100)}%`}
                     hint={t('planet.seaLevelHint')}
                   />
+                ) : null}
+                {/* The body colour belongs to the layered water body, so the
+                    switcher is shown for the volumetric mode alone. Its options
+                    come from the colour registry, so a new deep blue needs no
+                    change here. */}
+                {seawaterMode.layeredWater ? (
+                  <>
+                    <div
+                      role="group"
+                      aria-label={t('planet.oceanColour')}
+                      className="mt-2 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-white/4 p-1"
+                    >
+                      {OCEAN_COLOURS.map((colour) => {
+                        const active = colour.id === earthOceanColour
+                        return (
+                          <button
+                            key={colour.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => setEarthOceanColour(colour.id)}
+                            className={`min-h-[2.25rem] rounded-lg border px-2 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-ice/60 bg-ice/20 text-parchment'
+                                : 'border-transparent bg-transparent text-mist hover:text-parchment'
+                            }`}
+                          >
+                            {t(colour.labelKey)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="mb-1 px-1 text-[0.68rem] leading-relaxed text-mist/80">
+                      {t(oceanColour.hintKey)}
+                    </p>
+                  </>
                 ) : null}
                 {/* Waves are a property of the layered water body only, so the
                     registry shows these controls for the volumetric mode alone.

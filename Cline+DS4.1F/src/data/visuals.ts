@@ -497,10 +497,14 @@ export interface WaterSurfaceVisuals {
  * parallax that comes from the two surfaces being at different radii. The layer
  * carries three things a liquid surface needs:
  *
- *  - **Beer's-law body colour.** `absorption` is the per-channel extinction of
- *    the water itself, so a shallow shelf keeps the bright day-map blue while the
- *    abyss falls away through teal to navy, driven by the real depth under each
- *    pixel.
+ *  - **A water-body colour**, chosen by the panel's "Ocean colour" switcher (see
+ *    `data/oceanColours.ts`). The preset sets the sea's hue — as a single
+ *    `waterTint`, or as a `shallowTint`/`deepTint` pair for a two-tone sea (a
+ *    turquoise shelf falling to a navy basin). The day map's own ocean colour is
+ *    recoloured by it, keeping the real sediment and shelf shading as a
+ *    brightness variation but replacing the day map's own blue. The preset's
+ *    `absorption` sets how quickly the shelves fall away to the deep colour, and
+ *    one option (`natural`) instead leaves the day map's colour untouched.
  *  - **A wave field**, chosen by the panel's wave-style switcher (see
  *    `data/waveStyles.ts`). Either the living, procedural sea (`wave`) or the
  *    original tiling ripple normal map (`ripple`), so the surface is never the
@@ -519,10 +523,15 @@ export interface WaterSurfaceVisuals {
  */
 export interface WaterVisuals {
   metalness: number
-  /** Beer's-law extinction of the water body, linear RGB. */
-  absorption: [number, number, number]
-  /** The colour the water scatters back where it is deep. */
-  waterTint: string
+  /**
+   * The water depth (0…1 of the full column) at which the shallow tint has fully
+   * given way to the deep tint — how wide the shallow-shelf band is. It is the
+   * `smoothstep` edge in the shader, and it is what keeps the bathymetry off the
+   * deep water: a small value (0.007, the default) leaves only a thin coastal
+   * shelf, while a large one (0.05) lets the shallow tint cover much of the
+   * ocean and shows the seafloor's shape.
+   */
+  shallowDepth: number
   /** The reveal curve's exponent (see above). */
   revealGamma: number
   /** The colour the breaking surf is tinted with. Shared by both wave styles. */
@@ -755,14 +764,16 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       revealGamma: 0.65,
     },
     // The ocean surface itself: a transparent, specular water layer at sea
-    // level, through which the seafloor above is seen. Its own absorption runs
-    // the shallows bright and the abyss navy, and its waves come from whichever
-    // style the panel's switcher selects (see `data/waveStyles.ts`): the
-    // procedural sea (`wave`) or the tiling ripple map (`ripple`).
+    // level, through which the seafloor above is seen. Its body colour comes from
+    // the panel's "Ocean colour" switcher (see `data/oceanColours.ts`), and its
+    // waves come from whichever style the switcher selects (see
+    // `data/waveStyles.ts`): the procedural sea (`wave`) or the tiling ripple map
+    // (`ripple`).
     water: {
       metalness: 0,
-      absorption: [0.95, 0.5, 0.32],
-      waterTint: '#0a2b4d',
+      // A thin coastal shelf: the deep tint takes over by ~1 km of depth, so the
+      // deep basins read as one field and the bathymetry stays off the water.
+      shallowDepth: 0.007,
       revealGamma: 0.7,
       // The surf colour and the view/distance fade are shared by both wave
       // styles; only the normal source below differs.
