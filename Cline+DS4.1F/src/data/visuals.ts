@@ -37,6 +37,35 @@ export interface AtmosphereVisuals {
   /** Optional second, wider haze layer (used by Venus and the gas giants). */
   hazeColor?: string
   hazeIntensity?: number
+  /**
+   * The warm colour the air turns to where the Sun grazes the limb — the sunset
+   * ring that rakes through the longest slant of atmosphere. Defaults to `color`,
+   * so only a body that wants one has to name it.
+   */
+  sunsetColor?: string
+  /**
+   * Strength of the forward-scattered halo that blooms around the Sun through the
+   * air (the Mie term). 0 leaves just the blue Rayleigh limb. Defaults to a mild
+   * glow.
+   */
+  mieIntensity?: number
+  /**
+   * How opaque the shell is per unit of atmosphere path: the density that sets how
+   * thick and bright the limb reads. Higher is a denser, tighter glow. Defaults to
+   * a value tuned for the shipped shells.
+   */
+  density?: number
+  /**
+   * Strength of the thin veil the air lays *over* the ground, on top of the
+   * terrain. It is a fixed, small optical depth — the air straight down — and
+   * deliberately *not* the haze shell's own column: the shell is lifted to clear
+   * the mountains, which makes its column far too thick to sit over the land
+   * without reading as glass. It is drawn last and uniformly, so a mountain
+   * poking past the silhouette is veiled exactly like the disc. Raise it for a
+   * milkier surface, lower it (or set 0) for a bare one. Defaults to a subtle
+   * value.
+   */
+  discIntensity?: number
 }
 
 export interface CloudVisuals {
@@ -900,9 +929,16 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     atmosphere: {
       color: '#6fb4ff',
       intensity: 0.85,
-      power: 3.2,
+      power: 2.6,
       hazeColor: '#9fd4ff',
-      hazeIntensity: 0.3,
+      hazeIntensity: 0.42,
+      // A warm sunset ring where the Sun rakes the limb, and a soft halo around it.
+      sunsetColor: '#ffa860',
+      mieIntensity: 0.5,
+      density: 2.4,
+      // The thin blue veil the air lays over the ground itself. Kept small: a
+      // thick over-ground veil reads as glass over the terrain.
+      discIntensity: 0.06,
     },
     // Real cloud cover drifts a little faster than the ground below it.
     clouds: { textureId: 'earthClouds', opacity: 0.86, speed: 1.08, color: '#ffffff' },
