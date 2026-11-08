@@ -75,15 +75,26 @@ export interface AtmosphereVisuals {
   density?: number
   /**
    * Strength of the thin veil the air lays *over* the ground, on top of the
-   * terrain. It is a fixed, small optical depth — the air straight down — and
-   * deliberately *not* the haze shell's own column: the shell is lifted to clear
-   * the mountains, which makes its column far too thick to sit over the land
-   * without reading as glass. It is drawn last and uniformly, so a mountain
-   * poking past the silhouette is veiled exactly like the disc. Raise it for a
-   * milkier surface, lower it (or set 0) for a bare one. Defaults to a subtle
-   * value.
+   * terrain. It is a small optical depth — the air straight down, the nadir
+   * value — and deliberately *not* the haze shell's own column: the shell is
+   * lifted to clear the mountains, which makes its column far too thick to sit
+   * over the land without reading as glass. It is drawn last, over the disc and
+   * the protruding terrain alike. Raise it for a milkier surface, lower it (or
+   * set 0) for a bare one. Defaults to a subtle value.
    */
   discIntensity?: number
+  /**
+   * How strongly that over-ground veil thickens toward the limb — the aerial
+   * perspective that hazes the ground as it recedes. The veil is scaled by the
+   * view airmass (1 straight down, growing as the ray rakes toward the horizon),
+   * raised to this exponent: 1 is the physical optical-depth scaling, 0 restores
+   * a flat, uniform veil, and higher exaggerates the gradient. It changes only
+   * how the ground is veiled, never the limb glow or the halo, and it dissolves
+   * before the shell's edge — which is lifted clear of the mountains — so the
+   * veil still covers the protruding terrain instead of clipping it. Defaults
+   * to 1.
+   */
+  aerialStrength?: number
 }
 
 export interface CloudVisuals {
@@ -960,8 +971,11 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       sunsetStrength: 0.3,
       density: 2.4,
       // The thin blue veil the air lays over the ground itself. Kept small: a
-      // thick over-ground veil reads as glass over the terrain.
+      // thick over-ground veil reads as glass over the terrain. It thickens
+      // toward the limb with the view airmass (the aerial perspective), at the
+      // physical scaling.
       discIntensity: 0.06,
+      aerialStrength: 1,
     },
     // Real cloud cover drifts a little faster than the ground below it.
     clouds: { textureId: 'earthClouds', opacity: 0.86, speed: 1.08, color: '#ffffff' },

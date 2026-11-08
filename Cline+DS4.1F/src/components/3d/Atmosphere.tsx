@@ -35,6 +35,12 @@ const ATMOSPHERE_SPHERE = SPHERE_LODS[4]
  * halo around the Sun (the Mie lobe, from `mieG`). A soft day/night term
  * multiplies the whole thing, and a whisper of airglow keeps the night limb off
  * pure black.
+ *
+ * A third shell lays a thin veil *over* the ground. It is not the shell's column
+ * (which is exaggerated so the mountains fit inside it) but the air straight
+ * down, scaled by the view airmass — so the sub-satellite point stays clear and
+ * the ground hazes as it recedes toward the limb. That is the aerial
+ * perspective, and `aerialStrength` sets how strongly it takes hold.
  */
 const vertexShader = /* glsl */ `
   varying vec3 vWorldPosition;
@@ -60,6 +66,7 @@ const fragmentShader = /* glsl */ `
   uniform float uMieIntensity;
   uniform float uMieG;
   uniform float uSunsetStrength;
+  uniform float uAerialStrength;
   uniform float uShellScale;
   uniform float uOpacity;
   /* 0 = the ring under the planet, 1 = the faint tint over the disc. */
@@ -152,9 +159,21 @@ const fragmentShader = /* glsl */ `
     // shell's column: the shell is lifted by the terrain's peak so the mountains
     // fit inside it, which makes its column ~16x thicker than real air. A veil
     // that thick over the ground reads as glass, so this is the air straight
-    // down instead — a fixed, thin optical depth. Uniform, so the protruding
-    // terrain is veiled exactly like the disc.
-    float veil = 1.0;
+    // down instead — a thin optical depth, but scaled by how obliquely the view
+    // ray crosses it. Straight down (the nadir) the view airmass is 1 and the
+    // veil is the tuned base; toward the limb the ray rakes through more air, so
+    // the veil thickens. That is the aerial perspective that hazes the ground as
+    // it recedes into the distance, while the sub-satellite point stays clear.
+    // It dissolves before the shell's edge, exactly as the halo does, so the
+    // airmass cannot run away at the silhouette and the veil blends into space.
+    // (The shell is lifted by the terrain's peak, so this fade sits outside even
+    // the highest ground — the veil still covers the mountains, rather than
+    // clipping them off at the mean radius.) uAerialStrength is the airmass
+    // exponent: 1 is the physical optical-depth scaling, 0 restores a uniform
+    // veil.
+    float viewCos = max(dot(up, -rd), 0.0);
+    float veilAirmass = 1.0 / max(viewCos, 0.2);
+    float veil = pow(veilAirmass, uAerialStrength) * (1.0 - smoothstep(0.9, 1.0, r0 / rAtm));
     float alpha = mix(halo, veil, uDiscOnly) * light * uIntensity * uOpacity;
     gl_FragColor = vec4(scatter * alpha, alpha);
   }
@@ -191,6 +210,11 @@ const HAZE_DENSITY_RATIO = 0.85
 const DEFAULT_MIE_G = 0.7
 /** How fast the air reddens as the Sun sinks, when a body does not name one. */
 const DEFAULT_SUNSET_STRENGTH = 0.3
+/**
+ * The over-ground veil's airmass exponent when a body does not name one (see
+ * `AtmosphereVisuals.aerialStrength`). 1 is the physical optical-depth scaling.
+ */
+const DEFAULT_AERIAL_STRENGTH = 1
 
 /**
  * After the planet's own order, so its depth is in the buffer: the back-face
@@ -213,6 +237,7 @@ export function Atmosphere({
   const density = visuals.density ?? DEFAULT_DENSITY
   const mieG = visuals.mieG ?? DEFAULT_MIE_G
   const sunsetStrength = visuals.sunsetStrength ?? DEFAULT_SUNSET_STRENGTH
+  const aerialStrength = visuals.aerialStrength ?? DEFAULT_AERIAL_STRENGTH
 
   const material = useMemo(() => {
     return new ShaderMaterial({
@@ -227,6 +252,7 @@ export function Atmosphere({
         uMieIntensity: { value: visuals.mieIntensity ?? 0.5 },
         uMieG: { value: mieG },
         uSunsetStrength: { value: sunsetStrength },
+        uAerialStrength: { value: aerialStrength },
         uShellScale: { value: RIM_SHELL + shellLift },
         uOpacity: { value: opacity },
         uDiscOnly: { value: 0 },
@@ -240,7 +266,7 @@ export function Atmosphere({
     // `opacity` and `shellLift` are intentionally not dependencies: the per-frame
     // update below writes them into the uniforms, so dragging the Earth slider or
     // the terrain-relief dial retunes the haze without rebuilding the material.
-  }, [visuals.color, visuals.sunsetColor, visuals.intensity, visuals.power, visuals.mieIntensity, density, mieG, sunsetStrength, sunPosition])
+  }, [visuals.color, visuals.sunsetColor, visuals.intensity, visuals.power, visuals.mieIntensity, density, mieG, sunsetStrength, aerialStrength, sunPosition])
 
   const hazeMaterial = useMemo(() => {
     if (!visuals.hazeColor) return null
@@ -256,6 +282,7 @@ export function Atmosphere({
         uMieIntensity: { value: 0 },
         uMieG: { value: mieG },
         uSunsetStrength: { value: sunsetStrength },
+        uAerialStrength: { value: aerialStrength },
         uShellScale: { value: HAZE_SHELL + shellLift },
         uOpacity: { value: opacity },
         uDiscOnly: { value: 0 },
@@ -266,7 +293,7 @@ export function Atmosphere({
       depthWrite: false,
       side: BackSide,
     })
-  }, [visuals.hazeColor, visuals.sunsetColor, visuals.hazeIntensity, visuals.power, density, mieG, sunsetStrength, sunPosition])
+  }, [visuals.hazeColor, visuals.sunsetColor, visuals.hazeIntensity, visuals.power, density, mieG, sunsetStrength, aerialStrength, sunPosition])
 
   // The thin veil over the ground, drawn *after* the surface so the terrain
   // stays solid underneath it. It spans the whole haze area, so the protruding
@@ -284,6 +311,7 @@ export function Atmosphere({
         uMieIntensity: { value: 0 },
         uMieG: { value: mieG },
         uSunsetStrength: { value: sunsetStrength },
+        uAerialStrength: { value: aerialStrength },
         uShellScale: { value: HAZE_SHELL + shellLift },
         uOpacity: { value: opacity },
         uDiscOnly: { value: 1 },
@@ -294,7 +322,7 @@ export function Atmosphere({
       depthWrite: false,
       side: FrontSide,
     })
-  }, [visuals.color, visuals.sunsetColor, visuals.power, visuals.discIntensity, mieG, sunsetStrength, sunPosition])
+  }, [visuals.color, visuals.sunsetColor, visuals.power, visuals.discIntensity, mieG, sunsetStrength, aerialStrength, sunPosition])
 
   // The Sun barely moves, but keeping the uniform fresh costs nothing and keeps
   // the terminator correct in every scale mode.
@@ -309,7 +337,9 @@ export function Atmosphere({
     }
     discMaterial.uniforms.uSunPosition.value.copy(sunPosition)
     discMaterial.uniforms.uOpacity.value = opacity
-    discMaterial.uniforms.uShellScale.value = RIM_SHELL + shellLift
+    // The veil's own shell scale, matching its mesh (see the render below): it
+    // is what `rPlanet` is derived from, so it has to agree with the geometry.
+    discMaterial.uniforms.uShellScale.value = HAZE_SHELL + shellLift
   })
 
   return (
