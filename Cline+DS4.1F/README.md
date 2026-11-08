@@ -242,8 +242,10 @@ A few decisions worth knowing about:
 - **Measured, not guessed.** Every material setting comes from a measurement rather than a taste:
   the IAU polar flattening squashes Jupiter (6.5%) and Saturn (9.8%), the ring discs begin and end
   at the published ring radii, the Sun's disc is dimmed toward the limb by the Eddington
-  grey-atmosphere law, and Earth's oceans are glassy while its deserts are matte — which is what
-  puts a sun glint on the real planet.
+  grey-atmosphere law, Earth's oceans are glassy while its deserts are matte — which is what
+  puts a sun glint on the real planet — and the atmosphere scatters with the Rayleigh and
+  Henyey–Greenstein phase functions, so its limb brightens toward the Sun and its warm terminator
+  follows the real slant of the sunlight.
 - **Quality is adaptive — and recoverable.** A performance monitor inside the scene reduces star, rock
   and segment counts (and drops post-processing) when the frame rate stays low, but it ignores the
   start-up warm-up and any map rebuild, never climbs above the default look on its own, and never

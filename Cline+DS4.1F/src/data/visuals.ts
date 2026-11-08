@@ -50,6 +50,24 @@ export interface AtmosphereVisuals {
    */
   mieIntensity?: number
   /**
+   * The Mie asymmetry `g` — the *shape* of that forward-scattered halo, from 0
+   * (scattered evenly in every direction) toward 1 (all thrown forward). Real
+   * aerosol Mie scattering sits near 0.7, which is why the glare around the Sun
+   * reads as a tight, bright bloom rather than a broad fog. It changes only the
+   * shape, never the peak strength: the phase function is normalised so its
+   * forward value is 1 and `mieIntensity` stays the glare straight at the Sun.
+   * Defaults to 0.7.
+   */
+  mieG?: number
+  /**
+   * How strongly the air reddens as the Sun sinks toward the terminator, where
+   * the sunlight rakes through the longest slant of atmosphere. It is the rate
+   * the Rayleigh warm-up saturates with the Sun's airmass (its height above the
+   * horizon), so a higher value warms sooner and holds the sunset colour longer.
+   * Defaults to 0.3.
+   */
+  sunsetStrength?: number
+  /**
    * How opaque the shell is per unit of atmosphere path: the density that sets how
    * thick and bright the limb reads. Higher is a denser, tighter glow. Defaults to
    * a value tuned for the shipped shells.
@@ -934,7 +952,12 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
       hazeIntensity: 0.42,
       // A warm sunset ring where the Sun rakes the limb, and a soft halo around it.
       sunsetColor: '#ffa860',
+      // The halo is a Mie lobe at the measured aerosol asymmetry, and the warm
+      // band tracks the Sun's real slant through the air (see `mieG` /
+      // `sunsetStrength`).
       mieIntensity: 0.5,
+      mieG: 0.7,
+      sunsetStrength: 0.3,
       density: 2.4,
       // The thin blue veil the air lays over the ground itself. Kept small: a
       // thick over-ground veil reads as glass over the terrain.
