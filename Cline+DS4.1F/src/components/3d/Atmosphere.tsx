@@ -29,10 +29,12 @@ const ATMOSPHERE_SPHERE = SPHERE_LODS[4]
  * mask to align, no rotation lag and no parallax. Nothing floats above the
  * ground, so nothing can be misaligned with it.
  *
- * The colour is Rayleigh + Mie: the air keeps its own hue in daylight, warms
- * toward `sunsetColor` at the terminator, and adds a forward-scattered halo
- * around the Sun. A soft day/night term multiplies the whole thing, and a
- * whisper of airglow keeps the night limb off pure black.
+ * The colour is Rayleigh + Mie, each with its own scattering phase: the air
+ * keeps its own hue in daylight, warms toward `sunsetColor` where the sunlight
+ * rakes through the longest slant of atmosphere, and adds a forward-scattered
+ * halo around the Sun (the Mie lobe, from `mieG`). A soft day/night term
+ * multiplies the whole thing, and a whisper of airglow keeps the night limb off
+ * pure black.
  */
 const vertexShader = /* glsl */ `
   varying vec3 vWorldPosition;
@@ -56,6 +58,8 @@ const fragmentShader = /* glsl */ `
   uniform float uPower;
   uniform float uDensity;
   uniform float uMieIntensity;
+  uniform float uMieG;
+  uniform float uSunsetStrength;
   uniform float uShellScale;
   uniform float uOpacity;
   /* 0 = the ring under the planet, 1 = the faint tint over the disc. */
@@ -64,6 +68,21 @@ const fragmentShader = /* glsl */ `
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
   varying vec3 vCenter;
+
+  /*
+   * Henyey–Greenstein phase function — the standard stand-in for Mie scattering.
+   * It is a strong forward lobe with a faint tail behind, shaped by the
+   * asymmetry g (0 = isotropic, toward 1 = all forward). Real aerosol Mie
+   * scattering has g around 0.7, which is why the halo is a bright glare around
+   * the Sun rather than a wash in every direction. It is normalised so its
+   * forward peak is 1, so uMieIntensity keeps meaning "the glare straight at the
+   * Sun" rather than an absolute cross-section.
+   */
+  float miePhase(float cosTheta, float g) {
+    float k = 1.0 - g;
+    float denom = 1.0 + g * g - 2.0 * g * cosTheta;
+    return (k * k * k) / (denom * sqrt(denom));
+  }
 
   void main() {
     // The view ray, measured from the planet's centre.
@@ -96,14 +115,27 @@ const fragmentShader = /* glsl */ `
     vec3 sunDir = normalize(uSunPosition - vWorldPosition);
     float sunHeight = dot(up, sunDir);
     float day = smoothstep(-0.35, 0.3, sunHeight);
-    float twilight = exp(-sunHeight * sunHeight * 13.0);
 
-    // Rayleigh: the air's own hue, warming to the sunset colour at the terminator.
-    vec3 sky = mix(uColor, uSunsetColor, twilight * 0.7);
+    // The scattering angle: +1 looking straight at the Sun (forward scatter),
+    // -1 looking away from it. Both phase functions depend on it.
+    float cosTheta = clamp(dot(rd, sunDir), -1.0, 1.0);
+
+    // The airmass the sunlight crosses to reach this point: ~1 with the Sun
+    // overhead, climbing steeply as it nears the horizon, where the light rakes
+    // through the longest slant of air. That slant is what warms the atmosphere
+    // at the terminator, so the transition tracks the real geometry rather than
+    // the Sun's height alone.
+    float airmass = 1.0 / max(sunHeight + 0.16, 0.03);
+    float twilight = 1.0 - exp(-uSunsetStrength * max(airmass - 1.0, 0.0));
+
+    // Rayleigh: the air's own hue, warming to the sunset colour through the long
+    // slant. Its phase (1 + cos²θ, scaled to average 1) is nearly isotropic, with
+    // a gentle brightening toward and away from the Sun.
+    float rayleigh = 0.75 * (1.0 + cosTheta * cosTheta);
+    vec3 sky = mix(uColor, uSunsetColor, twilight);
     // Mie: the forward-scattered halo that blooms around the Sun through the air.
-    float mu = clamp(dot(rd, sunDir), 0.0, 1.0);
-    float mie = pow(mu, 6.0) * uMieIntensity;
-    vec3 scatter = sky * day + mix(vec3(1.0), uSunsetColor, twilight) * mie * day;
+    float mie = miePhase(cosTheta, uMieG) * uMieIntensity;
+    vec3 scatter = sky * rayleigh * day + mix(vec3(1.0), uSunsetColor, twilight) * mie * day;
 
     // A whisper of airglow keeps the night limb from going fully black.
     float light = 0.12 + 0.88 * day;
@@ -151,6 +183,14 @@ const HAZE_SHELL = 1.14
 const DEFAULT_DENSITY = 2.6
 /** The wide haze is thinner than the rim, so it reads as a faint halo. */
 const HAZE_DENSITY_RATIO = 0.85
+/**
+ * The Mie asymmetry when a body does not name one (see `AtmosphereVisuals`).
+ * ~0.7 is the measured aerosol value: a clear forward glare with almost nothing
+ * behind.
+ */
+const DEFAULT_MIE_G = 0.7
+/** How fast the air reddens as the Sun sinks, when a body does not name one. */
+const DEFAULT_SUNSET_STRENGTH = 0.3
 
 /**
  * After the planet's own order, so its depth is in the buffer: the back-face
@@ -171,6 +211,8 @@ export function Atmosphere({
 }: AtmosphereProps) {
   const meshRef = useRef<Mesh>(null)
   const density = visuals.density ?? DEFAULT_DENSITY
+  const mieG = visuals.mieG ?? DEFAULT_MIE_G
+  const sunsetStrength = visuals.sunsetStrength ?? DEFAULT_SUNSET_STRENGTH
 
   const material = useMemo(() => {
     return new ShaderMaterial({
@@ -183,6 +225,8 @@ export function Atmosphere({
         uPower: { value: visuals.power },
         uDensity: { value: density },
         uMieIntensity: { value: visuals.mieIntensity ?? 0.5 },
+        uMieG: { value: mieG },
+        uSunsetStrength: { value: sunsetStrength },
         uShellScale: { value: RIM_SHELL + shellLift },
         uOpacity: { value: opacity },
         uDiscOnly: { value: 0 },
@@ -196,7 +240,7 @@ export function Atmosphere({
     // `opacity` and `shellLift` are intentionally not dependencies: the per-frame
     // update below writes them into the uniforms, so dragging the Earth slider or
     // the terrain-relief dial retunes the haze without rebuilding the material.
-  }, [visuals.color, visuals.sunsetColor, visuals.intensity, visuals.power, visuals.mieIntensity, density, sunPosition])
+  }, [visuals.color, visuals.sunsetColor, visuals.intensity, visuals.power, visuals.mieIntensity, density, mieG, sunsetStrength, sunPosition])
 
   const hazeMaterial = useMemo(() => {
     if (!visuals.hazeColor) return null
@@ -210,6 +254,8 @@ export function Atmosphere({
         uPower: { value: Math.max(1.1, visuals.power - 1.6) },
         uDensity: { value: density * HAZE_DENSITY_RATIO },
         uMieIntensity: { value: 0 },
+        uMieG: { value: mieG },
+        uSunsetStrength: { value: sunsetStrength },
         uShellScale: { value: HAZE_SHELL + shellLift },
         uOpacity: { value: opacity },
         uDiscOnly: { value: 0 },
@@ -220,7 +266,7 @@ export function Atmosphere({
       depthWrite: false,
       side: BackSide,
     })
-  }, [visuals.hazeColor, visuals.sunsetColor, visuals.hazeIntensity, visuals.power, density, sunPosition])
+  }, [visuals.hazeColor, visuals.sunsetColor, visuals.hazeIntensity, visuals.power, density, mieG, sunsetStrength, sunPosition])
 
   // The thin veil over the ground, drawn *after* the surface so the terrain
   // stays solid underneath it. It spans the whole haze area, so the protruding
@@ -236,6 +282,8 @@ export function Atmosphere({
         uPower: { value: visuals.power },
         uDensity: { value: 0 },
         uMieIntensity: { value: 0 },
+        uMieG: { value: mieG },
+        uSunsetStrength: { value: sunsetStrength },
         uShellScale: { value: HAZE_SHELL + shellLift },
         uOpacity: { value: opacity },
         uDiscOnly: { value: 1 },
@@ -246,7 +294,7 @@ export function Atmosphere({
       depthWrite: false,
       side: FrontSide,
     })
-  }, [visuals.color, visuals.sunsetColor, visuals.power, visuals.discIntensity, sunPosition])
+  }, [visuals.color, visuals.sunsetColor, visuals.power, visuals.discIntensity, mieG, sunsetStrength, sunPosition])
 
   // The Sun barely moves, but keeping the uniform fresh costs nothing and keeps
   // the terminator correct in every scale mode.
