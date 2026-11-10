@@ -37,6 +37,64 @@ export interface AtmosphereVisuals {
   /** Optional second, wider haze layer (used by Venus and the gas giants). */
   hazeColor?: string
   hazeIntensity?: number
+  /**
+   * The warm colour the air turns to where the Sun grazes the limb — the sunset
+   * ring that rakes through the longest slant of atmosphere. Defaults to `color`,
+   * so only a body that wants one has to name it.
+   */
+  sunsetColor?: string
+  /**
+   * Strength of the forward-scattered halo that blooms around the Sun through the
+   * air (the Mie term). 0 leaves just the blue Rayleigh limb. Defaults to a mild
+   * glow.
+   */
+  mieIntensity?: number
+  /**
+   * The Mie asymmetry `g` — the *shape* of that forward-scattered halo, from 0
+   * (scattered evenly in every direction) toward 1 (all thrown forward). Real
+   * aerosol Mie scattering sits near 0.7, which is why the glare around the Sun
+   * reads as a tight, bright bloom rather than a broad fog. It changes only the
+   * shape, never the peak strength: the phase function is normalised so its
+   * forward value is 1 and `mieIntensity` stays the glare straight at the Sun.
+   * Defaults to 0.7.
+   */
+  mieG?: number
+  /**
+   * How strongly the air reddens as the Sun sinks toward the terminator, where
+   * the sunlight rakes through the longest slant of atmosphere. It is the rate
+   * the Rayleigh warm-up saturates with the Sun's airmass (its height above the
+   * horizon), so a higher value warms sooner and holds the sunset colour longer.
+   * Defaults to 0.3.
+   */
+  sunsetStrength?: number
+  /**
+   * How opaque the shell is per unit of atmosphere path: the density that sets how
+   * thick and bright the limb reads. Higher is a denser, tighter glow. Defaults to
+   * a value tuned for the shipped shells.
+   */
+  density?: number
+  /**
+   * Strength of the thin veil the air lays *over* the ground, on top of the
+   * terrain. It is a small optical depth — the air straight down, the nadir
+   * value — and deliberately *not* the haze shell's own column: the shell is
+   * lifted to clear the mountains, which makes its column far too thick to sit
+   * over the land without reading as glass. It is drawn last, over the disc and
+   * the protruding terrain alike. Raise it for a milkier surface, lower it (or
+   * set 0) for a bare one. Defaults to a subtle value.
+   */
+  discIntensity?: number
+  /**
+   * How strongly that over-ground veil thickens toward the limb — the aerial
+   * perspective that hazes the ground as it recedes. The veil is scaled by the
+   * view airmass (1 straight down, growing as the ray rakes toward the horizon),
+   * raised to this exponent: 1 is the physical optical-depth scaling, 0 restores
+   * a flat, uniform veil, and higher exaggerates the gradient. It changes only
+   * how the ground is veiled, never the limb glow or the halo, and it dissolves
+   * before the shell's edge — which is lifted clear of the mountains — so the
+   * veil still covers the protruding terrain instead of clipping it. Defaults
+   * to 1.
+   */
+  aerialStrength?: number
 }
 
 export interface CloudVisuals {
@@ -900,9 +958,24 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
     atmosphere: {
       color: '#6fb4ff',
       intensity: 0.85,
-      power: 3.2,
+      power: 2.6,
       hazeColor: '#9fd4ff',
-      hazeIntensity: 0.3,
+      hazeIntensity: 0.42,
+      // A warm sunset ring where the Sun rakes the limb, and a soft halo around it.
+      sunsetColor: '#ffa860',
+      // The halo is a Mie lobe at the measured aerosol asymmetry, and the warm
+      // band tracks the Sun's real slant through the air (see `mieG` /
+      // `sunsetStrength`).
+      mieIntensity: 0.5,
+      mieG: 0.7,
+      sunsetStrength: 0.3,
+      density: 2.4,
+      // The thin blue veil the air lays over the ground itself. Kept small: a
+      // thick over-ground veil reads as glass over the terrain. It thickens
+      // toward the limb with the view airmass (the aerial perspective), at the
+      // physical scaling.
+      discIntensity: 0.06,
+      aerialStrength: 1,
     },
     // Real cloud cover drifts a little faster than the ground below it.
     clouds: { textureId: 'earthClouds', opacity: 0.86, speed: 1.08, color: '#ffffff' },
