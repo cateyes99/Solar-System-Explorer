@@ -170,6 +170,34 @@
     border-radius: 999px;
     box-shadow: 0 0 8px 1px currentColor;
   }
+
+  /* City names rendered through drei's <Html>, on the World-map overlay. The
+     translate centres the pill over the point, just above it (the <Html>
+     wrapper is already positioned at the projected point). */
+  .sse-city-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    border-radius: 999px;
+    background: rgba(4, 7, 18, 0.5);
+    backdrop-filter: blur(3px);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+    transform: translate(-50%, -100%);
+    transition: opacity 200ms ease-out;
+    will-change: opacity;
+  }
+
+  .sse-city-label__dot {
+    width: 0.26rem;
+    height: 0.26rem;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 6px 1px currentColor;
+  }
 }
 
 @layer utilities {

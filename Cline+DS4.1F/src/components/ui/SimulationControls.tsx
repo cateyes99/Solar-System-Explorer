@@ -33,6 +33,8 @@ export function SimulationControlsContent() {
   const toggleNebula = useSimulationStore((state) => state.toggleNebula)
   const showOrbitFlow = useSimulationStore((state) => state.showOrbitFlow)
   const setShowOrbitFlow = useSimulationStore((state) => state.setShowOrbitFlow)
+  const showEarthMap = useSimulationStore((state) => state.showEarthMap)
+  const toggleEarthMap = useSimulationStore((state) => state.toggleEarthMap)
 
   const selectedId = useSimulationStore((state) => state.selectedId)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -172,6 +174,12 @@ export function SimulationControlsContent() {
             description={t('controls.orbitFlowDesc')}
             checked={showOrbitFlow}
             onChange={() => setShowOrbitFlow(!showOrbitFlow)}
+          />
+          <ToggleRow
+            label={t('controls.worldMap')}
+            description={t('controls.worldMapDesc')}
+            checked={showEarthMap}
+            onChange={toggleEarthMap}
           />
         </div>
       </section>

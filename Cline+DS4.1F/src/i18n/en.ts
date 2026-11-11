@@ -131,6 +131,8 @@ export const en = {
   'controls.nebulaDesc': 'A distant galactic band',
   'controls.orbitFlow': 'Orbit direction arrows',
   'controls.orbitFlowDesc': 'See which way the planets travel',
+  'controls.worldMap': 'World map (Earth)',
+  'controls.worldMapDesc': 'Borders, capitals and cities',
   'controls.camera': 'Camera',
   'controls.cameraHint.follow': 'following',
   'controls.viewSystem': 'View Solar System',
@@ -148,6 +150,11 @@ export const en = {
   /* --------------------------------------------------- planet (right panel) */
   'planet.collapse': 'Collapse the information panel',
   'planet.close': 'Close the {name} information panel',
+  'planet.worldMap': 'World map',
+  'planet.worldMapHint': 'off by default',
+  'planet.worldMapToggle': 'Borders, capitals and cities',
+  'planet.worldMapToggleDesc':
+    'National and regional borders, capitals and major cities worldwide. Real Natural Earth map data, aligned to the surface and following the terrain.',
   'planet.earthAtmosphere': 'Earth’s atmosphere',
   'planet.atmosphereHint': '0% = no haze',
   'planet.atmosphereHaze': 'Atmosphere haze',
@@ -393,6 +400,7 @@ export const en = {
   'toast.helloEarth': 'Hello, Earth! You are standing on me right now.',
   'toast.foundBody': 'You found {name}!',
   'toast.satellite': '{name}: {note}',
+  'toast.worldMapOn': 'World map on. Zoom in on Earth to see the borders, capitals and cities.',
 
   /* --------------------------------------------------------- fact card */
   'fact.label': 'A random space fact',
@@ -424,7 +432,7 @@ export const en = {
   'help.key.arrows': '← →',
   'help.key.digits': '1 … 6',
   'help.key.esc': 'Esc',
-  'help.key.letters': 'L / O / B / N',
+  'help.key.letters': 'L / O / B / N / G',
   'help.key.r': 'R',
   'help.key.t': 'T',
   'help.key.e': 'E',
@@ -443,7 +451,7 @@ export const en = {
   'help.desc.arrows': 'Step back or forward one day',
   'help.desc.digits': 'Choose a simulation speed',
   'help.desc.esc': 'Close panels, or leave a tour or mission',
-  'help.desc.letters': 'Toggle labels, orbits, the belt and the nebula',
+  'help.desc.letters': 'Toggle labels, orbits, the belt, the nebula and Earth’s world map',
   'help.desc.r': 'Return to the full Solar System view',
   'help.desc.t': 'Start or stop the cinematic tour',
   'help.desc.e': 'Open Explore & Learn',

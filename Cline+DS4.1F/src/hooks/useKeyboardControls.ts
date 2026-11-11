@@ -95,6 +95,9 @@ export function useKeyboardControls(): void {
         case 'KeyN':
           store.toggleNebula()
           break
+        case 'KeyG':
+          store.toggleEarthMap()
+          break
         case 'KeyR':
           store.resetView()
           break

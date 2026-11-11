@@ -43,6 +43,11 @@ unavailable the app automatically switches to a polished 2D orrery with the same
   temperature, gravity, facts and a "Did you know?").
 - Double-click a planet to **follow** it as it travels around the Sun.
 - Hover anything for a subtle highlight, a name label and a pointer cursor.
+- Turn on Earth's **World map** — from the Earth panel, the Layers list, or with `G` — to
+  overlay real national and regional borders, capitals and major cities. The lines are
+  drawn on the surface itself, so they climb the mountains and fade into the night; the
+  city names appear as you zoom in, and follow the interface language (Natural Earth's
+  localized names), so switching to 汉语 switches the map with it.
 
 **Watch**
 
@@ -89,7 +94,7 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 | `←` `→` | Step one day back / forward |
 | `1` … `6` | Simulation speed |
 | `Esc` | Close panels, leave a tour or mission |
-| `L` `O` `B` `N` | Labels, orbits, asteroid belt, nebula |
+| `L` `O` `B` `N` `G` | Labels, orbits, asteroid belt, nebula, world map |
 | `R` | Return to the full Solar System view |
 | `T` | Cinematic tour on / off |
 | `E` | Explore & Learn |
@@ -171,21 +176,23 @@ the science.
 src/
   data/       Real astronomy, kept out of the components
               planets.ts (bodies, moons, asteroid belt) · facts.ts · lessons.ts
-              tour.ts · whatIf.ts · missions.ts · visuals.ts
+              tour.ts · whatIf.ts · missions.ts · visuals.ts · earthMap.ts
+              (the look of the World-map overlay)
   store/      simulationStore.ts — one Zustand store for all shared UI state
   utils/      astronomy.ts (Keplerian positions) · scale.ts (the four scale modes)
               textures.ts (map loader + procedural painters) · textureSources.ts
               (where each real map comes from) · textureResolution.ts (how much of
               each map reaches the GPU) · buildQueue.ts (single-flight map builds)
               simulationClock.ts · spacecraftSim.ts · bodyRegistry.ts · audio.ts
-              format.ts · input.ts · random.ts · webgl.ts
+              format.ts · input.ts · random.ts · webgl.ts · geo.ts (World-map
+              projection and geometry)
   hooks/      useSimulationTime · useMissionReadout · useAssetPreloader
               useKeyboardControls
   components/
     3d/       Sun · Planet · Moon · Rings · Atmosphere · NightLights · Orbit
               AsteroidBelt · Comet · Spacecraft · StarField · PlanetLabel
-              CameraController · TourDirector · PostProcessing · Timekeeper
-              SolarSystem
+              EarthMap (the World-map overlay) · CameraController · TourDirector
+              PostProcessing · Timekeeper · SolarSystem
     ui/       Header · BottomBar · TimeControls · SimulationControls · PlanetPanel
               EducationPanel (+ lessons/LessonWidgets) · WhatIfPanel · MissionControl
               SettingsPanel · FactCard · Toast · LoadingScreen · Fallback2D
@@ -193,8 +200,11 @@ src/
   scenes/     SolarSystemScene.tsx — the Canvas, lighting and quality tiers
 public/
   textures/   Real map data (equirectangular 2:1; Earth's day + night at 8K) + CREDITS.md
+  geo/        Natural Earth vector data for the World map (borders + places)
+              + CREDITS.md
 tools/
   fetch-textures.mjs — re-downloads the maps and rewrites CREDITS.md
+  fetch-geo.mjs — re-downloads and trims the World-map vector data
 ```
 
 A few decisions worth knowing about:
@@ -225,6 +235,16 @@ A few decisions worth knowing about:
   corona, the star and comet sprites, Earth's ocean-roughness map, Uranus's ring strip) is still
   painted procedurally, and if a file is ever missing the same painter covers for it, so no world
   can render blank.
+- **The World map is real map data too — and it is public domain.** Earth's optional overlay
+  (national and regional borders, capitals and cities) is **Natural Earth** vector data in
+  `public/geo`, fetched and trimmed by `tools/fetch-geo.mjs` and credited in
+  `public/geo/CREDITS.md`. Natural Earth is free, accurate and in the public domain, so it ships
+  inside the app and loads offline like the textures. The overlay is projected with the *same*
+  equirectangular mapping and the *same* longitude offset as the day map, and displaced in the
+  vertex shader by the *same* elevation model, so a border sits on the ground it belongs to and
+  climbs the terrain rather than floating over it or sinking into it. The data loads only when the
+  layer is first switched on, and the whole thing is three draw calls however many thousands of
+  segments it holds.
 - **Resolution is spent where it is seen.** `utils/textureResolution.ts` decides how much of each
   source reaches the GPU: a tier's fraction of the source (High = full, Medium = half, Low =
   quarter), reduced by any per-map ceiling and never above the driver's `MAX_TEXTURE_SIZE`. Earth's
@@ -265,6 +285,10 @@ A few decisions worth knowing about:
 - The single-flight build queue is unit-tested too: duplicate requests share one build, a request
   that arrives mid-build supersedes the one in flight, rapid changes collapse to the newest target,
   a failed build is not cached, and `reset` starts over.
+- The World-map projection is unit-tested (`npm test`): a longitude/latitude is checked to sample
+  the exact texel the surface material reads it from, at several longitude offsets, so the overlay
+  can never drift off the continents. The polyline → segment builder and the two-tier label
+  ordering are covered as well.
 - The 8K day map was checked against the 2K it replaced: its best alignment is a zero-pixel shift at
   42 dB PSNR — the same projection and longitude origin, so it lines up with the terrain and every
   texture offset — and it carries about 2.4× the fine detail of a 4× upscale of the 2K, so it is

@@ -130,6 +130,8 @@ export const zh: Record<TranslationKey, string> = {
   'controls.nebulaDesc': '遥远的银河光带',
   'controls.orbitFlow': '轨道方向箭头',
   'controls.orbitFlowDesc': '看看行星往哪个方向运行',
+  'controls.worldMap': '世界地图（地球）',
+  'controls.worldMapDesc': '国界、首都与城市',
   'controls.camera': '镜头',
   'controls.cameraHint.follow': '跟随中',
   'controls.viewSystem': '查看太阳系',
@@ -147,6 +149,11 @@ export const zh: Record<TranslationKey, string> = {
   /* --------------------------------------------------- planet (right panel) */
   'planet.collapse': '收起信息面板',
   'planet.close': '关闭{name}信息面板',
+  'planet.worldMap': '世界地图',
+  'planet.worldMapHint': '默认关闭',
+  'planet.worldMapToggle': '国界、首都与城市',
+  'planet.worldMapToggleDesc':
+    '全世界的国界、行政区界、首都与主要城市。真实的 Natural Earth 地图数据，与地表对齐并贴合地形。',
   'planet.earthAtmosphere': '地球的大气',
   'planet.atmosphereHint': '0% = 没有雾霭',
   'planet.atmosphereHaze': '大气雾霭',
@@ -389,6 +396,7 @@ export const zh: Record<TranslationKey, string> = {
   'toast.helloEarth': '你好，地球！你现在就站在我身上。',
   'toast.foundBody': '你发现了{name}！',
   'toast.satellite': '{name}：{note}',
+  'toast.worldMapOn': '世界地图已开启。放大到地球即可看到国界、首都和城市。',
 
   /* --------------------------------------------------------- fact card */
   'fact.label': '一条随机的太空知识',
@@ -420,7 +428,7 @@ export const zh: Record<TranslationKey, string> = {
   'help.key.arrows': '← →',
   'help.key.digits': '1 … 6',
   'help.key.esc': 'Esc',
-  'help.key.letters': 'L / O / B / N',
+  'help.key.letters': 'L / O / B / N / G',
   'help.key.r': 'R',
   'help.key.t': 'T',
   'help.key.e': 'E',
@@ -439,7 +447,7 @@ export const zh: Record<TranslationKey, string> = {
   'help.desc.arrows': '后退或前进一天',
   'help.desc.digits': '选择一个模拟速度',
   'help.desc.esc': '关闭面板，或者离开导览或任务',
-  'help.desc.letters': '切换标签、轨道、小行星带和星云',
+  'help.desc.letters': '切换标签、轨道、小行星带、星云和地球的世界地图',
   'help.desc.r': '返回完整的太阳系视图',
   'help.desc.t': '开始或结束电影式导览',
   'help.desc.e': '打开探索与学习',
