@@ -257,6 +257,12 @@ A few decisions worth knowing about:
   and there is no `backdrop-filter` or layer-promoting `will-change` on the elements, both of which
   cost far more than they are worth at this count. Profiling the built app, the label pass's own
   JavaScript is now negligible, and the per-frame style work it causes has roughly halved.
+  Because a DOM label is never depth-tested, the pass also has to do the depth itself: each name
+  tests the ray from the camera against the cheap sphere every world registers (see
+  `utils/bodyRegistry.ts`), so the Moon crossing South America hides the names behind it instead of
+  having them painted on top of it. The globe is one of those spheres, and its own test is exactly
+  the visibility test a fixed cull cannot give a close camera — it never hides a name on the near
+  face, and it does hide one that has slipped past the limb.
 - **Resolution is spent where it is seen.** `utils/textureResolution.ts` decides how much of each
   source reaches the GPU: a tier's fraction of the source (High = full, Medium = half, Low =
   quarter), reduced by any per-map ceiling and never above the driver's `MAX_TEXTURE_SIZE`. Earth's
