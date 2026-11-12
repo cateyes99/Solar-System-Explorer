@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
-import { BufferAttribute, BufferGeometry, Color, NormalBlending, Points, ShaderMaterial, Vector3 } from 'three'
+import { useFrame, useThree } from '@react-three/fiber'
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  Matrix4,
+  NormalBlending,
+  Points,
+  Quaternion,
+  ShaderMaterial,
+  Vector3,
+} from 'three'
 import type { Group } from 'three'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
@@ -16,6 +25,7 @@ import {
   loadBorders,
   loadPlaces,
   loadRegions,
+  limbFacingThreshold,
   lonLatToDirection,
   placeName,
   type GeoLines,
@@ -56,7 +66,6 @@ interface EarthMapProps {
   terrain: TerrainRelief | null
   quality: QualityLevel
   showLabels: boolean
-  reducedMotion: boolean
 }
 
 interface GeoData {
@@ -256,82 +265,183 @@ function buildMarkerOverlay(
   return points
 }
 
-/** One city's text label: a DOM element anchored on the globe. */
-function CityLabel({
-  place,
-  name,
-  uvOffsetU,
-  sampler,
-  terrain,
-  centerRef,
-  visuals,
-  reducedMotion,
-}: {
-  place: GeoPlace
-  /** The place's name in the current interface language. */
-  name: string
+interface CityLabelsProps {
+  places: GeoPlace[]
+  /** The interface language, so the names can follow it. */
+  language: string
   uvOffsetU: number
   sampler: ((lon: number, lat: number) => number) | null
   terrain: TerrainRelief | null
-  centerRef: RefObject<Group | null>
+  /** The globe's own group, which carries the overlay's transform. */
+  groupRef: RefObject<Group | null>
   visuals: EarthMapVisuals
-  reducedMotion: boolean
-}) {
-  const groupRef = useRef<Group>(null)
-  const elementRef = useRef<HTMLDivElement>(null)
-  const opacity = useRef(0)
-
-  // In the parent group's own (unit-sphere) space: the group already scales by
-  // Earth's radius, so the anchor is just the terrain height plus a small lift.
-  const position = useMemo<[number, number, number]>(() => {
-    const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
-    const height = sampler ? sampler(place.lon, place.lat) : 0
-    const r = 1 + height * (terrain?.scale ?? 0) + (terrain?.bias ?? 0) + visuals.label.lift
-    return [x * r, y * r, z * r]
-  }, [place, uvOffsetU, sampler, terrain, visuals])
-
-  useFrame(({ camera }, delta) => {
-    const element = elementRef.current
-    const group = groupRef.current
-    const center = centerRef.current
-    if (!element || !group || !center) return
-    group.getWorldPosition(_labelWorld)
-    center.getWorldPosition(_centerWorld)
-    _normal.subVectors(_labelWorld, _centerWorld)
-    _view.subVectors(camera.position, _centerWorld)
-    const denominator = _normal.length() * _view.length() || 1
-    const facing = _normal.dot(_view) / denominator
-    // Only the hemisphere turned toward the camera carries labels; the far side
-    // is hidden by the globe itself.
-    const target = facing > 0.1 ? 1 : 0
-    const speed = reducedMotion ? 1 : Math.min(1, delta * 9)
-    opacity.current += (target - opacity.current) * speed
-    element.style.opacity = opacity.current.toFixed(3)
-  })
-
-  return (
-    <group ref={groupRef} position={position}>
-      <Html center={false} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-        <div
-          ref={elementRef}
-          className="sse-city-label"
-          style={{ color: visuals.label.color, opacity: 0 }}
-        >
-          <span className="sse-city-label__dot" aria-hidden="true" />
-          {name}
-        </div>
-      </Html>
-    </group>
-  )
 }
 
-const _labelWorld = new Vector3()
-const _centerWorld = new Vector3()
-const _normal = new Vector3()
-const _view = new Vector3()
-const _sunLocal = new Vector3()
+interface CityLabelEntry {
+  name: string
+  /** The city's unit direction in the globe group's own space. */
+  dir: Vector3
+  /** The elevation model's texel at the city, 0 where there is no model. */
+  height: number
+}
 
-export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels, reducedMotion }: EarthMapProps) {
+/**
+ * The city names.
+ *
+ * A globe carries a couple of hundred of them, which is far more than drei's
+ * `<Html>` is built for: each instance runs its own `useFrame`, and each of
+ * those walks the object's parents, projects the point, allocates, and writes
+ * both a `transform` and a `z-index` — several times the work of the label
+ * itself, a few hundred times a frame. So the names are plain elements in one
+ * overlay here, built by hand rather than reconciled (a React portal inside the
+ * canvas is rendered by the three.js reconciler, which knows nothing of a
+ * `<div>`), and a single `useFrame` places them all:
+ *
+ *  - **The cull costs one dot product.** The globe turns as a rigid body, so the
+ *    camera's direction is rotated into the globe's own frame once a frame and
+ *    each name is tested against its precomputed direction. That drops the whole
+ *    back face — and the rim, where foreshortening piles the names up — before
+ *    any work is spent finding a position.
+ *  - **One matrix a frame, one multiply a name.** The camera and the globe are
+ *    folded into a single matrix, so a visible name costs one `applyMatrix4` and
+ *    one `transform` write.
+ *  - **The fade is a CSS transition.** Visibility is a data attribute, so a name
+ *    that is not crossing the limb costs nothing but its position write.
+ */
+function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, visuals }: CityLabelsProps) {
+  const gl = useThree((state) => state.gl)
+  const nodes = useRef<HTMLDivElement[]>([])
+  const shown = useRef<Uint8Array>(new Uint8Array(0))
+  const lastX = useRef<Float32Array>(new Float32Array(0))
+  const lastY = useRef<Float32Array>(new Float32Array(0))
+
+  // Only the places and their directions are fixed here; the elevation is kept
+  // as a raw texel so that moving the relief slider never rebuilds anything —
+  // the radius is worked out in the frame loop from the live terrain numbers.
+  const entries = useMemo<CityLabelEntry[]>(
+    () =>
+      places.map((place) => {
+        const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
+        return {
+          name: placeName(place, language),
+          dir: new Vector3(x, y, z),
+          height: sampler ? sampler(place.lon, place.lat) : 0,
+        }
+      }),
+    [places, language, uvOffsetU, sampler],
+  )
+
+  const facingMin = limbFacingThreshold(visuals.label.limbRadius)
+
+  // One overlay beside the canvas, beneath the interface panels, with one
+  // element per name — built by hand, once per set of places.
+  useEffect(() => {
+    const parent = gl.domElement.parentNode
+    if (!parent) return
+    const container = document.createElement('div')
+    container.className = 'sse-city-labels'
+    const created = entries.map((entry) => {
+      const element = document.createElement('div')
+      element.className = 'sse-city-label'
+      element.style.color = visuals.label.color
+      const dot = document.createElement('span')
+      dot.className = 'sse-city-label__dot'
+      dot.setAttribute('aria-hidden', 'true')
+      element.append(dot, document.createTextNode(entry.name))
+      container.appendChild(element)
+      return element
+    })
+    parent.appendChild(container)
+    nodes.current = created
+    shown.current = new Uint8Array(created.length)
+    lastX.current = new Float32Array(created.length)
+    lastY.current = new Float32Array(created.length)
+    return () => {
+      parent.removeChild(container)
+      nodes.current = []
+      shown.current = new Uint8Array(0)
+      lastX.current = new Float32Array(0)
+      lastY.current = new Float32Array(0)
+    }
+  }, [gl, entries, visuals])
+
+  useFrame(({ camera, size }) => {
+    const group = groupRef.current
+    const elements = nodes.current
+    if (!group || elements.length === 0) return
+
+    // Everything happens in the globe's own frame: one world-matrix update, one
+    // decomposition and one quaternion inversion a frame, not per name.
+    group.updateWorldMatrix(true, false)
+    group.matrixWorld.decompose(_centerWorld, _globeQuaternion, _globeScale)
+    _viewDirection.subVectors(camera.position, _centerWorld).normalize()
+    _globeQuaternion.invert()
+    _viewLocal.copy(_viewDirection).applyQuaternion(_globeQuaternion)
+
+    // The camera and the globe in one matrix, so projecting a name is a single
+    // multiply.
+    camera.updateMatrixWorld()
+    _projectionView
+      .multiplyMatrices(camera.projectionMatrix, _viewMatrix.copy(camera.matrixWorld).invert())
+      .multiply(group.matrixWorld)
+
+    const halfWidth = size.width / 2
+    const halfHeight = size.height / 2
+    const terrainScale = terrain?.scale ?? 0
+    const terrainBias = terrain?.bias ?? 0
+    const lift = visuals.label.lift
+
+    for (let index = 0; index < elements.length; index += 1) {
+      const element = elements[index]
+      const entry = entries[index]
+      if (!entry) continue
+      const dir = entry.dir
+      // 1 at the point facing the camera, 0 at the limb, negative behind it.
+      const facing = dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z
+      const visible = facing > facingMin
+      const turned = visible !== (shown.current[index] === 1)
+      if (turned) {
+        shown.current[index] = visible ? 1 : 0
+        element.classList.toggle('is-visible', visible)
+      }
+      if (!visible) continue
+
+      const radius = 1 + entry.height * terrainScale + terrainBias + lift
+      _ndc.copy(dir).multiplyScalar(radius).applyMatrix4(_projectionView)
+      // Off the viewport: leave the last position; the overlay clips it.
+      if (_ndc.x < -1.1 || _ndc.x > 1.1 || _ndc.y < -1.1 || _ndc.y > 1.1) continue
+      const x = _ndc.x * halfWidth + halfWidth
+      const y = halfHeight - _ndc.y * halfHeight
+      // Only touch the DOM when the name has actually moved (or has just come
+      // back into view): a paused globe or a still camera then costs nothing at
+      // all, and a slow one only pays for the pixels it really shifts.
+      if (
+        !turned &&
+        Math.abs(x - lastX.current[index]) < 0.5 &&
+        Math.abs(y - lastY.current[index]) < 0.5
+      ) {
+        continue
+      }
+      lastX.current[index] = x
+      lastY.current[index] = y
+      element.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-100%)`
+    }
+  })
+
+  return null
+}
+
+const _centerWorld = new Vector3()
+const _sunLocal = new Vector3()
+const _viewDirection = new Vector3()
+const _viewLocal = new Vector3()
+const _globeQuaternion = new Quaternion()
+const _globeScale = new Vector3()
+const _projectionView = new Matrix4()
+const _viewMatrix = new Matrix4()
+const _ndc = new Vector3()
+
+export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: EarthMapProps) {
   const data = useGeoData(quality)
   // The city names follow the interface language, like every other label.
   const { language } = useTranslation()
@@ -437,21 +547,17 @@ export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels, redu
       {borders ? <primitive object={borders} /> : null}
       {regions ? <primitive object={regions} /> : null}
       {markers ? <primitive object={markers} /> : null}
-      {labelsVisible
-        ? visibleLabels.map((place) => (
-            <CityLabel
-              key={`${place.name}-${place.lon}-${place.lat}`}
-              place={place}
-              name={placeName(place, language)}
-              uvOffsetU={uvOffsetU}
-              sampler={sampler}
-              terrain={terrain}
-              centerRef={groupRef}
-              visuals={visuals}
-              reducedMotion={reducedMotion}
-            />
-          ))
-        : null}
+      {labelsVisible ? (
+        <CityLabels
+          places={visibleLabels}
+          language={language}
+          uvOffsetU={uvOffsetU}
+          sampler={sampler}
+          terrain={terrain}
+          groupRef={groupRef}
+          visuals={visuals}
+        />
+      ) : null}
     </group>
   )
 }
