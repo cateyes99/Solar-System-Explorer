@@ -176,6 +176,24 @@ export function placeName(place: GeoPlace, language: string): string {
   return language === 'zh' && place.zh ? place.zh : place.name
 }
 
+/**
+ * The smallest `dot(surfaceNormal, viewDirection)` a label may have and still be
+ * drawn — the one number behind the cull that drops the back face and the rim.
+ *
+ * A point `θ` around from the spot facing the camera sits at `sin θ` of the
+ * globe's projected radius, so keeping labels inside `limbRadius` of that radius
+ * is the same as requiring their normal to face the camera by at least
+ * `cos θ = √(1 − limbRadius²)`. Working in the cosine keeps the test to a single
+ * dot product per label, with no projection, and it is exact at both ends: 1 at
+ * the centre of the disc, 0 at the limb, negative behind it.
+ */
+export function limbFacingThreshold(limbRadius: number): number {
+  const squared = 1 - limbRadius * limbRadius
+  // `> 0` rather than `Math.max`, so a missing or nonsensical fraction falls
+  // back to "no rim cull" instead of a NaN that would hide every label.
+  return squared > 0 ? Math.sqrt(squared) : 0
+}
+
 /** The places worth a text label, most important first. */
 export function labelledPlaces(places: GeoPlace[]): GeoPlace[] {
   return places
