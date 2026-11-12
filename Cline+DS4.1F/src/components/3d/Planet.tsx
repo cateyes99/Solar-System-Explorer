@@ -590,7 +590,6 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               terrain={terrain}
               quality={quality}
               showLabels={showLabels}
-              reducedMotion={reducedMotion}
             />
           ) : null}
         </group>

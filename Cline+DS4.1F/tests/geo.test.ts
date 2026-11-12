@@ -4,6 +4,7 @@ import {
   borderSegmentPositions,
   countSegments,
   labelledPlaces,
+  limbFacingThreshold,
   lonLatToDirection,
   placeName,
   type GeoPlace,
@@ -157,4 +158,21 @@ test('a place name follows the interface language, falling back to English', () 
   assert.equal(placeName(tokyo, 'zh'), '东京')
   // A place the source has no translation for keeps its English name.
   assert.equal(placeName({ ...tokyo, zh: '' }, 'zh'), 'Tokyo')
+})
+
+test('the limb cull turns the requested radius fraction into a cosine', () => {
+  // A label at `limbRadius` of the globe's projected radius sits at sin θ =
+  // limbRadius, so the value the per-frame dot product is compared against is
+  // cos θ = √(1 − limbRadius²).
+  assert.ok(close(limbFacingThreshold(27 / 30), Math.sqrt(1 - (27 / 30) ** 2), 1e-12))
+  assert.ok(close(limbFacingThreshold(27 / 30), 0.436, 1e-3))
+  // A tighter fraction is a *higher* bar, so it keeps less of the rim.
+  assert.ok(limbFacingThreshold(27 / 30) > limbFacingThreshold(29 / 30))
+  assert.ok(limbFacingThreshold(29 / 30) > limbFacingThreshold(49 / 50))
+  // The centre of the disc is always kept...
+  assert.equal(limbFacingThreshold(0), 1)
+  // ...and an impossible fraction can never make the threshold negative, which
+  // would let back-face labels through.
+  assert.equal(limbFacingThreshold(2), 0)
+  assert.equal(limbFacingThreshold(Number.NaN), 0)
 })

@@ -40,6 +40,20 @@ export interface EarthMapVisuals {
     color: string
     /** How far the label sits above the marker, in planet radii. */
     lift: number
+    /**
+     * How far out toward the limb a label may sit, as a fraction of the globe's
+     * projected radius. A name beyond it is dropped, together with the whole
+     * back face: near the edge the surface is so foreshortened that the names
+     * pile up on top of one another and their pills overhang the planet, which
+     * is exactly the clutter worth losing.
+     *
+     * `27/30` is the tuned value: the names clear the horizon well before the
+     * edge, where they crowd and their pills start to overhang. Loosening it to
+     * `29/30` barely differs from drawing the whole face, and `49/50` keeps more
+     * of the rim still. `utils/geo.ts` turns the fraction into the cosine the
+     * per-frame cull actually compares against.
+     */
+    limbRadius: number
   }
   /**
    * How large Earth has to appear (its diameter as a fraction of the viewport's
@@ -72,7 +86,7 @@ export const EARTH_MAP: EarthMapVisuals = {
   region: { color: '#9dbdd8', width: 1, opacity: 0.32 },
   capital: { color: '#ffd98a', size: 5 },
   city: { color: '#d8ecff', size: 3 },
-  label: { color: '#eaf5ff', lift: 0.004 },
+  label: { color: '#eaf5ff', lift: 0.004, limbRadius: 27 / 30 },
   // Regional borders and labels only earn their space once Earth is a decent
   // size on screen; the thresholds are apparent diameters, so they behave the
   // same at every zoom level and in every scale mode.

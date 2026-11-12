@@ -245,6 +245,18 @@ A few decisions worth knowing about:
   climbs the terrain rather than floating over it or sinking into it. The data loads only when the
   layer is first switched on, and the whole thing is three draw calls however many thousands of
   segments it holds.
+- **The city names are culled and batched, because there are hundreds of them.** A DOM label is a
+  text element the browser has to style and paint, and drei's `<Html>` — built for a handful of
+  labels — gives each one its own `useFrame` that walks the object's parents, projects the point,
+  allocates and writes both a `transform` and a `z-index`. `components/3d/EarthMap.tsx` therefore
+  draws them itself: one overlay beside the canvas, one `useFrame` for the lot, the camera and the
+  globe folded into a single matrix so a name costs one multiply and one `transform` write, and a
+  projection-free cull — one dot product a name — that drops the whole back face *and* the rim,
+  where foreshortening piles the names up and their pills overhang the planet. The fade is a CSS
+  transition rather than a per-frame opacity write, a name that has not moved is not written at all,
+  and there is no `backdrop-filter` or layer-promoting `will-change` on the elements, both of which
+  cost far more than they are worth at this count. Profiling the built app, the label pass's own
+  JavaScript is now negligible, and the per-frame style work it causes has roughly halved.
 - **Resolution is spent where it is seen.** `utils/textureResolution.ts` decides how much of each
   source reaches the GPU: a tier's fraction of the source (High = full, Medium = half, Low =
   quarter), reduced by any per-map ceiling and never above the driver's `MAX_TEXTURE_SIZE`. Earth's
