@@ -43,6 +43,7 @@ import {
 } from './terrain'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
+import { EarthMap } from './EarthMap'
 import { Ocean } from './Ocean'
 import { NightLights } from './NightLights'
 import { Rings } from './Rings'
@@ -154,6 +155,11 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   // What the *surface* material's seafloor opacity uniform takes: the slider in
   // a fading mode, a pinned 0 (fully drained) in a layered mode.
   const seafloorOpacity = seafloorOpacityFor(seawaterMode, seawaterOpacity)
+  // Earth's optional world-map overlay. The selector returns a constant for
+  // every other world, so they never re-render when the switch moves.
+  const showEarthMap = useSimulationStore((state) =>
+    body.id === 'earth' ? state.showEarthMap : false,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -571,6 +577,19 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               reducedMotion={reducedMotion}
               uvOffsetU={visuals.textureOffsetU}
               shellLift={terrain?.peakRadius ?? 0}
+            />
+          ) : null}
+
+          {/* The optional world map (borders, capitals, cities). It rides the
+              spin group, so it turns with the surface, and it is displaced by
+              the same elevation model the ground uses. Earth only. */}
+          {body.id === 'earth' && showEarthMap ? (
+            <EarthMap
+              radius={radius}
+              uvOffsetU={visuals.textureOffsetU}
+              terrain={terrain}
+              quality={quality}
+              showLabels={showLabels}
             />
           ) : null}
         </group>

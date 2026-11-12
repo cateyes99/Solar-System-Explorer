@@ -111,6 +111,15 @@
   // version of this value.
   "Seawater Mode": "surface",
 
+  // --- Earth's world map ---------------------------------------------------
+  // Whether to draw the optional "World map" overlay on Earth: national borders,
+  // regional (state/province) borders, capitals and major cities. It is real
+  // Natural Earth vector data (public domain — see public/geo/CREDITS.md),
+  // aligned to the surface maps and following the terrain. It loads the first
+  // time it is switched on. false (the default) leaves the globe exactly as it
+  // ships. The same switch is live in the Earth panel and the Layers list.
+  "World Map": false,
+
   // --- Side panels ---------------------------------------------------------
   // Opacity of the left "Controls" panel and the right information panel.
   // 0 = invisible (its header controls stay usable), 1 = fully opaque.
