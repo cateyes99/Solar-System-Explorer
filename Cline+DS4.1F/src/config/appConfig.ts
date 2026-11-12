@@ -125,6 +125,12 @@ export interface AppConfig {
    * model's full size). See `utils/spacecraftSize`.
    */
   spacecraftSize: number
+  /**
+   * Whether Earth's optional "World map" overlay (national and regional borders,
+   * capitals and cities, from Natural Earth data) starts switched on. Off by
+   * default. The same switch is live in the Earth panel.
+   */
+  showEarthMap: boolean
 }
 
 /**
@@ -152,6 +158,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   leftPanelOpacity: 1,
   rightPanelOpacity: 1,
   spacecraftSize: DEFAULT_SPACECRAFT_SIZE,
+  showEarthMap: false,
 }
 
 interface NumberField {
@@ -322,6 +329,15 @@ export function validateAppConfig(raw: unknown): { config: AppConfig; issues: st
     }
   }
 
+  const worldMap = record['World Map']
+  if (worldMap !== undefined) {
+    if (typeof worldMap === 'boolean') {
+      config.showEarthMap = worldMap
+    } else {
+      issues.push(`World Map: expected true or false, got ${JSON.stringify(worldMap)}`)
+    }
+  }
+
   return { config, issues }
 }
 
@@ -384,6 +400,7 @@ export function applyAppConfig(config: AppConfig): void {
     leftPanelOpacity: config.leftPanelOpacity,
     rightPanelOpacity: config.rightPanelOpacity,
     spacecraftSize: config.spacecraftSize,
+    showEarthMap: config.showEarthMap,
   }
   useSimulationStore.getState().applySettings(patch)
 }

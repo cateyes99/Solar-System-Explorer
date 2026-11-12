@@ -8,7 +8,7 @@ import { useContent } from '../../i18n/content'
 import { useSimulationStore } from '../../store/simulationStore'
 import { useFormatters } from '../../utils/format'
 import { getDistanceFromSun } from '../../utils/bodyRegistry'
-import { Chip, CollapsibleSidePanel, PanelCollapseButton, SectionTitle, SliderRow, Stat, ToolbarButton } from './primitives'
+import { Chip, CollapsibleSidePanel, PanelCollapseButton, SectionTitle, SliderRow, Stat, ToggleRow, ToolbarButton } from './primitives'
 import { CloseIcon, OrbitIcon, RocketIcon } from './icons'
 
 /**
@@ -57,6 +57,8 @@ export function PlanetPanel() {
   const setEarthWaveStyle = useSimulationStore((state) => state.setEarthWaveStyle)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
   const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
+  const showEarthMap = useSimulationStore((state) => state.showEarthMap)
+  const toggleEarthMap = useSimulationStore((state) => state.toggleEarthMap)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
   const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
@@ -134,6 +136,20 @@ export function PlanetPanel() {
           }
         >
           <p className="text-sm leading-relaxed text-parchment/95">{body.description}</p>
+
+          {body.id === 'earth' ? (
+            <div className="mt-4">
+              <SectionTitle hint={t('planet.worldMapHint')}>{t('planet.worldMap')}</SectionTitle>
+              <div className="rounded-xl border border-white/8 bg-white/4 p-1">
+                <ToggleRow
+                  label={t('planet.worldMapToggle')}
+                  description={t('planet.worldMapToggleDesc')}
+                  checked={showEarthMap}
+                  onChange={toggleEarthMap}
+                />
+              </div>
+            </div>
+          ) : null}
 
           {body.id === 'earth' ? (
             <div className="mt-4">

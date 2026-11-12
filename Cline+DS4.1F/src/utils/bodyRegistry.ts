@@ -71,3 +71,46 @@ export function unregisterBodyOccluder(object: Object3D): void {
 export function getBodyOccluders(): BodyOccluder[] {
   return occluderList
 }
+
+/**
+ * The camera-to-label ray a body test needs: `direction` is filled with the unit
+ * vector from the camera to `point`, and the distance is returned (0 when the two
+ * coincide, which cannot be tested against anything).
+ *
+ * It is split out from the test below so a caller with many labels can prepare
+ * the ray once and then check it against every body, rather than recomputing the
+ * normalisation for each pair.
+ */
+export function cameraRayTo(point: Vector3, cameraPosition: Vector3, direction: Vector3): number {
+  direction.copy(point).sub(cameraPosition)
+  const distance = direction.length()
+  if (distance < 1e-9) return 0
+  direction.divideScalar(distance)
+  return distance
+}
+
+/**
+ * Whether the sphere at `centreFromCamera` (radius `radius`) stands in front of
+ * the point that `direction`/`distance` describe — the only test a DOM label can
+ * use, because the GPU's depth buffer never touches it.
+ *
+ * `centreFromCamera` is the body's centre *relative to the camera*, which saves
+ * the caller a subtraction per body. The maths is the standard ray–sphere
+ * intersection, kept here so the two label layers cannot drift apart.
+ */
+export function rayBlockedBySphere(
+  direction: Vector3,
+  distance: number,
+  centreFromCamera: Vector3,
+  radius: number,
+): boolean {
+  const along = centreFromCamera.dot(direction)
+  // The body is behind the camera, so it cannot stand in front of the point.
+  if (along <= 0) return false
+  const perpendicularSq = centreFromCamera.lengthSq() - along * along
+  const radiusSq = radius * radius
+  // The ray misses the body's disc entirely.
+  if (perpendicularSq > radiusSq) return false
+  const near = along - Math.sqrt(radiusSq - perpendicularSq)
+  return near > 0 && near < distance
+}

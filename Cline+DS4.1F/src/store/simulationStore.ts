@@ -63,6 +63,8 @@ export interface SettingsPatch {
   rightPanelOpacity?: number
   /** The spacecraft's size level, 1…100 (see `utils/spacecraftSize`). */
   spacecraftSize?: number
+  /** Whether Earth's optional "World map" overlay starts switched on. */
+  showEarthMap?: boolean
 }
 
 export interface Toast {
@@ -128,6 +130,13 @@ export interface SimulationState {
   showAsteroidBelt: boolean
   showNebula: boolean
   showOrbitFlow: boolean
+  /**
+   * Whether Earth's optional "World map" overlay is drawn: national and regional
+   * borders, capitals and major cities, from Natural Earth vector data. Off by
+   * default so the shipped globe looks exactly as it always has, and only Earth
+   * reads it (see `components/3d/EarthMap.tsx`).
+   */
+  showEarthMap: boolean
   /**
    * How strongly Earth's atmosphere is drawn: 0 = invisible (bare surface),
    * 1 = full strength. Only Earth has this control, so no other body reads it.
@@ -312,6 +321,8 @@ export interface SimulationActions {
   toggleAsteroidBelt: () => void
   toggleNebula: () => void
   setShowOrbitFlow: (visible: boolean) => void
+  toggleEarthMap: () => void
+  setShowEarthMap: (visible: boolean) => void
   setEarthAtmosphereOpacity: (value: number) => void
   setEarthCloudOpacity: (value: number) => void
   setEarthCloudDynamics: (value: number) => void
@@ -418,6 +429,9 @@ const initialState: SimulationState = {
   showAsteroidBelt: true,
   showNebula: true,
   showOrbitFlow: false,
+  // The World map is opt-in: it is a cartographic overlay on top of the real
+  // imagery, so it stays off until a viewer asks for it.
+  showEarthMap: false,
   // The slider is a 0…1 haze level, mapped onto the shader's opacity range by
   // `atmosphereOpacityFromSlider`. 0.45 is a gentle rim that still lets the whole
   // surface read, with plenty of range to thin it further or fill it out.
@@ -600,6 +614,17 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   toggleAsteroidBelt: () => set((state) => ({ showAsteroidBelt: !state.showAsteroidBelt })),
   toggleNebula: () => set((state) => ({ showNebula: !state.showNebula })),
   setShowOrbitFlow: (visible) => set({ showOrbitFlow: visible }),
+
+  toggleEarthMap: () => {
+    audio.play('click')
+    const next = !get().showEarthMap
+    set({ showEarthMap: next })
+    // Say where to look: the overlay is only drawn once Earth is more than a
+    // speck, so switching it on at the wide Solar-System view shows nothing yet.
+    if (next) get().showToast(translate(get().language, 'toast.worldMapOn'), 'info')
+  },
+
+  setShowEarthMap: (visible) => set({ showEarthMap: visible }),
 
   setEarthAtmosphereOpacity: (value) =>
     set({ earthAtmosphereOpacity: Math.max(0, Math.min(1, value)) }),
@@ -830,6 +855,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         ? patch.earthSeawaterMode
         : state.earthSeawaterMode,
       spacecraftSize: clampSpacecraftSize(patch.spacecraftSize ?? state.spacecraftSize),
+      showEarthMap: patch.showEarthMap ?? state.showEarthMap,
       ui: {
         ...state.ui,
         leftPanelOpacity: clamp01(patch.leftPanelOpacity, state.ui.leftPanelOpacity),

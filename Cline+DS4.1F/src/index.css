@@ -170,6 +170,53 @@
     border-radius: 999px;
     box-shadow: 0 0 8px 1px currentColor;
   }
+
+  /* City names for the World-map overlay.
+     They are plain elements in one overlay beside the canvas, and a single
+     per-frame pass in `EarthMap.tsx` writes each one's `transform` — the cull
+     keeps that to the names on the near face. Visibility is a data attribute
+     rather than a per-frame opacity write, so the fade can be a transition.
+     There is deliberately no `backdrop-filter` and no `will-change` here: at a
+     couple of hundred elements both cost far more than they are worth. */
+  .sse-city-labels {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .sse-city-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    border-radius: 999px;
+    background: rgba(4, 7, 18, 0.55);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms ease-out, visibility 0s linear 180ms;
+  }
+
+  .sse-city-label.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 180ms ease-out, visibility 0s;
+  }
+
+  .sse-city-label__dot {
+    width: 0.26rem;
+    height: 0.26rem;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 6px 1px currentColor;
+  }
 }
 
 @layer utilities {

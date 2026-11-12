@@ -9,7 +9,9 @@
   // test files rather than the base config's `["src", "vite.config.ts"]`.
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["node"],
+    // `vite/client` is kept alongside `node` because a couple of the modules a
+    // test imports (for example `utils/geo.ts`) read `import.meta.env`.
+    "types": ["node", "vite/client"],
     // The tests import their modules with an explicit `.ts` extension because
     // Node runs them directly (native type-stripping) — unlike `src`, which Vite
     // resolves without one.
