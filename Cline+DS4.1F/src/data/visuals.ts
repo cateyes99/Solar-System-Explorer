@@ -907,7 +907,7 @@ export const BODY_VISUALS: Record<BodyId, BodyVisuals> = {
         // normal ring size; higher = progressively finer and more numerous.
         // Driven live by the panel's "Ring detail" slider.
         swellDetail: 0, // 0–80
-        swellDetailMax: 10000, // 1K generates much finer rings/arcs swell waves than 80, // the "Ring detail" slider's top end
+        swellDetailMax: 1000, // 1K generates much finer rings/arcs swell waves than 80 // the "Ring detail" slider's top end
         // The crest warp: a low-frequency field that offsets every component's
         // phase, so the swells wander and interleave instead of closing into
         // rings around each plane wave's pole. ~1 wavelength of wander. Tune the
