@@ -4,7 +4,12 @@ import { useFrame } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import type { Group } from 'three'
 import type { BodyId } from '../../types'
-import { getBodyOccluders, getBodyWorldPosition } from '../../utils/bodyRegistry'
+import {
+  cameraRayTo,
+  getBodyOccluders,
+  getBodyWorldPosition,
+  rayBlockedBySphere,
+} from '../../utils/bodyRegistry'
 import { useSimulationStore } from '../../store/simulationStore'
 
 /**
@@ -58,22 +63,12 @@ export function PlanetLabel({ bodyId, name, accent, offset }: PlanetLabelProps) 
     // anchor and look for a body sphere in between. Independent of the named
     // body: this hides a label blocked by any other body, too.
     label.getWorldPosition(labelPosition)
-    ray.copy(labelPosition).sub(camera.position)
-    const labelDistance = ray.length()
+    const labelDistance = cameraRayTo(labelPosition, camera.position, ray)
     let blocked = false
-    if (labelDistance > 1e-6) {
-      ray.divideScalar(labelDistance)
+    if (labelDistance > 0) {
       for (const body of getBodyOccluders()) {
         body.object.getWorldPosition(occluderCentre).sub(camera.position)
-        const along = occluderCentre.dot(ray)
-        // The body is behind the camera, so it cannot block this label.
-        if (along <= 0) continue
-        const perpendicularSq = occluderCentre.lengthSq() - along * along
-        const radiusSq = body.radius * body.radius
-        // The ray misses the body's disc.
-        if (perpendicularSq > radiusSq) continue
-        const near = along - Math.sqrt(radiusSq - perpendicularSq)
-        if (near > 0 && near < labelDistance) {
+        if (rayBlockedBySphere(ray, labelDistance, occluderCentre, body.radius)) {
           blocked = true
           break
         }

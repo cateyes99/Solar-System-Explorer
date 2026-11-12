@@ -32,6 +32,7 @@ import {
   type GeoPlace,
 } from '../../utils/geo'
 import { useTranslation } from '../../i18n'
+import { cameraRayTo, getBodyOccluders, rayBlockedBySphere } from '../../utils/bodyRegistry'
 import { getTexture, hasTexture } from '../../utils/textures'
 import { smoothstep } from '../../utils/random'
 import { SUN_POSITION } from './constants'
@@ -390,6 +391,9 @@ function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, v
     const terrainScale = terrain?.scale ?? 0
     const terrainBias = terrain?.bias ?? 0
     const lift = visuals.label.lift
+    // The bodies a name can hide behind, read once a frame rather than once a
+    // name.
+    const occluderCount = refreshOccluders(camera.position)
 
     for (let index = 0; index < elements.length; index += 1) {
       const element = elements[index]
@@ -398,7 +402,29 @@ function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, v
       const dir = entry.dir
       // 1 at the point facing the camera, 0 at the limb, negative behind it.
       const facing = dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z
-      const visible = facing > facingMin
+      let visible = facing > facingMin
+      let radius = 0
+      if (visible) {
+        radius = 1 + entry.height * terrainScale + terrainBias + lift
+        // A DOM label is never depth-tested, so the globe and the other worlds
+        // have to be tested by hand — otherwise the Moon, passing in front of
+        // South America, has the names behind it drawn on top of it. The globe's
+        // own sphere only ever blocks a name that is already past the limb, so
+        // this doubles as the exact near-side test the fixed cull cannot give a
+        // close camera.
+        _anchor.copy(dir).multiplyScalar(radius).applyMatrix4(group.matrixWorld)
+        const rayLength = cameraRayTo(_anchor, camera.position, _labelRay)
+        if (rayLength > 0) {
+          for (let body = 0; body < occluderCount; body += 1) {
+            if (
+              rayBlockedBySphere(_labelRay, rayLength, _occluderCentres[body], _occluderRadii[body])
+            ) {
+              visible = false
+              break
+            }
+          }
+        }
+      }
       const turned = visible !== (shown.current[index] === 1)
       if (turned) {
         shown.current[index] = visible ? 1 : 0
@@ -406,7 +432,6 @@ function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, v
       }
       if (!visible) continue
 
-      const radius = 1 + entry.height * terrainScale + terrainBias + lift
       _ndc.copy(dir).multiplyScalar(radius).applyMatrix4(_projectionView)
       // Off the viewport: leave the last position; the overlay clips it.
       if (_ndc.x < -1.1 || _ndc.x > 1.1 || _ndc.y < -1.1 || _ndc.y > 1.1) continue
@@ -440,6 +465,28 @@ const _globeScale = new Vector3()
 const _projectionView = new Matrix4()
 const _viewMatrix = new Matrix4()
 const _ndc = new Vector3()
+const _anchor = new Vector3()
+const _labelRay = new Vector3()
+/**
+ * The bodies a name can hide behind, as camera-relative centres and radii,
+ * refreshed once a frame. Both lists are reused, so a frame allocates nothing.
+ */
+const _occluderCentres: Vector3[] = []
+const _occluderRadii: number[] = []
+
+function refreshOccluders(cameraPosition: Vector3): number {
+  const bodies = getBodyOccluders()
+  for (let index = 0; index < bodies.length; index += 1) {
+    let centre = _occluderCentres[index]
+    if (!centre) {
+      centre = new Vector3()
+      _occluderCentres[index] = centre
+    }
+    bodies[index].object.getWorldPosition(centre).sub(cameraPosition)
+    _occluderRadii[index] = bodies[index].radius
+  }
+  return bodies.length
+}
 
 export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: EarthMapProps) {
   const data = useGeoData(quality)
