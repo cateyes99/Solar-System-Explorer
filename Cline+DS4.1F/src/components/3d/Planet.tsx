@@ -588,6 +588,10 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               radius={radius}
               uvOffsetU={visuals.textureOffsetU}
               terrain={terrain}
+              // The overlay interpolates the elevation model across the surface
+              // mesh's own facets, so it has to know the mesh it is sitting on.
+              meshColumns={sphereGeometry.parameters.widthSegments}
+              meshRows={sphereGeometry.parameters.heightSegments}
               quality={quality}
               showLabels={showLabels}
             />

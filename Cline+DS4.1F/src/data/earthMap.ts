@@ -81,20 +81,18 @@ export interface EarthMapVisuals {
   dayFade: number
   /**
    * How far the overlay is pulled toward the camera, as a fraction of the
-   * tallest terrain in the elevation model — the depth bias that keeps the lines
-   * out of the ground.
+   * planet's drawn radius — the depth bias that keeps a line from stippling
+   * against the ground it lies on.
    *
-   * The overlay is placed on the *true* surface, but the surface is drawn by a
-   * mesh whose facets are straight, so wherever the terrain curves they cut
-   * above it. Measured against the shipped height map, the mesh stands up to
-   * 0.23 of a texel above the true field — about 0.29 of the tallest peak, at
-   * 100% relief — and a border line inside that is simply swallowed. 0.35 clears
-   * it with a little margin.
-   *
-   * The cost on screen is nil: pulling a point toward the camera along its own
-   * view ray is a uniform scaling of its view-space position, so its projection
-   * is untouched and only its depth changes. At 0% relief there is no relief to
-   * clear, and the bias is 0 with it.
+   * The overlay now reproduces the surface mesh's own interpolation (see
+   * `earthMapShader.ts`), so a border lies exactly *on* the ground rather than
+   * a hair above or below it. Exactly on is coplanar, and coplanar surfaces
+   * flicker as the depth buffer rounds the two the same or not, so the overlay
+   * is nudged forward by a hair. It has to be small: a line pulled too far is a
+   * line that wins the depth test against terrain genuinely in front of it, and
+   * the far side of the globe starts leaking around the limb. A couple of
+   * thousandths of the radius is several times the depth buffer's resolution
+   * here and a fraction of a pixel on screen.
    */
   cameraLift: number
 }
@@ -112,5 +110,5 @@ export const EARTH_MAP: EarthMapVisuals = {
   labelFade: [0.16, 0.22],
   labelDetailFade: [0.4, 0.5],
   dayFade: 1,
-  cameraLift: 0.35,
+  cameraLift: 0.0025,
 }
