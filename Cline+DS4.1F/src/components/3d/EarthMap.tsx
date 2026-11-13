@@ -65,6 +65,14 @@ interface EarthMapProps {
   uvOffsetU: number
   /** The live terrain relief numbers, or null when Earth has no elevation model. */
   terrain: TerrainRelief | null
+  /**
+   * The surface mesh's tessellation — `widthSegments`, `heightSegments`. The
+   * overlay has to interpolate the elevation model across the same facets the
+   * ground is drawn with, so it needs the mesh's resolution, and it changes as
+   * the planet climbs a level of detail (see `geometry.ts`).
+   */
+  meshColumns: number
+  meshRows: number
   quality: QualityLevel
   showLabels: boolean
 }
@@ -106,13 +114,23 @@ function useGeoData(quality: QualityLevel): GeoData | null {
  * do not use it: they hug the terrain in the shader like the borders. Returns
  * null when there is no elevation model, and the labels then sit just above sea
  * level.
+ *
+ * It returns the height the *surface mesh* shows, not the model's own texel —
+ * the same value `earthMapGroundHeight` gives the shader (see
+ * `earthMapShader.ts`). A label placed on the raw texel would drift up off the
+ * ground at a summit, and off its own marker, which is drawn on the mesh.
  */
-function createElevationSampler(): ((lon: number, lat: number) => number) | null {
+function createElevationSampler(
+  uvOffsetU: number,
+  meshColumns: number,
+  meshRows: number,
+): ((lon: number, lat: number) => number) | null {
   if (!hasTexture('earthHeightmap')) return null
   const image = getTexture('earthHeightmap').image as CanvasImageSource | undefined
   if (!image) return null
-  const width = 1024
-  const height = 512
+  const source = image as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }
+  const width = source.naturalWidth ?? source.width ?? 2048
+  const height = source.naturalHeight ?? source.height ?? 1024
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -120,12 +138,40 @@ function createElevationSampler(): ((lon: number, lat: number) => number) | null
   if (!context) return null
   context.drawImage(image, 0, 0, width, height)
   const pixels = context.getImageData(0, 0, width, height).data
-  return (lon, lat) => {
-    const u = (((lon + 180) / 360) % 1 + 1) % 1
-    const v = Math.min(0.999999, Math.max(0, (90 - lat) / 180))
+  // The texel at a map coordinate, in the sampler's own top-down layout.
+  const texel = (mapU: number, mapV: number) => {
+    const u = (((mapU % 1) + 1) % 1)
+    const v = Math.min(0.999999, Math.max(0, 1 - mapV))
     const x = Math.min(width - 1, Math.floor(u * width))
     const y = Math.min(height - 1, Math.floor(v * height))
     return pixels[(y * width + x) * 4] / 255
+  }
+  const columns = Math.max(meshColumns, 1)
+  const rows = Math.max(meshRows, 1)
+  // Mirror of the shader's earthMapGroundHeight.
+  return (lon, lat) => {
+    const mapU = (lon + 180) / 360
+    const mapV = (90 + lat) / 180
+    const gu = (mapU - uvOffsetU) * columns
+    const gv = Math.min(Math.max((1 - mapV) * rows, 0), rows - 1e-3)
+    const iu = Math.floor(gu)
+    const iv = Math.floor(gv)
+    const au = gu - iu
+    const av = gv - iv
+    const u0 = iu / columns + uvOffsetU
+    const u1 = (iu + 1) / columns + uvOffsetU
+    const v0 = 1 - iv / rows
+    const v1 = 1 - (iv + 1) / rows
+    const hA = texel(u1, v0)
+    const hB = texel(u0, v0)
+    const hC = texel(u0, v1)
+    const hD = texel(u1, v1)
+    const northCap = iv < 0.5
+    const southCap = iv > rows - 1.5
+    if (southCap || (!northCap && au >= av)) {
+      return hA * (au - av) + hB * (1 - au) + hD * av
+    }
+    return hB * (1 - av) + hC * (av - au) + hD * au
   }
 }
 
@@ -491,7 +537,15 @@ function refreshOccluders(cameraPosition: Vector3): number {
   return bodies.length
 }
 
-export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: EarthMapProps) {
+export function EarthMap({
+  radius,
+  uvOffsetU,
+  terrain,
+  meshColumns,
+  meshRows,
+  quality,
+  showLabels,
+}: EarthMapProps) {
   const data = useGeoData(quality)
   // The city names follow the interface language, like every other label.
   const { language } = useTranslation()
@@ -514,15 +568,19 @@ export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: Ea
     uniforms.uTerrainScale.value = hasElevation ? (terrain?.scale ?? 0) : 0
     uniforms.uTerrainBias.value = hasElevation ? (terrain?.bias ?? 0) : 0
     uniforms.uTerrainUvOffset.value = uvOffsetU
-    // The depth bias has to clear the relief it is drawn over, so it grows with
-    // it — and with the planet's drawn radius, because the shader works in world
-    // units while the relief is a fraction of the sphere.
-    uniforms.uCameraLift.value = hasElevation
-      ? visuals.cameraLift * (terrain?.peakRadius ?? 0) * radius
-      : 0
-  }, [uniforms, terrain, uvOffsetU, radius, visuals])
+    // The mesh whose facets the overlay has to sit on. It changes with the level
+    // of detail, so it is a live uniform rather than a shader constant.
+    uniforms.uMeshSegments.value.set(meshColumns, meshRows)
+    // A hair toward the camera, so a line coplanar with the ground it lies on
+    // wins the depth test instead of stippling against it. The shader works in
+    // world units, so the fraction of the radius becomes a world distance here.
+    uniforms.uCameraLift.value = visuals.cameraLift * radius
+  }, [uniforms, terrain, uvOffsetU, radius, meshColumns, meshRows, visuals])
 
-  const sampler = useMemo(() => createElevationSampler(), [quality])
+  const sampler = useMemo(
+    () => createElevationSampler(uvOffsetU, meshColumns, meshRows),
+    [uvOffsetU, meshColumns, meshRows],
+  )
 
   const borders = useMemo(
     () => (data ? buildLineOverlay(data.borders, uvOffsetU, uniforms, visuals.border) : null),
