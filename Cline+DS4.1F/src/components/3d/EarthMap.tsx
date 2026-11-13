@@ -143,7 +143,10 @@ function patchLineMaterial(material: LineMaterial, uniforms: EarthMapUniforms): 
     )
     .replace(
       'vec4 end = modelViewMatrix * vec4( instanceEnd, 1.0 );',
-      'vec4 end = modelViewMatrix * vec4( earthEnd, 1.0 );',
+      'vec4 end = modelViewMatrix * vec4( earthEnd, 1.0 );\n' +
+        '// Out of the ground the coarse mesh only approximates.\n' +
+        'start = earthMapLift( start );\n' +
+        'end = earthMapLift( end );',
     )
   material.fragmentShader = material.fragmentShader
     .replace('#include <common>', '#include <common>\nvarying float vEarthDay;')
@@ -198,7 +201,7 @@ void main() {
   vec3 displaced = earthMapDisplace(position);
   vMarkerColor = aColor;
   vMarkerDay = earthMapDay(displaced);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+  gl_Position = projectionMatrix * earthMapLift( modelViewMatrix * vec4(displaced, 1.0) );
   gl_PointSize = aSize * uPixelRatio;
 }
 `
@@ -511,7 +514,13 @@ export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: Ea
     uniforms.uTerrainScale.value = hasElevation ? (terrain?.scale ?? 0) : 0
     uniforms.uTerrainBias.value = hasElevation ? (terrain?.bias ?? 0) : 0
     uniforms.uTerrainUvOffset.value = uvOffsetU
-  }, [uniforms, terrain, uvOffsetU])
+    // The depth bias has to clear the relief it is drawn over, so it grows with
+    // it — and with the planet's drawn radius, because the shader works in world
+    // units while the relief is a fraction of the sphere.
+    uniforms.uCameraLift.value = hasElevation
+      ? visuals.cameraLift * (terrain?.peakRadius ?? 0) * radius
+      : 0
+  }, [uniforms, terrain, uvOffsetU, radius, visuals])
 
   const sampler = useMemo(() => createElevationSampler(), [quality])
 
