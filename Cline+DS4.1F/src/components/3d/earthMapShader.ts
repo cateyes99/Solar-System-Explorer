@@ -19,6 +19,14 @@ import type { EarthMapVisuals } from '../../data/earthMap'
  *    glow through the night side. `earthMapDay` fades it toward the terminator
  *    exactly as the city lights brighten there, keeping the globe's lighting
  *    honest.
+ *  - **Depth.** The overlay sits exactly on the ground it describes, but the
+ *    ground is drawn by a coarse mesh whose facets cut *above* the true surface
+ *    wherever the terrain curves (measured at up to 0.23 of a height-map texel,
+ *    or ~0.29 of the tallest peak). A line on the true surface is then inside the
+ *    mesh and disappears in pieces. `earthMapLift` pulls each vertex toward the
+ *    camera by a little more than that, which costs nothing on screen: moving a
+ *    point along its own view ray is a uniform scaling of its view-space
+ *    position, so its projection is untouched and only its depth changes.
  */
 export const EARTH_MAP_PARS = /* glsl */ `
 uniform sampler2D uEarthHeightMap;
@@ -27,6 +35,7 @@ uniform float uTerrainBias;
 uniform float uTerrainUvOffset;
 uniform vec3 uSunDirection;
 uniform float uDayFade;
+uniform float uCameraLift;
 const float EARTH_MAP_PI = 3.141592653589793;
 
 vec3 earthMapDisplace(vec3 unitDir) {
@@ -35,6 +44,15 @@ vec3 earthMapDisplace(vec3 unitDir) {
   vec2 heightUv = vec2(phi / (2.0 * EARTH_MAP_PI) + uTerrainUvOffset, 1.0 - theta / EARTH_MAP_PI);
   float height = texture2D(uEarthHeightMap, heightUv).x;
   return unitDir * (1.0 + height * uTerrainScale + uTerrainBias);
+}
+
+// Pulls a view-space point toward the camera by uCameraLift. The scale is held
+// at a half so a camera flown right down onto the surface can never push a
+// vertex through itself and out the back.
+vec4 earthMapLift(vec4 viewPosition) {
+  float distance = max(length(viewPosition.xyz), 1e-4);
+  float scale = max(1.0 - uCameraLift / distance, 0.5);
+  return vec4(viewPosition.xyz * scale, viewPosition.w);
 }
 
 float earthMapDay(vec3 unitDir) {
@@ -51,6 +69,11 @@ export interface EarthMapUniforms {
   uTerrainUvOffset: { value: number }
   uSunDirection: { value: Vector3 }
   uDayFade: { value: number }
+  /**
+   * How far the overlay is pulled toward the camera, in world units. Sized by
+   * `EarthMap` from the live terrain relief (see `data/earthMap.ts`).
+   */
+  uCameraLift: { value: number }
 }
 
 export function createEarthMapUniforms(
@@ -68,5 +91,8 @@ export function createEarthMapUniforms(
     // Filled in every frame from the live camera/rotation (see `EarthMap`).
     uSunDirection: { value: new Vector3(0, 0, 1) },
     uDayFade: { value: visuals.dayFade },
+    // Filled in with the relief, so a smooth globe keeps the overlay exactly on
+    // its surface.
+    uCameraLift: { value: 0 },
   }
 }

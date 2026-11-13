@@ -242,9 +242,14 @@ A few decisions worth knowing about:
   inside the app and loads offline like the textures. The overlay is projected with the *same*
   equirectangular mapping and the *same* longitude offset as the day map, and displaced in the
   vertex shader by the *same* elevation model, so a border sits on the ground it belongs to and
-  climbs the terrain rather than floating over it or sinking into it. The data loads only when the
-  layer is first switched on, and the whole thing is three draw calls however many thousands of
-  segments it holds.
+  climbs the terrain rather than floating over it or sinking into it. The overlay is then pulled
+  a hair *toward the camera* — as a fraction of the tallest peak, so it vanishes at 0% relief —
+  because the ground it sits on is drawn by a mesh whose straight facets cut above the true
+  surface wherever the terrain curves. Measured against the shipped height map that overshoot
+  reaches about 0.29 of the tallest peak, which was enough to swallow the borders in pieces as
+  the relief was raised; moving a point along its own view ray changes only its depth, so the
+  bias costs nothing on screen. The data loads only when the layer is first switched on, and the
+  whole thing is three draw calls however many thousands of segments it holds.
 - **The city names are culled and batched, because there are hundreds of them.** A DOM label is a
   text element the browser has to style and paint, and drei's `<Html>` — built for a handful of
   labels — gives each one its own `useFrame` that walks the object's parents, projects the point,
