@@ -21,14 +21,17 @@ import { EARTH_MAP } from '../../data/earthMap'
 import type { EarthMapVisuals } from '../../data/earthMap'
 import {
   borderSegmentPositions,
+  countryName,
   densifyLines,
   labelledPlaces,
   loadBorders,
+  loadCountries,
   loadPlaces,
   loadRegions,
   limbFacingThreshold,
   lonLatToDirection,
   placeName,
+  type GeoCountry,
   type GeoLines,
   type GeoPlace,
 } from '../../utils/geo'
@@ -42,7 +45,7 @@ import type { TerrainRelief } from './terrain'
 
 /**
  * The optional "World map" overlay: national borders, regional (state/province)
- * borders, capitals and major cities.
+ * borders, country names, capitals and major cities.
  *
  * It is real Natural Earth vector data (public domain — see
  * `public/geo/CREDITS.md`), drawn as a single merged `LineSegments2` per border
@@ -54,6 +57,12 @@ import type { TerrainRelief } from './terrain'
  * `earthMapShader.ts`), which is what makes a border follow the mountains, what
  * makes the "Terrain relief" slider free to move, and what lets the overlay fade
  * onto the night side exactly as the city lights brighten there.
+ *
+ * The *names* are DOM elements (see `MapLabels`), and which of them are drawn is
+ * the one piece of the overlay that is a choice rather than a consequence of the
+ * data: the "Country names" switch swaps the country names in for the smaller
+ * cities, while capitals are always named whenever the labels are on, so a
+ * country's seat never vanishes with the toggle.
  *
  * It only ever exists for Earth, is off by default, and loads its data the first
  * time it is switched on.
@@ -76,16 +85,22 @@ interface EarthMapProps {
   meshRows: number
   quality: QualityLevel
   showLabels: boolean
+  /**
+   * Whether the map names countries instead of the smaller cities. Capitals are
+   * named either way; only the third tier of names swaps.
+   */
+  showCountryNames: boolean
 }
 
 interface GeoData {
   borders: GeoLines
   regions: GeoLines
   places: GeoPlace[]
+  countries: GeoCountry[]
 }
 
 /**
- * Fetches the overlay's three data files once, and again only if the quality
+ * Fetches the overlay's four data files once, and again only if the quality
  * tier changes (which swaps the coarse set for the detailed one). The fetch is
  * cached in `utils/geo`, so toggling the layer never refetches.
  */
@@ -94,9 +109,11 @@ function useGeoData(quality: QualityLevel): GeoData | null {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([loadBorders(quality), loadRegions(), loadPlaces(quality)])
-      .then(([borders, regions, places]) => {
-        if (!cancelled) setData({ borders, regions, places: places.places })
+    Promise.all([loadBorders(quality), loadRegions(), loadPlaces(quality), loadCountries(quality)])
+      .then(([borders, regions, places, countries]) => {
+        if (!cancelled) {
+          setData({ borders, regions, places: places.places, countries: countries.countries })
+        }
       })
       .catch((error: unknown) => {
         if (import.meta.env.DEV) window.console.warn('World map data failed to load', error)
@@ -318,10 +335,16 @@ function buildMarkerOverlay(
   return points
 }
 
-interface CityLabelsProps {
-  places: GeoPlace[]
-  /** The interface language, so the names can follow it. */
-  language: string
+/** One name the overlay draws: a country, a capital, or another city. */
+export interface MapLabelEntry {
+  kind: 'country' | 'capital' | 'city'
+  name: string
+  lon: number
+  lat: number
+}
+
+interface MapLabelsProps {
+  entries: MapLabelEntry[]
   uvOffsetU: number
   sampler: ((lon: number, lat: number) => number) | null
   terrain: TerrainRelief | null
@@ -330,16 +353,15 @@ interface CityLabelsProps {
   visuals: EarthMapVisuals
 }
 
-interface CityLabelEntry {
-  name: string
-  /** The city's unit direction in the globe group's own space. */
+interface MapLabelPlacement {
+  /** The name's unit direction in the globe group's own space. */
   dir: Vector3
-  /** The elevation model's texel at the city, 0 where there is no model. */
+  /** The elevation model's texel at the name, 0 where there is no model. */
   height: number
 }
 
 /**
- * The city names.
+ * The map's names — countries, capitals and cities, each in its own style.
  *
  * A globe carries a couple of hundred of them, which is far more than drei's
  * `<Html>` is built for: each instance runs its own `useFrame`, and each of
@@ -360,47 +382,64 @@ interface CityLabelEntry {
  *    one `transform` write.
  *  - **The fade is a CSS transition.** Visibility is a data attribute, so a name
  *    that is not crossing the limb costs nothing but its position write.
+ *
+ * The entries arrive already chosen and already styled (see `EarthMap`): this
+ * component only has to place them, and the class it builds carries the kind's
+ * badge — a capital's ringed amber, a country's wide-tracked parchment, or a
+ * city's cool white with a dot.
  */
-function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, visuals }: CityLabelsProps) {
+function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: MapLabelsProps) {
   const gl = useThree((state) => state.gl)
   const nodes = useRef<HTMLDivElement[]>([])
   const shown = useRef<Uint8Array>(new Uint8Array(0))
   const lastX = useRef<Float32Array>(new Float32Array(0))
   const lastY = useRef<Float32Array>(new Float32Array(0))
 
-  // Only the places and their directions are fixed here; the elevation is kept
-  // as a raw texel so that moving the relief slider never rebuilds anything —
-  // the radius is worked out in the frame loop from the live terrain numbers.
-  const entries = useMemo<CityLabelEntry[]>(
+  // Only the names and their directions are fixed here; the elevation is kept as
+  // a raw texel so that moving the relief slider never rebuilds anything — the
+  // radius is worked out in the frame loop from the live terrain numbers.
+  const placements = useMemo<MapLabelPlacement[]>(
     () =>
-      places.map((place) => {
-        const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
+      entries.map((entry) => {
+        const [x, y, z] = lonLatToDirection(entry.lon, entry.lat, uvOffsetU)
         return {
-          name: placeName(place, language),
           dir: new Vector3(x, y, z),
-          height: sampler ? sampler(place.lon, place.lat) : 0,
+          height: sampler ? sampler(entry.lon, entry.lat) : 0,
         }
       }),
-    [places, language, uvOffsetU, sampler],
+    [entries, uvOffsetU, sampler],
   )
 
   const facingMin = limbFacingThreshold(visuals.label.limbRadius)
 
   // One overlay beside the canvas, beneath the interface panels, with one
-  // element per name — built by hand, once per set of places.
+  // element per name — built by hand, once per set of names.
   useEffect(() => {
     const parent = gl.domElement.parentNode
     if (!parent) return
     const container = document.createElement('div')
-    container.className = 'sse-city-labels'
+    container.className = 'sse-map-labels'
     const created = entries.map((entry) => {
       const element = document.createElement('div')
-      element.className = 'sse-city-label'
-      element.style.color = visuals.label.color
-      const dot = document.createElement('span')
-      dot.className = 'sse-city-label__dot'
-      dot.setAttribute('aria-hidden', 'true')
-      element.append(dot, document.createTextNode(entry.name))
+      element.className = `sse-map-label sse-map-label--${entry.kind}`
+      if (entry.kind === 'capital') {
+        element.style.color = visuals.capitalLabel.color
+        element.style.background = visuals.capitalLabel.background
+        element.style.borderColor = visuals.capitalLabel.border
+      } else if (entry.kind === 'country') {
+        element.style.color = visuals.countryLabel.color
+        element.style.background = visuals.countryLabel.background
+      } else {
+        element.style.color = visuals.label.color
+      }
+      // A country is an area, not a point: it carries no marker dot.
+      if (entry.kind !== 'country') {
+        const dot = document.createElement('span')
+        dot.className = 'sse-map-label__dot'
+        dot.setAttribute('aria-hidden', 'true')
+        element.appendChild(dot)
+      }
+      element.appendChild(document.createTextNode(entry.name))
       container.appendChild(element)
       return element
     })
@@ -449,15 +488,15 @@ function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, v
 
     for (let index = 0; index < elements.length; index += 1) {
       const element = elements[index]
-      const entry = entries[index]
-      if (!entry) continue
-      const dir = entry.dir
+      const placement = placements[index]
+      if (!placement) continue
+      const dir = placement.dir
       // 1 at the point facing the camera, 0 at the limb, negative behind it.
       const facing = dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z
       let visible = facing > facingMin
       let radius = 0
       if (visible) {
-        radius = 1 + entry.height * terrainScale + terrainBias + lift
+        radius = 1 + placement.height * terrainScale + terrainBias + lift
         // A DOM label is never depth-tested, so the globe and the other worlds
         // have to be tested by hand — otherwise the Moon, passing in front of
         // South America, has the names behind it drawn on top of it. The globe's
@@ -548,9 +587,10 @@ export function EarthMap({
   meshRows,
   quality,
   showLabels,
+  showCountryNames,
 }: EarthMapProps) {
   const data = useGeoData(quality)
-  // The city names follow the interface language, like every other label.
+  // The names follow the interface language, like every other label.
   const { language } = useTranslation()
   const groupRef = useRef<Group>(null)
   const [labelsVisible, setLabelsVisible] = useState(false)
@@ -612,11 +652,42 @@ export function EarthMap({
     }
   }, [borders, regions, markers])
 
-  const labels = useMemo(() => (data ? labelledPlaces(data.places) : []), [data])
-  const visibleLabels = useMemo(
-    () => labels.filter((place) => place.tier <= labelTier),
-    [labels, labelTier],
-  )
+  // Which names are drawn. Capitals are always among them while the labels are
+  // on, in both modes: the "Country names" switch swaps only the third kind, so
+  // a country's seat never vanishes with the toggle. Countries and cities both
+  // arrive in two importance tiers — the big names from the first close-up, the
+  // rest once the viewer zooms in — so a globe a third of the screen across is
+  // not asked to carry all of them at once.
+  const labelEntries = useMemo<MapLabelEntry[]>(() => {
+    if (!data) return []
+    const places = labelledPlaces(data.places)
+    const entries: MapLabelEntry[] = []
+    if (showCountryNames) {
+      for (const country of data.countries) {
+        if (country.tier <= labelTier) {
+          entries.push({
+            kind: 'country',
+            name: countryName(country, language),
+            lon: country.lon,
+            lat: country.lat,
+          })
+        }
+      }
+    } else {
+      for (const place of places) {
+        if (place.cap === 0 && place.tier <= labelTier) {
+          entries.push({ kind: 'city', name: placeName(place, language), lon: place.lon, lat: place.lat })
+        }
+      }
+    }
+    // Capitals last, so their badges paint over the plain names.
+    for (const place of places) {
+      if (place.cap === 1) {
+        entries.push({ kind: 'capital', name: placeName(place, language), lon: place.lon, lat: place.lat })
+      }
+    }
+    return entries
+  }, [data, language, showCountryNames, labelTier])
 
   useFrame(({ camera, gl }) => {
     const group = groupRef.current
@@ -665,9 +736,8 @@ export function EarthMap({
       {regions ? <primitive object={regions} /> : null}
       {markers ? <primitive object={markers} /> : null}
       {labelsVisible ? (
-        <CityLabels
-          places={visibleLabels}
-          language={language}
+        <MapLabels
+          entries={labelEntries}
           uvOffsetU={uvOffsetU}
           sampler={sampler}
           terrain={terrain}

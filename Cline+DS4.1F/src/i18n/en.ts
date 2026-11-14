@@ -133,6 +133,8 @@ export const en = {
   'controls.orbitFlowDesc': 'See which way the planets travel',
   'controls.worldMap': 'World map (Earth)',
   'controls.worldMapDesc': 'Borders, capitals and cities',
+  'controls.countryNames': 'Country names (Earth)',
+  'controls.countryNamesDesc': 'Instead of city names',
   'controls.camera': 'Camera',
   'controls.cameraHint.follow': 'following',
   'controls.viewSystem': 'View Solar System',
@@ -155,6 +157,9 @@ export const en = {
   'planet.worldMapToggle': 'Borders, capitals and cities',
   'planet.worldMapToggleDesc':
     'National and regional borders, capitals and major cities worldwide. Real Natural Earth map data, aligned to the surface and following the terrain.',
+  'planet.countryNames': 'Country names',
+  'planet.countryNamesDesc':
+    'Name countries instead of the smaller cities. Capitals are always named either way.',
   'planet.earthAtmosphere': 'Earth’s atmosphere',
   'planet.atmosphereHint': '0% = no haze',
   'planet.atmosphereHaze': 'Atmosphere haze',
