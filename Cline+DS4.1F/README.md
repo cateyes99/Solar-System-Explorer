@@ -236,15 +236,31 @@ A few decisions worth knowing about:
   painted procedurally, and if a file is ever missing the same painter covers for it, so no world
   can render blank.
 - **The World map is real map data too — and it is public domain.** Earth's optional overlay
-  (national and regional borders, capitals and cities) is **Natural Earth** vector data in
+  (national and regional borders, country names, capitals and cities) is **Natural Earth** vector
+  data in
   `public/geo`, fetched and trimmed by `tools/fetch-geo.mjs` and credited in
   `public/geo/CREDITS.md`. Natural Earth is free, accurate and in the public domain, so it ships
   inside the app and loads offline like the textures. The overlay is projected with the *same*
   equirectangular mapping and the *same* longitude offset as the day map, and displaced in the
-  vertex shader by the *same* elevation model, so a border sits on the ground it belongs to and
-  climbs the terrain rather than floating over it or sinking into it. The data loads only when the
-  layer is first switched on, and the whole thing is three draw calls however many thousands of
-  segments it holds.
+  vertex shader by the *same* elevation model, so a border climbs the terrain rather than
+  sinking into it. It reads that model the way the ground *draws* it, though, not the way the
+  file stores it: a globe carries a few hundred segments, so the surface shows a straight-facet
+  interpolation of the model, and a facet is a chord that cuts below a convex summit and above a
+  concave valley. A border placed on the model's true height would hang above the summit the
+  mesh never reaches — visible as lines floating clear of the mountains — and bury itself in the
+  valleys. So the overlay snaps to the surface mesh's own grid and interpolates across its own
+  triangles, landing on the ground the mesh actually draws at every zoom, and is nudged a hair
+  toward the camera only to keep the two coplanar surfaces from stippling. A border is still a run
+  of *straight* segments, though, so any segment long enough to skip over the ground between its
+  endpoints is split first — the sparse regional lines need it (Greenland's municipal boundaries
+  ship as a handful of points across the whole ice sheet), the dense national ones never do. The names are a
+  choice rather than a consequence of the data: the map names the cities and their capitals, and a
+  "Country names" switch swaps the smaller cities for the country names — with a second switch for
+  whether the capitals join them, off by default, since a capital's badge beside its own country's
+  name hides the smaller countries. The three kinds are styled apart (an amber ringed badge for a
+  capital, a wide-tracked parchment for a country, a cool white dot for a city), and the names
+  follow the interface language like every other label. The data loads only when the layer is first
+  switched on, and the whole thing is three draw calls however many thousands of segments it holds.
 - **The city names are culled and batched, because there are hundreds of them.** A DOM label is a
   text element the browser has to style and paint, and drei's `<Html>` — built for a handful of
   labels — gives each one its own `useFrame` that walks the object's parents, projects the point,

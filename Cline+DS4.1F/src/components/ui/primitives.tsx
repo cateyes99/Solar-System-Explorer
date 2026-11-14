@@ -101,16 +101,21 @@ interface ToggleRowProps {
   description?: string
   checked: boolean
   onChange: () => void
+  /** Dims the row and blocks it — for a setting that only matters under another. */
+  disabled?: boolean
 }
 
-export function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
+export function ToggleRow({ label, description, checked, onChange, disabled = false }: ToggleRowProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={onChange}
-      className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/6"
+      className={`flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors ${
+        disabled ? 'cursor-not-allowed opacity-45' : 'hover:bg-white/6'
+      }`}
     >
       <span>
         <span className="block text-sm text-parchment">{label}</span>

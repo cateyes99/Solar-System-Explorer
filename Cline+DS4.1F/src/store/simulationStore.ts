@@ -138,6 +138,20 @@ export interface SimulationState {
    */
   showEarthMap: boolean
   /**
+   * Which names the "World map" draws on Earth: `false` (the default) names the
+   * cities, `true` swaps the smaller cities for the country names. Capitals are
+   * named either way — only the third kind of name swaps (see
+   * `components/3d/EarthMap.tsx`).
+   */
+  showCountryNames: boolean
+  /**
+   * Whether capitals are named *alongside* the country names. It only bites
+   * while `showCountryNames` is on: with the city names, capitals are always
+   * named. Off by default, because a capital badge next to its country's name
+   * occludes the smaller countries.
+   */
+  showCapitalNames: boolean
+  /**
    * How strongly Earth's atmosphere is drawn: 0 = invisible (bare surface),
    * 1 = full strength. Only Earth has this control, so no other body reads it.
    */
@@ -323,6 +337,8 @@ export interface SimulationActions {
   setShowOrbitFlow: (visible: boolean) => void
   toggleEarthMap: () => void
   setShowEarthMap: (visible: boolean) => void
+  toggleCountryNames: () => void
+  toggleCapitalNames: () => void
   setEarthAtmosphereOpacity: (value: number) => void
   setEarthCloudOpacity: (value: number) => void
   setEarthCloudDynamics: (value: number) => void
@@ -432,6 +448,12 @@ const initialState: SimulationState = {
   // The World map is opt-in: it is a cartographic overlay on top of the real
   // imagery, so it stays off until a viewer asks for it.
   showEarthMap: false,
+  // City names first, as the map has always shown them; the switch swaps in the
+  // country names.
+  showCountryNames: false,
+  // Capitals off with the country names, so a country's own name is not hidden
+  // behind its capital's badge; the viewer can switch them back on.
+  showCapitalNames: false,
   // The slider is a 0…1 haze level, mapped onto the shader's opacity range by
   // `atmosphereOpacityFromSlider`. 0.45 is a gentle rim that still lets the whole
   // surface read, with plenty of range to thin it further or fill it out.
@@ -625,6 +647,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setShowEarthMap: (visible) => set({ showEarthMap: visible }),
+
+  toggleCountryNames: () => set((state) => ({ showCountryNames: !state.showCountryNames })),
+
+  toggleCapitalNames: () => set((state) => ({ showCapitalNames: !state.showCapitalNames })),
 
   setEarthAtmosphereOpacity: (value) =>
     set({ earthAtmosphereOpacity: Math.max(0, Math.min(1, value)) }),

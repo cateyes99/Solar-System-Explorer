@@ -21,13 +21,17 @@ import { EARTH_MAP } from '../../data/earthMap'
 import type { EarthMapVisuals } from '../../data/earthMap'
 import {
   borderSegmentPositions,
+  countryName,
+  densifyLines,
   labelledPlaces,
   loadBorders,
+  loadCountries,
   loadPlaces,
   loadRegions,
   limbFacingThreshold,
   lonLatToDirection,
   placeName,
+  type GeoCountry,
   type GeoLines,
   type GeoPlace,
 } from '../../utils/geo'
@@ -41,7 +45,7 @@ import type { TerrainRelief } from './terrain'
 
 /**
  * The optional "World map" overlay: national borders, regional (state/province)
- * borders, capitals and major cities.
+ * borders, country names, capitals and major cities.
  *
  * It is real Natural Earth vector data (public domain — see
  * `public/geo/CREDITS.md`), drawn as a single merged `LineSegments2` per border
@@ -54,6 +58,14 @@ import type { TerrainRelief } from './terrain'
  * makes the "Terrain relief" slider free to move, and what lets the overlay fade
  * onto the night side exactly as the city lights brighten there.
  *
+ * The *names* are DOM elements (see `MapLabels`), and which of them are drawn is
+ * the one piece of the overlay that is a choice rather than a consequence of the
+ * data: the "Country names" switch swaps the country names in for the smaller
+ * cities, and a second switch decides whether the capitals join them. That one
+ * is off by default, because a capital's badge beside its own country's name
+ * hides the smaller countries; with the city names the capitals are always
+ * there, and there is room for them.
+ *
  * It only ever exists for Earth, is off by default, and loads its data the first
  * time it is switched on.
  */
@@ -65,18 +77,38 @@ interface EarthMapProps {
   uvOffsetU: number
   /** The live terrain relief numbers, or null when Earth has no elevation model. */
   terrain: TerrainRelief | null
+  /**
+   * The surface mesh's tessellation — `widthSegments`, `heightSegments`. The
+   * overlay has to interpolate the elevation model across the same facets the
+   * ground is drawn with, so it needs the mesh's resolution, and it changes as
+   * the planet climbs a level of detail (see `geometry.ts`).
+   */
+  meshColumns: number
+  meshRows: number
   quality: QualityLevel
   showLabels: boolean
+  /**
+   * Whether the map names countries instead of the smaller cities. Capitals are
+   * named with the cities; with the countries they are a separate choice (see
+   * `showCapitalNames`).
+   */
+  showCountryNames: boolean
+  /**
+   * Whether capitals are named alongside the country names. It has no effect
+   * with the city names, which always carry their capitals.
+   */
+  showCapitalNames: boolean
 }
 
 interface GeoData {
   borders: GeoLines
   regions: GeoLines
   places: GeoPlace[]
+  countries: GeoCountry[]
 }
 
 /**
- * Fetches the overlay's three data files once, and again only if the quality
+ * Fetches the overlay's four data files once, and again only if the quality
  * tier changes (which swaps the coarse set for the detailed one). The fetch is
  * cached in `utils/geo`, so toggling the layer never refetches.
  */
@@ -85,9 +117,11 @@ function useGeoData(quality: QualityLevel): GeoData | null {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([loadBorders(quality), loadRegions(), loadPlaces(quality)])
-      .then(([borders, regions, places]) => {
-        if (!cancelled) setData({ borders, regions, places: places.places })
+    Promise.all([loadBorders(quality), loadRegions(), loadPlaces(quality), loadCountries(quality)])
+      .then(([borders, regions, places, countries]) => {
+        if (!cancelled) {
+          setData({ borders, regions, places: places.places, countries: countries.countries })
+        }
       })
       .catch((error: unknown) => {
         if (import.meta.env.DEV) window.console.warn('World map data failed to load', error)
@@ -106,13 +140,23 @@ function useGeoData(quality: QualityLevel): GeoData | null {
  * do not use it: they hug the terrain in the shader like the borders. Returns
  * null when there is no elevation model, and the labels then sit just above sea
  * level.
+ *
+ * It returns the height the *surface mesh* shows, not the model's own texel —
+ * the same value `earthMapGroundHeight` gives the shader (see
+ * `earthMapShader.ts`). A label placed on the raw texel would drift up off the
+ * ground at a summit, and off its own marker, which is drawn on the mesh.
  */
-function createElevationSampler(): ((lon: number, lat: number) => number) | null {
+function createElevationSampler(
+  uvOffsetU: number,
+  meshColumns: number,
+  meshRows: number,
+): ((lon: number, lat: number) => number) | null {
   if (!hasTexture('earthHeightmap')) return null
   const image = getTexture('earthHeightmap').image as CanvasImageSource | undefined
   if (!image) return null
-  const width = 1024
-  const height = 512
+  const source = image as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }
+  const width = source.naturalWidth ?? source.width ?? 2048
+  const height = source.naturalHeight ?? source.height ?? 1024
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -120,12 +164,40 @@ function createElevationSampler(): ((lon: number, lat: number) => number) | null
   if (!context) return null
   context.drawImage(image, 0, 0, width, height)
   const pixels = context.getImageData(0, 0, width, height).data
-  return (lon, lat) => {
-    const u = (((lon + 180) / 360) % 1 + 1) % 1
-    const v = Math.min(0.999999, Math.max(0, (90 - lat) / 180))
+  // The texel at a map coordinate, in the sampler's own top-down layout.
+  const texel = (mapU: number, mapV: number) => {
+    const u = (((mapU % 1) + 1) % 1)
+    const v = Math.min(0.999999, Math.max(0, 1 - mapV))
     const x = Math.min(width - 1, Math.floor(u * width))
     const y = Math.min(height - 1, Math.floor(v * height))
     return pixels[(y * width + x) * 4] / 255
+  }
+  const columns = Math.max(meshColumns, 1)
+  const rows = Math.max(meshRows, 1)
+  // Mirror of the shader's earthMapGroundHeight.
+  return (lon, lat) => {
+    const mapU = (lon + 180) / 360
+    const mapV = (90 + lat) / 180
+    const gu = (mapU - uvOffsetU) * columns
+    const gv = Math.min(Math.max((1 - mapV) * rows, 0), rows - 1e-3)
+    const iu = Math.floor(gu)
+    const iv = Math.floor(gv)
+    const au = gu - iu
+    const av = gv - iv
+    const u0 = iu / columns + uvOffsetU
+    const u1 = (iu + 1) / columns + uvOffsetU
+    const v0 = 1 - iv / rows
+    const v1 = 1 - (iv + 1) / rows
+    const hA = texel(u1, v0)
+    const hB = texel(u0, v0)
+    const hC = texel(u0, v1)
+    const hD = texel(u1, v1)
+    const northCap = iv < 0.5
+    const southCap = iv > rows - 1.5
+    if (southCap || (!northCap && au >= av)) {
+      return hA * (au - av) + hB * (1 - au) + hD * av
+    }
+    return hB * (1 - av) + hC * (av - au) + hD * au
   }
 }
 
@@ -143,7 +215,10 @@ function patchLineMaterial(material: LineMaterial, uniforms: EarthMapUniforms): 
     )
     .replace(
       'vec4 end = modelViewMatrix * vec4( instanceEnd, 1.0 );',
-      'vec4 end = modelViewMatrix * vec4( earthEnd, 1.0 );',
+      'vec4 end = modelViewMatrix * vec4( earthEnd, 1.0 );\n' +
+        '// Out of the ground the coarse mesh only approximates.\n' +
+        'start = earthMapLift( start );\n' +
+        'end = earthMapLift( end );',
     )
   material.fragmentShader = material.fragmentShader
     .replace('#include <common>', '#include <common>\nvarying float vEarthDay;')
@@ -166,7 +241,9 @@ function buildLineOverlay(
   options: LineOverlayOptions,
 ): LineSegments2 {
   const geometry = new LineSegmentsGeometry()
-  geometry.setPositions(borderSegmentPositions(lines.lines, uvOffsetU))
+  // Long, sparse segments (Greenland's municipal lines are the worst) are split
+  // so the straight line follows the ground between its original points.
+  geometry.setPositions(borderSegmentPositions(densifyLines(lines.lines), uvOffsetU))
   const material = new LineMaterial({
     // A `Color` (linear), not a hex number: `LineMaterial` hands its `color`
     // straight to the `diffuse` uniform, and its own shader does the tone
@@ -198,7 +275,7 @@ void main() {
   vec3 displaced = earthMapDisplace(position);
   vMarkerColor = aColor;
   vMarkerDay = earthMapDay(displaced);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+  gl_Position = projectionMatrix * earthMapLift( modelViewMatrix * vec4(displaced, 1.0) );
   gl_PointSize = aSize * uPixelRatio;
 }
 `
@@ -266,10 +343,16 @@ function buildMarkerOverlay(
   return points
 }
 
-interface CityLabelsProps {
-  places: GeoPlace[]
-  /** The interface language, so the names can follow it. */
-  language: string
+/** One name the overlay draws: a country, a capital, or another city. */
+export interface MapLabelEntry {
+  kind: 'country' | 'capital' | 'city'
+  name: string
+  lon: number
+  lat: number
+}
+
+interface MapLabelsProps {
+  entries: MapLabelEntry[]
   uvOffsetU: number
   sampler: ((lon: number, lat: number) => number) | null
   terrain: TerrainRelief | null
@@ -278,16 +361,15 @@ interface CityLabelsProps {
   visuals: EarthMapVisuals
 }
 
-interface CityLabelEntry {
-  name: string
-  /** The city's unit direction in the globe group's own space. */
+interface MapLabelPlacement {
+  /** The name's unit direction in the globe group's own space. */
   dir: Vector3
-  /** The elevation model's texel at the city, 0 where there is no model. */
+  /** The elevation model's texel at the name, 0 where there is no model. */
   height: number
 }
 
 /**
- * The city names.
+ * The map's names — countries, capitals and cities, each in its own style.
  *
  * A globe carries a couple of hundred of them, which is far more than drei's
  * `<Html>` is built for: each instance runs its own `useFrame`, and each of
@@ -308,47 +390,64 @@ interface CityLabelEntry {
  *    one `transform` write.
  *  - **The fade is a CSS transition.** Visibility is a data attribute, so a name
  *    that is not crossing the limb costs nothing but its position write.
+ *
+ * The entries arrive already chosen and already styled (see `EarthMap`): this
+ * component only has to place them, and the class it builds carries the kind's
+ * badge — a capital's ringed amber, a country's wide-tracked parchment, or a
+ * city's cool white with a dot.
  */
-function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, visuals }: CityLabelsProps) {
+function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: MapLabelsProps) {
   const gl = useThree((state) => state.gl)
   const nodes = useRef<HTMLDivElement[]>([])
   const shown = useRef<Uint8Array>(new Uint8Array(0))
   const lastX = useRef<Float32Array>(new Float32Array(0))
   const lastY = useRef<Float32Array>(new Float32Array(0))
 
-  // Only the places and their directions are fixed here; the elevation is kept
-  // as a raw texel so that moving the relief slider never rebuilds anything —
-  // the radius is worked out in the frame loop from the live terrain numbers.
-  const entries = useMemo<CityLabelEntry[]>(
+  // Only the names and their directions are fixed here; the elevation is kept as
+  // a raw texel so that moving the relief slider never rebuilds anything — the
+  // radius is worked out in the frame loop from the live terrain numbers.
+  const placements = useMemo<MapLabelPlacement[]>(
     () =>
-      places.map((place) => {
-        const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
+      entries.map((entry) => {
+        const [x, y, z] = lonLatToDirection(entry.lon, entry.lat, uvOffsetU)
         return {
-          name: placeName(place, language),
           dir: new Vector3(x, y, z),
-          height: sampler ? sampler(place.lon, place.lat) : 0,
+          height: sampler ? sampler(entry.lon, entry.lat) : 0,
         }
       }),
-    [places, language, uvOffsetU, sampler],
+    [entries, uvOffsetU, sampler],
   )
 
   const facingMin = limbFacingThreshold(visuals.label.limbRadius)
 
   // One overlay beside the canvas, beneath the interface panels, with one
-  // element per name — built by hand, once per set of places.
+  // element per name — built by hand, once per set of names.
   useEffect(() => {
     const parent = gl.domElement.parentNode
     if (!parent) return
     const container = document.createElement('div')
-    container.className = 'sse-city-labels'
+    container.className = 'sse-map-labels'
     const created = entries.map((entry) => {
       const element = document.createElement('div')
-      element.className = 'sse-city-label'
-      element.style.color = visuals.label.color
-      const dot = document.createElement('span')
-      dot.className = 'sse-city-label__dot'
-      dot.setAttribute('aria-hidden', 'true')
-      element.append(dot, document.createTextNode(entry.name))
+      element.className = `sse-map-label sse-map-label--${entry.kind}`
+      if (entry.kind === 'capital') {
+        element.style.color = visuals.capitalLabel.color
+        element.style.background = visuals.capitalLabel.background
+        element.style.borderColor = visuals.capitalLabel.border
+      } else if (entry.kind === 'country') {
+        element.style.color = visuals.countryLabel.color
+        element.style.background = visuals.countryLabel.background
+      } else {
+        element.style.color = visuals.label.color
+      }
+      // A country is an area, not a point: it carries no marker dot.
+      if (entry.kind !== 'country') {
+        const dot = document.createElement('span')
+        dot.className = 'sse-map-label__dot'
+        dot.setAttribute('aria-hidden', 'true')
+        element.appendChild(dot)
+      }
+      element.appendChild(document.createTextNode(entry.name))
       container.appendChild(element)
       return element
     })
@@ -397,15 +496,15 @@ function CityLabels({ places, language, uvOffsetU, sampler, terrain, groupRef, v
 
     for (let index = 0; index < elements.length; index += 1) {
       const element = elements[index]
-      const entry = entries[index]
-      if (!entry) continue
-      const dir = entry.dir
+      const placement = placements[index]
+      if (!placement) continue
+      const dir = placement.dir
       // 1 at the point facing the camera, 0 at the limb, negative behind it.
       const facing = dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z
       let visible = facing > facingMin
       let radius = 0
       if (visible) {
-        radius = 1 + entry.height * terrainScale + terrainBias + lift
+        radius = 1 + placement.height * terrainScale + terrainBias + lift
         // A DOM label is never depth-tested, so the globe and the other worlds
         // have to be tested by hand — otherwise the Moon, passing in front of
         // South America, has the names behind it drawn on top of it. The globe's
@@ -488,9 +587,19 @@ function refreshOccluders(cameraPosition: Vector3): number {
   return bodies.length
 }
 
-export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: EarthMapProps) {
+export function EarthMap({
+  radius,
+  uvOffsetU,
+  terrain,
+  meshColumns,
+  meshRows,
+  quality,
+  showLabels,
+  showCountryNames,
+  showCapitalNames,
+}: EarthMapProps) {
   const data = useGeoData(quality)
-  // The city names follow the interface language, like every other label.
+  // The names follow the interface language, like every other label.
   const { language } = useTranslation()
   const groupRef = useRef<Group>(null)
   const [labelsVisible, setLabelsVisible] = useState(false)
@@ -511,9 +620,19 @@ export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: Ea
     uniforms.uTerrainScale.value = hasElevation ? (terrain?.scale ?? 0) : 0
     uniforms.uTerrainBias.value = hasElevation ? (terrain?.bias ?? 0) : 0
     uniforms.uTerrainUvOffset.value = uvOffsetU
-  }, [uniforms, terrain, uvOffsetU])
+    // The mesh whose facets the overlay has to sit on. It changes with the level
+    // of detail, so it is a live uniform rather than a shader constant.
+    uniforms.uMeshSegments.value.set(meshColumns, meshRows)
+    // A hair toward the camera, so a line coplanar with the ground it lies on
+    // wins the depth test instead of stippling against it. The shader works in
+    // world units, so the fraction of the radius becomes a world distance here.
+    uniforms.uCameraLift.value = visuals.cameraLift * radius
+  }, [uniforms, terrain, uvOffsetU, radius, meshColumns, meshRows, visuals])
 
-  const sampler = useMemo(() => createElevationSampler(), [quality])
+  const sampler = useMemo(
+    () => createElevationSampler(uvOffsetU, meshColumns, meshRows),
+    [uvOffsetU, meshColumns, meshRows],
+  )
 
   const borders = useMemo(
     () => (data ? buildLineOverlay(data.borders, uvOffsetU, uniforms, visuals.border) : null),
@@ -542,11 +661,43 @@ export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: Ea
     }
   }, [borders, regions, markers])
 
-  const labels = useMemo(() => (data ? labelledPlaces(data.places) : []), [data])
-  const visibleLabels = useMemo(
-    () => labels.filter((place) => place.tier <= labelTier),
-    [labels, labelTier],
-  )
+  // Which names are drawn. The city names carry their capitals always; the
+  // country names carry them only when asked, because a capital's badge beside
+  // its own country's name hides the smaller countries. Countries and cities
+  // both arrive in two importance tiers — the big names from the first close-up,
+  // the rest once the viewer zooms in.
+  const labelEntries = useMemo<MapLabelEntry[]>(() => {
+    if (!data) return []
+    const places = labelledPlaces(data.places)
+    const entries: MapLabelEntry[] = []
+    if (showCountryNames) {
+      for (const country of data.countries) {
+        if (country.tier <= labelTier) {
+          entries.push({
+            kind: 'country',
+            name: countryName(country, language),
+            lon: country.lon,
+            lat: country.lat,
+          })
+        }
+      }
+    } else {
+      for (const place of places) {
+        if (place.cap === 0 && place.tier <= labelTier) {
+          entries.push({ kind: 'city', name: placeName(place, language), lon: place.lon, lat: place.lat })
+        }
+      }
+    }
+    // Capitals last, so their badges paint over the plain names.
+    if (!showCountryNames || showCapitalNames) {
+      for (const place of places) {
+        if (place.cap === 1) {
+          entries.push({ kind: 'capital', name: placeName(place, language), lon: place.lon, lat: place.lat })
+        }
+      }
+    }
+    return entries
+  }, [data, language, showCountryNames, showCapitalNames, labelTier])
 
   useFrame(({ camera, gl }) => {
     const group = groupRef.current
@@ -595,9 +746,8 @@ export function EarthMap({ radius, uvOffsetU, terrain, quality, showLabels }: Ea
       {regions ? <primitive object={regions} /> : null}
       {markers ? <primitive object={markers} /> : null}
       {labelsVisible ? (
-        <CityLabels
-          places={visibleLabels}
-          language={language}
+        <MapLabels
+          entries={labelEntries}
           uvOffsetU={uvOffsetU}
           sampler={sampler}
           terrain={terrain}
