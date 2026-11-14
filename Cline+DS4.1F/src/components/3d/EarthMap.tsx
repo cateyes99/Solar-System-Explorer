@@ -61,8 +61,10 @@ import type { TerrainRelief } from './terrain'
  * The *names* are DOM elements (see `MapLabels`), and which of them are drawn is
  * the one piece of the overlay that is a choice rather than a consequence of the
  * data: the "Country names" switch swaps the country names in for the smaller
- * cities, while capitals are always named whenever the labels are on, so a
- * country's seat never vanishes with the toggle.
+ * cities, and a second switch decides whether the capitals join them. That one
+ * is off by default, because a capital's badge beside its own country's name
+ * hides the smaller countries; with the city names the capitals are always
+ * there, and there is room for them.
  *
  * It only ever exists for Earth, is off by default, and loads its data the first
  * time it is switched on.
@@ -87,9 +89,15 @@ interface EarthMapProps {
   showLabels: boolean
   /**
    * Whether the map names countries instead of the smaller cities. Capitals are
-   * named either way; only the third tier of names swaps.
+   * named with the cities; with the countries they are a separate choice (see
+   * `showCapitalNames`).
    */
   showCountryNames: boolean
+  /**
+   * Whether capitals are named alongside the country names. It has no effect
+   * with the city names, which always carry their capitals.
+   */
+  showCapitalNames: boolean
 }
 
 interface GeoData {
@@ -588,6 +596,7 @@ export function EarthMap({
   quality,
   showLabels,
   showCountryNames,
+  showCapitalNames,
 }: EarthMapProps) {
   const data = useGeoData(quality)
   // The names follow the interface language, like every other label.
@@ -652,12 +661,11 @@ export function EarthMap({
     }
   }, [borders, regions, markers])
 
-  // Which names are drawn. Capitals are always among them while the labels are
-  // on, in both modes: the "Country names" switch swaps only the third kind, so
-  // a country's seat never vanishes with the toggle. Countries and cities both
-  // arrive in two importance tiers — the big names from the first close-up, the
-  // rest once the viewer zooms in — so a globe a third of the screen across is
-  // not asked to carry all of them at once.
+  // Which names are drawn. The city names carry their capitals always; the
+  // country names carry them only when asked, because a capital's badge beside
+  // its own country's name hides the smaller countries. Countries and cities
+  // both arrive in two importance tiers — the big names from the first close-up,
+  // the rest once the viewer zooms in.
   const labelEntries = useMemo<MapLabelEntry[]>(() => {
     if (!data) return []
     const places = labelledPlaces(data.places)
@@ -681,13 +689,15 @@ export function EarthMap({
       }
     }
     // Capitals last, so their badges paint over the plain names.
-    for (const place of places) {
-      if (place.cap === 1) {
-        entries.push({ kind: 'capital', name: placeName(place, language), lon: place.lon, lat: place.lat })
+    if (!showCountryNames || showCapitalNames) {
+      for (const place of places) {
+        if (place.cap === 1) {
+          entries.push({ kind: 'capital', name: placeName(place, language), lon: place.lon, lat: place.lat })
+        }
       }
     }
     return entries
-  }, [data, language, showCountryNames, labelTier])
+  }, [data, language, showCountryNames, showCapitalNames, labelTier])
 
   useFrame(({ camera, gl }) => {
     const group = groupRef.current

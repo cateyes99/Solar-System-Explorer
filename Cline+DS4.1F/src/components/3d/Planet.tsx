@@ -164,6 +164,10 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const showCountryNames = useSimulationStore((state) =>
     body.id === 'earth' ? state.showCountryNames : false,
   )
+  // Whether the capitals join the country names (with the cities they always do).
+  const showCapitalNames = useSimulationStore((state) =>
+    body.id === 'earth' ? state.showCapitalNames : false,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -599,6 +603,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               quality={quality}
               showLabels={showLabels}
               showCountryNames={showCountryNames}
+              showCapitalNames={showCapitalNames}
             />
           ) : null}
         </group>
