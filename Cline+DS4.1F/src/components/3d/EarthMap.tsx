@@ -21,6 +21,7 @@ import { EARTH_MAP } from '../../data/earthMap'
 import type { EarthMapVisuals } from '../../data/earthMap'
 import {
   borderSegmentPositions,
+  densifyLines,
   labelledPlaces,
   loadBorders,
   loadPlaces,
@@ -215,7 +216,9 @@ function buildLineOverlay(
   options: LineOverlayOptions,
 ): LineSegments2 {
   const geometry = new LineSegmentsGeometry()
-  geometry.setPositions(borderSegmentPositions(lines.lines, uvOffsetU))
+  // Long, sparse segments (Greenland's municipal lines are the worst) are split
+  // so the straight line follows the ground between its original points.
+  geometry.setPositions(borderSegmentPositions(densifyLines(lines.lines), uvOffsetU))
   const material = new LineMaterial({
     // A `Color` (linear), not a hex number: `LineMaterial` hands its `color`
     // straight to the `diffuse` uniform, and its own shader does the tone
