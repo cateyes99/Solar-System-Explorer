@@ -59,6 +59,10 @@ export function PlanetPanel() {
   const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
   const showEarthMap = useSimulationStore((state) => state.showEarthMap)
   const toggleEarthMap = useSimulationStore((state) => state.toggleEarthMap)
+  const showCountryNames = useSimulationStore((state) => state.showCountryNames)
+  const toggleCountryNames = useSimulationStore((state) => state.toggleCountryNames)
+  const showCapitalNames = useSimulationStore((state) => state.showCapitalNames)
+  const toggleCapitalNames = useSimulationStore((state) => state.toggleCapitalNames)
   const rightCollapsed = useSimulationStore((state) => state.ui.rightPanelCollapsed)
   const toggleRightPanel = useSimulationStore((state) => state.toggleRightPanel)
   const rightOpacity = useSimulationStore((state) => state.ui.rightPanelOpacity)
@@ -146,6 +150,20 @@ export function PlanetPanel() {
                   description={t('planet.worldMapToggleDesc')}
                   checked={showEarthMap}
                   onChange={toggleEarthMap}
+                />
+                <ToggleRow
+                  label={t('planet.countryNames')}
+                  description={t('planet.countryNamesDesc')}
+                  checked={showCountryNames}
+                  onChange={toggleCountryNames}
+                  disabled={!showEarthMap}
+                />
+                <ToggleRow
+                  label={t('planet.capitalNames')}
+                  description={t('planet.capitalNamesDesc')}
+                  checked={showCapitalNames}
+                  onChange={toggleCapitalNames}
+                  disabled={!showEarthMap || !showCountryNames}
                 />
               </div>
             </div>

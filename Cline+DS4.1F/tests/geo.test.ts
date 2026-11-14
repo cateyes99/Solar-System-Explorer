@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   borderSegmentPositions,
   countSegments,
+  countryName,
+  densifyLines,
   labelledPlaces,
   limbFacingThreshold,
   lonLatToDirection,
@@ -117,6 +119,32 @@ test('a polyline of n points becomes n − 1 segments', () => {
 test('a degenerate polyline contributes no segments', () => {
   assert.equal(countSegments([[], [0], [1, 2]]), 0)
   assert.equal(borderSegmentPositions([[], [1, 2]], 0).length, 0)
+})
+
+test('densifyLines splits long segments, keeping the endpoints', () => {
+  // A 4-degree segment becomes several, none longer than the step.
+  const dense = densifyLines([[0, 0, 4, 0]], 1)[0]
+  assert.ok(dense.length > 6)
+  for (let i = 0; i + 3 < dense.length; i += 2) {
+    assert.ok(Math.abs(dense[i + 2] - dense[i]) <= 1 + 1e-9)
+  }
+  // The original endpoints survive exactly.
+  assert.equal(dense[0], 0)
+  assert.equal(dense[1], 0)
+  assert.equal(dense[dense.length - 2], 4)
+  assert.equal(dense[dense.length - 1], 0)
+  // A segment already shorter than the step is returned untouched.
+  assert.deepEqual(densifyLines([[0, 0, 0.5, 0.5]], 1), [[0, 0, 0.5, 0.5]])
+  // A one-point polyline is passed through (it holds no segment).
+  assert.deepEqual(densifyLines([[1, 2]], 1), [[1, 2]])
+})
+
+test('a country name follows the interface language', () => {
+  const country = { name: 'Iceland', zh: '冰岛', lon: -18, lat: 65, rank: 3, tier: 0 }
+  assert.equal(countryName(country, 'en'), 'Iceland')
+  assert.equal(countryName(country, 'zh'), '冰岛')
+  // A country with no translation keeps its English name.
+  assert.equal(countryName({ ...country, zh: '' }, 'zh'), 'Iceland')
 })
 
 test('labelled places are ordered by tier, then capitals-first by population', () => {

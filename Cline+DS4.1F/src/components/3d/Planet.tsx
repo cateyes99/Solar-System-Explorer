@@ -160,6 +160,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const showEarthMap = useSimulationStore((state) =>
     body.id === 'earth' ? state.showEarthMap : false,
   )
+  // Which names the overlay draws: the cities (the default) or the countries.
+  const showCountryNames = useSimulationStore((state) =>
+    body.id === 'earth' ? state.showCountryNames : false,
+  )
+  // Whether the capitals join the country names (with the cities they always do).
+  const showCapitalNames = useSimulationStore((state) =>
+    body.id === 'earth' ? state.showCapitalNames : false,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -588,8 +596,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               radius={radius}
               uvOffsetU={visuals.textureOffsetU}
               terrain={terrain}
+              // The overlay interpolates the elevation model across the surface
+              // mesh's own facets, so it has to know the mesh it is sitting on.
+              meshColumns={sphereGeometry.parameters.widthSegments}
+              meshRows={sphereGeometry.parameters.heightSegments}
               quality={quality}
               showLabels={showLabels}
+              showCountryNames={showCountryNames}
+              showCapitalNames={showCapitalNames}
             />
           ) : null}
         </group>

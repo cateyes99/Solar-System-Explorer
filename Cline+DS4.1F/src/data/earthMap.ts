@@ -1,13 +1,15 @@
 /**
  * The look of the optional "World map" overlay — national and regional borders,
- * capitals and major cities — derived from the app's palette rather than chosen
- * by eye in a component.
+ * country names, capitals and major cities — derived from the app's palette
+ * rather than chosen by eye in a component.
  *
  * Colours are deliberately cool and low-saturation so the overlay reads as a
  * cartographic annotation on top of the real imagery instead of competing with
  * it: a pale ice-blue for national borders, a fainter grey-blue for the internal
  * regional lines, a warm amber for capitals (echoing the night-lights glow) and
- * a cool white for other cities.
+ * a cool white for other cities. The three label kinds are told apart by colour
+ * and weight: an amber ringed badge for a capital, a soft wide-tracked parchment
+ * for a country, and a cool white with a dot for a city.
  */
 export interface EarthMapVisuals {
   /** National borders. */
@@ -56,6 +58,29 @@ export interface EarthMapVisuals {
     limbRadius: number
   }
   /**
+   * Capital-city names. They are set apart from the other names by their colour
+   * and a ringed badge — a warm amber, echoing the capital markers and the night
+   * lights — so a country's seat reads as the most important name on the globe
+   * however the label switch is set. Capitals are always named whenever labels
+   * are on (see `EarthMap.tsx`).
+   */
+  capitalLabel: {
+    color: string
+    /** The badge behind the text. */
+    background: string
+    /** The badge's hairline ring. */
+    border: string
+  }
+  /**
+   * Country names. Quiet and wide-tracked, with no marker dot: they sit between
+   * the capitals and the cities in weight, reading as a soft parchment rather
+   * than the cool white of a city.
+   */
+  countryLabel: {
+    color: string
+    background: string
+  }
+  /**
    * How large Earth has to appear (its diameter as a fraction of the viewport's
    * shorter side) before the internal regional borders fade in, and before city
    * labels appear. Both keep the whole-system and mid-distance views legible:
@@ -79,6 +104,22 @@ export interface EarthMapVisuals {
    * hemispheres.
    */
   dayFade: number
+  /**
+   * How far the overlay is pulled toward the camera, as a fraction of the
+   * planet's drawn radius — the depth bias that keeps a line from stippling
+   * against the ground it lies on.
+   *
+   * The overlay now reproduces the surface mesh's own interpolation (see
+   * `earthMapShader.ts`), so a border lies exactly *on* the ground rather than
+   * a hair above or below it. Exactly on is coplanar, and coplanar surfaces
+   * flicker as the depth buffer rounds the two the same or not, so the overlay
+   * is nudged forward by a hair. It has to be small: a line pulled too far is a
+   * line that wins the depth test against terrain genuinely in front of it, and
+   * the far side of the globe starts leaking around the limb. A couple of
+   * thousandths of the radius is several times the depth buffer's resolution
+   * here and a fraction of a pixel on screen.
+   */
+  cameraLift: number
 }
 
 export const EARTH_MAP: EarthMapVisuals = {
@@ -87,6 +128,10 @@ export const EARTH_MAP: EarthMapVisuals = {
   capital: { color: '#ffd98a', size: 5 },
   city: { color: '#d8ecff', size: 3 },
   label: { color: '#eaf5ff', lift: 0.004, limbRadius: 27 / 30 },
+  // Capitals take the marker amber on a dark, ringed badge; countries a soft
+  // parchment, wide-tracked, so the three label kinds read apart at a glance.
+  capitalLabel: { color: '#ffd98a', background: 'rgba(42, 31, 12, 0.82)', border: 'rgba(255, 217, 138, 0.45)' },
+  countryLabel: { color: '#ece3d2', background: 'rgba(8, 11, 22, 0.42)' },
   // Regional borders and labels only earn their space once Earth is a decent
   // size on screen; the thresholds are apparent diameters, so they behave the
   // same at every zoom level and in every scale mode.
@@ -94,4 +139,5 @@ export const EARTH_MAP: EarthMapVisuals = {
   labelFade: [0.16, 0.22],
   labelDetailFade: [0.4, 0.5],
   dayFade: 1,
+  cameraLift: 0.0025,
 }

@@ -68,9 +68,19 @@ const EXTRA_CITY_LABELS = 60
  */
 const PRIMARY_LABELS = 60
 
+/**
+ * Natural Earth's importance rank (`LABELRANK`, 1 = most important) at or below
+ * which a country is named from the first close-up. The rest wait for a second,
+ * closer tier, exactly as the cities do — a globe a third of the screen across
+ * cannot carry two hundred country names at once.
+ */
+const COUNTRY_PRIMARY_RANK = 4
+
 const SOURCES = [
   { file: 'borders-110.json', source: 'ne_110m_admin_0_boundary_lines_land.geojson', kind: 'lines', label: 'National borders (1:110m)' },
   { file: 'borders-50.json', source: 'ne_50m_admin_0_boundary_lines_land.geojson', kind: 'lines', label: 'National borders (1:50m)' },
+  { file: 'countries-110.json', source: 'ne_110m_admin_0_countries.geojson', kind: 'countries', label: 'Country names (1:110m)' },
+  { file: 'countries-50.json', source: 'ne_50m_admin_0_countries.geojson', kind: 'countries', label: 'Country names (1:50m)' },
   {
     file: 'regions.json',
     source: 'ne_10m_admin_1_states_provinces_lines.geojson',
@@ -244,6 +254,35 @@ function buildPlaces(geojson) {
   return { places }
 }
 
+/**
+ * Country name labels. The position is Natural Earth's designed label point
+ * (`LABEL_X`/`LABEL_Y`), not a centroid, so the name sits where a cartographer
+ * would put it; the localized name and the importance rank ride along so the
+ * labels follow the interface language and arrive in two tiers like the cities.
+ */
+function buildCountries(geojson) {
+  const countries = []
+  for (const feature of geojson.features ?? []) {
+    const properties = feature.properties ?? {}
+    const name = String(prop(properties, 'NAME', 'name', 'ADMIN', 'admin') ?? '').trim()
+    if (!name) continue
+    const zh = String(prop(properties, 'NAME_ZH', 'name_zh') ?? '').trim()
+    const lon = Number(prop(properties, 'LABEL_X', 'label_x'))
+    const lat = Number(prop(properties, 'LABEL_Y', 'label_y'))
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
+    const rank = Math.max(0, Math.round(Number(prop(properties, 'LABELRANK', 'labelrank') ?? 10) || 0))
+    countries.push({
+      name,
+      zh,
+      lon: round4(lon),
+      lat: round4(lat),
+      rank,
+      tier: rank <= COUNTRY_PRIMARY_RANK ? 0 : 1,
+    })
+  }
+  return { countries }
+}
+
 async function download(url, attempt = 1) {
   try {
     const response = await fetch(url, { redirect: 'follow' })
@@ -269,9 +308,19 @@ for (const entry of SOURCES) {
   const path = join(OUTPUT_DIR, entry.file)
   try {
     const geojson = await download(`${BASE}${entry.source}`)
-    const data = entry.kind === 'lines' ? buildLines(geojson, entry.simplify ?? 0) : buildPlaces(geojson)
+    const data =
+      entry.kind === 'lines'
+        ? buildLines(geojson, entry.simplify ?? 0)
+        : entry.kind === 'countries'
+          ? buildCountries(geojson)
+          : buildPlaces(geojson)
     writeFileSync(path, JSON.stringify(data))
-    const count = entry.kind === 'lines' ? `${data.lines.length} lines` : `${data.places.length} places`
+    const count =
+      entry.kind === 'lines'
+        ? `${data.lines.length} lines`
+        : entry.kind === 'countries'
+          ? `${data.countries.length} countries`
+          : `${data.places.length} places`
     report.push({ ...entry, status: `${describe(entry.file)} (${count})`, ok: true })
   } catch (error) {
     report.push({ ...entry, status: `FAILED — ${error.message}`, ok: false })
@@ -285,15 +334,17 @@ writeFileSync(
     '# World map data credits',
     '',
     'The optional **World map** layer (national boundaries, regional boundaries,',
-    'capitals and major cities) is built from **Natural Earth** vector data.',
+    'country names, capitals and major cities) is built from **Natural Earth**',
+    'vector data.',
     '',
     '- Source: [Natural Earth](https://www.naturalearthdata.com/), from the',
     '  project’s own vector repository (`nvkelso/natural-earth-vector`).',
     '- Licence: **public domain** — "No permission is needed to use Natural Earth.',
     '  Crediting the authors is unnecessary." Attribution is given here anyway.',
     '- Layers: `admin_0_boundary_lines_land` (national borders),',
-    '  `admin_1_states_provinces_lines` (regional borders) and `populated_places`',
-    '  (capitals and cities).',
+    '  `admin_1_states_provinces_lines` (regional borders), `admin_0_countries`',
+    '  (country names and their label points) and `populated_places` (capitals and',
+    '  cities).',
     '- Projection: WGS84 geographic (longitude/latitude), the same equirectangular',
     '  layout as the surface maps, so the overlay lines up with the continents.',
     '- Place names carry Natural Earth’s localized names (`NAME_ZH`), so the city',
@@ -302,8 +353,8 @@ writeFileSync(
     '- National borders and cities ship at two detail levels: 1:110m (low graphics',
     '  tier) and 1:50m (medium and high). Regional borders ship at 1:10m, the only',
     '  scale with worldwide coverage. Regenerate with `node tools/fetch-geo.mjs`.',
-    '- City names ship in English and Simplified Chinese (Natural Earth’s `NAME_ZH`),',
-    '  so the map labels follow the interface language.',
+    '- Country and city names ship in English and Simplified Chinese (Natural',
+    '  Earth’s `NAME_ZH`), so the map labels follow the interface language.',
     '',
     '## Files',
     '',
