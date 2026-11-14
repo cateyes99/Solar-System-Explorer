@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
-import type { ComponentRef } from 'react'
-import { OrbitControls } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import { useSimulationStore } from '../../store/simulationStore'
+import { FreeOrbitControls } from './FreeOrbitControls'
+import type { FreeOrbitControls as FreeOrbitControlsImpl } from '../../utils/freeOrbitControls'
 import { getBodyWorldPosition } from '../../utils/bodyRegistry'
 import { spacecraft } from '../../utils/spacecraftSim'
 import { spacecraftScaleForLevel } from '../../utils/spacecraftSize'
@@ -64,7 +64,7 @@ const CHASE_RATE = 4.5
 const CHASE_FRAMING_DISTANCE = 5
 
 export function CameraController() {
-  const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
+  const controlsRef = useRef<FreeOrbitControlsImpl>(null)
   const tween = useRef<{
     from: Pose
     to: Pose
@@ -92,6 +92,7 @@ export function CameraController() {
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const reducedMotion = useSimulationStore((state) => state.reducedMotion)
+  const freeTumble = useSimulationStore((state) => state.freeTumble)
 
   const { camera } = useThree()
   const requestId = cameraRequest?.id ?? 0
@@ -104,6 +105,9 @@ export function CameraController() {
   useEffect(() => {
     const controls = controlsRef.current
     if (!controls) return
+    // Every flight arrives with a level horizon, so a tumble left over from free
+    // rotation never leaves the destination tilted or upside-down.
+    camera.up.set(0, 1, 0)
     let destination: Pose = { position: SYSTEM_VIEW.position.clone(), target: SYSTEM_VIEW.target.clone() }
     const offset = new Vector3()
 
@@ -258,9 +262,8 @@ export function CameraController() {
   })
 
   return (
-    <OrbitControls
+    <FreeOrbitControls
       ref={controlsRef}
-      makeDefault
       enableDamping
       dampingFactor={0.075}
       rotateSpeed={0.55}
@@ -269,6 +272,7 @@ export function CameraController() {
       screenSpacePanning
       minDistance={0.35}
       maxDistance={1500}
+      freeTumble={freeTumble}
       onStart={() => {
         // Respect the user: any interaction cancels the automatic flight, and
         // pauses the re-centring pull until they let go.

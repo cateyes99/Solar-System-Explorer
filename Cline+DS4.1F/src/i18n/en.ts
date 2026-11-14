@@ -292,6 +292,8 @@ export const en = {
   'settings.comfortHint': 'accessibility',
   'settings.reduceMotion': 'Reduce motion',
   'settings.reduceMotionDesc': 'Calmer camera moves and fewer effects',
+  'settings.freeTumble': 'Free tumbling',
+  'settings.freeTumbleDesc': 'Let the view roll over the top instead of stopping at the poles',
   'settings.graphics': 'Graphics quality',
   'settings.graphicsHint': 'performance',
   'settings.quality.low': 'Low',

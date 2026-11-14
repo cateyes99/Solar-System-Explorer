@@ -288,6 +288,13 @@ export interface SimulationState {
   soundEnabled: boolean
   volume: number
   reducedMotion: boolean
+  /**
+   * Whether dragging the view may tumble the camera freely past the poles.
+   * When true the vertical rotation is unlimited (the horizon can roll and the
+   * scene can end up upside-down); when false the polar angle is clamped to the
+   * old 180° range and the horizon stays level. See `utils/freeOrbitControls`.
+   */
+  freeTumble: boolean
   quality: QualityLevel
   /** The interface language. See `src/i18n`. */
   language: Language
@@ -381,6 +388,7 @@ export interface SimulationActions {
   setSoundEnabled: (enabled: boolean) => void
   setVolume: (volume: number) => void
   setReducedMotion: (reduced: boolean) => void
+  setFreeTumble: (enabled: boolean) => void
   setQuality: (quality: QualityLevel) => void
   setLanguage: (language: Language) => void
   applySettings: (patch: SettingsPatch) => void
@@ -535,6 +543,10 @@ const initialState: SimulationState = {
   soundEnabled: false,
   volume: 0.4,
   reducedMotion: prefersReducedMotion(),
+  // Free tumbling on by default: the vertical rotation is unlimited, which is
+  // what the orbit camera was asked for. The horizon can roll once past a pole,
+  // so the switch can restore the old level-only behaviour.
+  freeTumble: true,
   quality: 'medium',
   language: 'en',
 
@@ -851,6 +863,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   },
 
   setReducedMotion: (reducedMotion) => set({ reducedMotion }),
+
+  setFreeTumble: (freeTumble) => set({ freeTumble }),
 
   setQuality: (quality) => set({ quality }),
 
