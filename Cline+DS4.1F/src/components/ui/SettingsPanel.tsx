@@ -23,6 +23,8 @@ export function SettingsPanel() {
   const setVolume = useSimulationStore((state) => state.setVolume)
   const reducedMotion = useSimulationStore((state) => state.reducedMotion)
   const setReducedMotion = useSimulationStore((state) => state.setReducedMotion)
+  const freeTumble = useSimulationStore((state) => state.freeTumble)
+  const setFreeTumble = useSimulationStore((state) => state.setFreeTumble)
   const quality = useSimulationStore((state) => state.quality)
   const setQuality = useSimulationStore((state) => state.setQuality)
   const resetView = useSimulationStore((state) => state.resetView)
@@ -69,6 +71,12 @@ export function SettingsPanel() {
               description={t('settings.reduceMotionDesc')}
               checked={reducedMotion}
               onChange={() => setReducedMotion(!reducedMotion)}
+            />
+            <ToggleRow
+              label={t('settings.freeTumble')}
+              description={t('settings.freeTumbleDesc')}
+              checked={freeTumble}
+              onChange={() => setFreeTumble(!freeTumble)}
             />
           </section>
 

@@ -39,6 +39,9 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 **Explore**
 
 - Drag to orbit the camera, scroll or pinch to zoom, right-drag or two-finger drag to pan.
+  The vertical rotation is unlimited: the view can tumble right over the top of the scene
+  instead of stopping at the poles. Passing a pole rolls the horizon, so a **Free tumbling**
+  switch in Settings can restore the old level-only behaviour.
 - Click any planet for a full information panel (diameter, distance, year, day, moons,
   temperature, gravity, facts and a "Did you know?").
 - Double-click a planet to **follow** it as it travels around the Sun.
