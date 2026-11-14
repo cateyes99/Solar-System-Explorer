@@ -290,6 +290,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.comfortHint': '无障碍',
   'settings.reduceMotion': '减弱动态效果',
   'settings.reduceMotionDesc': '更平稳的镜头移动和更少的特效',
+  'settings.freeTumble': '自由翻转视角',
+  'settings.freeTumbleDesc': '允许视角越过极点继续翻转，而不是在极点停下',
   'settings.graphics': '图形质量',
   'settings.graphicsHint': '性能',
   'settings.quality.low': '低',
