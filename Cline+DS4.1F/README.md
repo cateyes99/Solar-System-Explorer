@@ -249,7 +249,10 @@ A few decisions worth knowing about:
   mesh never reaches — visible as lines floating clear of the mountains — and bury itself in the
   valleys. So the overlay snaps to the surface mesh's own grid and interpolates across its own
   triangles, landing on the ground the mesh actually draws at every zoom, and is nudged a hair
-  toward the camera only to keep the two coplanar surfaces from stippling. The data loads only
+  toward the camera only to keep the two coplanar surfaces from stippling. A border is still a run
+  of *straight* segments, though, so any segment long enough to skip over the ground between its
+  endpoints is split first — the sparse regional lines need it (Greenland's municipal boundaries
+  ship as a handful of points across the whole ice sheet), the dense national ones never do. The data loads only
   when the layer is first switched on, and the whole thing is three draw calls however many
   thousands of segments it holds.
 - **The city names are culled and batched, because there are hundreds of them.** A DOM label is a
