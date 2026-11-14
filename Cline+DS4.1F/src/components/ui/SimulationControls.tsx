@@ -35,6 +35,8 @@ export function SimulationControlsContent() {
   const setShowOrbitFlow = useSimulationStore((state) => state.setShowOrbitFlow)
   const showEarthMap = useSimulationStore((state) => state.showEarthMap)
   const toggleEarthMap = useSimulationStore((state) => state.toggleEarthMap)
+  const showCountryNames = useSimulationStore((state) => state.showCountryNames)
+  const toggleCountryNames = useSimulationStore((state) => state.toggleCountryNames)
 
   const selectedId = useSimulationStore((state) => state.selectedId)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -180,6 +182,13 @@ export function SimulationControlsContent() {
             description={t('controls.worldMapDesc')}
             checked={showEarthMap}
             onChange={toggleEarthMap}
+          />
+          <ToggleRow
+            label={t('controls.countryNames')}
+            description={t('controls.countryNamesDesc')}
+            checked={showCountryNames}
+            onChange={toggleCountryNames}
+            disabled={!showEarthMap}
           />
         </div>
       </section>

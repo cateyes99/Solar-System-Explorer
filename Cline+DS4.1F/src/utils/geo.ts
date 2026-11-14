@@ -52,6 +52,27 @@ export interface GeoPlaces {
   places: GeoPlace[]
 }
 
+/**
+ * One country name label: where to put it, what to call it, and how important
+ * it is. The position is Natural Earth's designed label point, not a centroid.
+ */
+export interface GeoCountry {
+  /** The English/ASCII name (Natural Earth's `NAME`). */
+  name: string
+  /** The Simplified Chinese name, or an empty string; `countryName` falls back. */
+  zh: string
+  lon: number
+  lat: number
+  /** Natural Earth's importance rank, 1 = most important. */
+  rank: number
+  /** 0 for the countries named from the first close-up, 1 for the rest. */
+  tier: number
+}
+
+export interface GeoCountries {
+  countries: GeoCountry[]
+}
+
 const TWO_PI = Math.PI * 2
 
 /**
@@ -98,6 +119,10 @@ export function loadRegions(): Promise<GeoLines> {
 
 export function loadPlaces(quality: QualityLevel): Promise<GeoPlaces> {
   return loadJson<GeoPlaces>(`places-${tierSuffix(quality)}.json`)
+}
+
+export function loadCountries(quality: QualityLevel): Promise<GeoCountries> {
+  return loadJson<GeoCountries>(`countries-${tierSuffix(quality)}.json`)
 }
 
 /**
@@ -217,6 +242,11 @@ export function borderSegmentPositions(lines: GeoLine[], uvOffsetU: number): Flo
  */
 export function placeName(place: GeoPlace, language: string): string {
   return language === 'zh' && place.zh ? place.zh : place.name
+}
+
+/** A country's name in the chosen interface language, exactly as `placeName`. */
+export function countryName(country: GeoCountry, language: string): string {
+  return language === 'zh' && country.zh ? country.zh : country.name
 }
 
 /**

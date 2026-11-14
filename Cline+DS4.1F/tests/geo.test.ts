@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   borderSegmentPositions,
   countSegments,
+  countryName,
   densifyLines,
   labelledPlaces,
   limbFacingThreshold,
@@ -136,6 +137,14 @@ test('densifyLines splits long segments, keeping the endpoints', () => {
   assert.deepEqual(densifyLines([[0, 0, 0.5, 0.5]], 1), [[0, 0, 0.5, 0.5]])
   // A one-point polyline is passed through (it holds no segment).
   assert.deepEqual(densifyLines([[1, 2]], 1), [[1, 2]])
+})
+
+test('a country name follows the interface language', () => {
+  const country = { name: 'Iceland', zh: '冰岛', lon: -18, lat: 65, rank: 3, tier: 0 }
+  assert.equal(countryName(country, 'en'), 'Iceland')
+  assert.equal(countryName(country, 'zh'), '冰岛')
+  // A country with no translation keeps its English name.
+  assert.equal(countryName({ ...country, zh: '' }, 'zh'), 'Iceland')
 })
 
 test('labelled places are ordered by tier, then capitals-first by population', () => {

@@ -132,6 +132,8 @@ export const zh: Record<TranslationKey, string> = {
   'controls.orbitFlowDesc': '看看行星往哪个方向运行',
   'controls.worldMap': '世界地图（地球）',
   'controls.worldMapDesc': '国界、首都与城市',
+  'controls.countryNames': '国家名称（地球）',
+  'controls.countryNamesDesc': '代替城市名称',
   'controls.camera': '镜头',
   'controls.cameraHint.follow': '跟随中',
   'controls.viewSystem': '查看太阳系',
@@ -154,6 +156,8 @@ export const zh: Record<TranslationKey, string> = {
   'planet.worldMapToggle': '国界、首都与城市',
   'planet.worldMapToggleDesc':
     '全世界的国界、行政区界、首都与主要城市。真实的 Natural Earth 地图数据，与地表对齐并贴合地形。',
+  'planet.countryNames': '国家名称',
+  'planet.countryNamesDesc': '显示国家名称而非较小的城市名称。无论开关如何，首都始终显示。',
   'planet.earthAtmosphere': '地球的大气',
   'planet.atmosphereHint': '0% = 没有雾霭',
   'planet.atmosphereHaze': '大气雾霭',

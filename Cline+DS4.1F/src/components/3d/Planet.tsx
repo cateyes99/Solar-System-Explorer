@@ -160,6 +160,10 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   const showEarthMap = useSimulationStore((state) =>
     body.id === 'earth' ? state.showEarthMap : false,
   )
+  // Which names the overlay draws: the cities (the default) or the countries.
+  const showCountryNames = useSimulationStore((state) =>
+    body.id === 'earth' ? state.showCountryNames : false,
+  )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const focusBody = useSimulationStore((state) => state.focusBody)
@@ -594,6 +598,7 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
               meshRows={sphereGeometry.parameters.heightSegments}
               quality={quality}
               showLabels={showLabels}
+              showCountryNames={showCountryNames}
             />
           ) : null}
         </group>
