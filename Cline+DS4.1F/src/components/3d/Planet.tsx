@@ -49,7 +49,12 @@ import { NightLights } from './NightLights'
 import { Rings } from './Rings'
 import { Moon } from './Moon'
 import { PlanetLabel } from './PlanetLabel'
-import { SUN_POSITION, WIDE_VIEW_FADE_IN_RADII, WIDE_VIEW_FADE_OUT_RADII } from './constants'
+import {
+  SOLO_EARTH_POSITION,
+  SUN_POSITION,
+  WIDE_VIEW_FADE_IN_RADII,
+  WIDE_VIEW_FADE_OUT_RADII,
+} from './constants'
 
 /** Our Moon is a real body with its own panel, so it needs a satellite record. */
 const EARTHS_MOON: SatelliteDefinition = {
@@ -88,9 +93,15 @@ interface PlanetProps {
   quality: QualityLevel
   reducedMotion: boolean
   showLabels: boolean
+  /**
+   * Solo Earth mode: the body is the whole world, so it is pinned to a fixed
+   * point (instead of orbiting the clock) and its moons are left out. Only Earth
+   * is ever drawn this way (see `SoloEarth.tsx`).
+   */
+  solo?: boolean
 }
 
-export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps) {
+export function Planet({ body, quality, reducedMotion, showLabels, solo = false }: PlanetProps) {
   const { t } = useTranslation()
   const content = useContent()
   const orbitRef = useRef<Group>(null)
@@ -421,12 +432,14 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
   }, [radius])
 
   const satellites = useMemo(() => {
+    // Solo Earth is the globe alone: no Moon, no guest moons.
+    if (solo) return []
     const list: SatelliteDefinition[] = []
     if (body.id === 'earth') list.push(EARTHS_MOON)
     list.push(...satellitesOf(body.id))
     if (whatIfId === 'two-moons' && body.id === 'earth') list.push(GUEST_MOON)
     return list
-  }, [body.id, whatIfId])
+  }, [body.id, whatIfId, solo])
 
   const detailThreshold = quality === 'low' ? 0.014 : 0.006
 
@@ -436,17 +449,24 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     const step = Math.min(delta, 0.05)
 
     // --- Position on the (slightly elliptical) orbit ----------------------
-    const days = clock.daysSinceJ2000
-    const ecliptic = orbitalPositionKm(body, days, orbitModel === 'realistic')
-    const scene = sceneFromEclipticKm(
-      ecliptic.x,
-      ecliptic.y,
-      ecliptic.z,
-      scaleMode,
-      customScale,
-      orbitModel,
-    )
-    orbit.position.set(scene.x, scene.y, scene.z)
+    // Solo Earth pins the globe to a fixed point instead: there is no Sun to
+    // orbit, and the camera wants a still world to inspect. It still spins, so
+    // the clock keeps running.
+    if (solo) {
+      orbit.position.copy(SOLO_EARTH_POSITION)
+    } else {
+      const days = clock.daysSinceJ2000
+      const ecliptic = orbitalPositionKm(body, days, orbitModel === 'realistic')
+      const scene = sceneFromEclipticKm(
+        ecliptic.x,
+        ecliptic.y,
+        ecliptic.z,
+        scaleMode,
+        customScale,
+        orbitModel,
+      )
+      orbit.position.set(scene.x, scene.y, scene.z)
+    }
 
     // --- Axial rotation ---------------------------------------------------
     if (spinRef.current && !spinFrozen && body.rotationPeriodHours !== 0) {
@@ -499,7 +519,8 @@ export function Planet({ body, quality, reducedMotion, showLabels }: PlanetProps
     // line across the face of a close-up, so it fades out on approach.
     const radiiAway = cameraDistance / Math.max(radius, 0.001)
     const markerFade = smoothstep(WIDE_VIEW_FADE_OUT_RADII, WIDE_VIEW_FADE_IN_RADII, radiiAway)
-    const ringTarget = (isSelected ? 0.55 : isHovered ? 0.3 : 0) * markerFade
+    // Solo Earth has no ecliptic to mark, so the flat selection ring stays off.
+    const ringTarget = solo ? 0 : (isSelected ? 0.55 : isHovered ? 0.3 : 0) * markerFade
     ringOpacity.current += (ringTarget - ringOpacity.current) * Math.min(1, step * 7)
     if (focusRingMaterialRef.current) {
       focusRingMaterialRef.current.opacity = ringOpacity.current

@@ -299,6 +299,11 @@ export const zh: Record<TranslationKey, string> = {
   'settings.quality.high': '高',
   'settings.qualityNote':
     '更改质量会按新的分辨率重建表面纹理，并调整几何细节、星星数量和后期处理。更高的设置会加载更大的纹理，占用更多显存。',
+  'settings.soloEarthSection': '专注地球',
+  'settings.soloEarthHint': '实验性',
+  'settings.soloEarth': '地球独显模式',
+  'settings.soloEarthDesc':
+    '只显示地球 —— 太阳、月球和行星都会被卸载 —— 镜头可拉近至地表，但不会进入地球内部',
   'settings.scaleSection': '比例、图层和镜头',
   'settings.scaleSectionHint': '在更大的屏幕上也会出现在左侧',
   'settings.explore': '探索',

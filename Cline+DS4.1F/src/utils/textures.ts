@@ -2,7 +2,8 @@ import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBC
 import type { QualityLevel } from '../types'
 import { SEAFLOOR_RAMP } from '../data/visuals'
 import type { TextureId } from '../data/visuals'
-import { TEXTURE_IDS, TEXTURE_SOURCES } from './textureSources'
+import { TEXTURE_IDS, TEXTURE_SOURCES, textureIdsForScope } from './textureSources'
+import type { TextureScope } from './textureSources'
 import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
 import { createBuildQueue } from './buildQueue'
 import { maxTextureSize } from './webgl'
@@ -1664,51 +1665,87 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
 }
 
 /**
- * Loads and paints every map, yielding to the browser between each one so the
- * loading screen can animate and report progress.
+ * Disposes and forgets every cached map the current scope does not keep.
+ *
+ * Solo Earth mode uses this to genuinely free the other bodies' textures rather
+ * than leave them resident. It is only safe to call once the bodies that used
+ * them have unmounted (the preloader runs after the store change has rendered),
+ * so no material is left holding a disposed texture.
+ */
+function releaseTexturesExcept(keep: TextureId[]): void {
+  const keepSet = new Set(keep)
+  for (const [id, texture] of [...cache]) {
+    if (keepSet.has(id)) continue
+    texture.dispose()
+    cache.delete(id)
+  }
+}
+
+/** The quality the current cache was built for, so a scope switch can skip work. */
+let builtQuality: QualityLevel | null = null
+
+/**
+ * Loads and paints the maps for `scope`, yielding to the browser between each
+ * one so the loading screen can animate and report progress.
+ *
+ * A scope switch at the same quality (entering or leaving Solo Earth) does not
+ * rebuild the maps it keeps — re-decoding an 8K Earth map just to keep it would
+ * be pure waste — and it releases the maps the scope no longer needs.
  */
 export async function generateTextures(
+  scope: TextureScope,
   quality: QualityLevel,
   onProgress: (progress: TextureProgress) => void,
 ): Promise<void> {
+  const ids = textureIdsForScope(scope)
   const shared: SharedBuild = { landMask: null, width: 0, height: 0 }
-  for (let index = 0; index < TEXTURE_IDS.length; index += 1) {
-    const id = TEXTURE_IDS[index]
+  for (let index = 0; index < ids.length; index += 1) {
+    const id = ids[index]
     onProgress({
       label: TEXTURE_SOURCES[id] ? `texture.source.${id}` : `texture.${id}`,
-      ratio: index / TEXTURE_IDS.length,
+      ratio: index / ids.length,
     })
     // Yield first: the browser paints the updated progress bar before we block.
     await nextFrame()
+    if (builtQuality === quality && cache.has(id)) continue
     const source = await buildMap(id, quality, shared)
     if (source) commitMap(id, source)
   }
+  builtQuality = quality
+  releaseTexturesExcept(ids)
   onProgress({ label: 'loading.ready', ratio: 1 })
 }
 
-/**
- * Every map build runs through one single-flight queue (see `buildQueue.ts`):
- * the preloader may ask for a quality twice (React's development double-render)
- * or change its mind mid-build, and the queue collapses those into the one build
- * that matters.
- */
-const mapQueue = createBuildQueue<QualityLevel, TextureProgress>(generateTextures)
+/** The scope-and-quality a build is keyed by. */
+type TextureBuildTarget = `${TextureScope}:${QualityLevel}`
 
 /**
- * The tier the current map set was built for, or null before the first build.
- * The preloader uses it to tell the very first load (which owns the full loading
- * screen) from a later rebuild (which must not unmount the scene).
+ * Every map build runs through one single-flight queue (see `buildQueue.ts`):
+ * the preloader may ask for a scope or quality twice (React's development
+ * double-render) or change its mind mid-build, and the queue collapses those
+ * into the one build that matters.
  */
-export function textureBuildQuality(): QualityLevel | null {
+const mapQueue = createBuildQueue<TextureBuildTarget, TextureProgress>((target, onProgress) => {
+  const [scope, quality] = target.split(':') as [TextureScope, QualityLevel]
+  return generateTextures(scope, quality, onProgress)
+})
+
+/**
+ * The scope-and-quality the current map set was built for, or null before the
+ * first build. The preloader uses it to tell the very first load (which owns the
+ * full loading screen) from a later rebuild (which must not unmount the scene).
+ */
+export function textureBuildTarget(): TextureBuildTarget | null {
   return mapQueue.built()
 }
 
-/** Builds the map set for `quality`, coalescing and superseding requests. */
+/** Builds the map set for `scope`/`quality`, coalescing and superseding requests. */
 export function ensureTextures(
+  scope: TextureScope,
   quality: QualityLevel,
   onProgress: (progress: TextureProgress) => void,
 ): Promise<void> {
-  return mapQueue.ensure(quality, onProgress)
+  return mapQueue.ensure(`${scope}:${quality}`, onProgress)
 }
 
 /** Frees GPU memory. Only used when the whole experience is torn down. */
@@ -1719,5 +1756,6 @@ export function disposeTextures(): void {
   fallback = null
   earthWater = null
   sharedLandMask = null
+  builtQuality = null
   mapQueue.reset()
 }

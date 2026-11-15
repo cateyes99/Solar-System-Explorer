@@ -47,6 +47,7 @@ export function SimulationControlsContent() {
   const resetView = useSimulationStore((state) => state.resetView)
   const selectBody = useSimulationStore((state) => state.selectBody)
   const showToast = useSimulationStore((state) => state.showToast)
+  const soloEarth = useSimulationStore((state) => state.soloEarth)
 
   const info = content.scaleInfo[scaleMode]
   const focusId: FocusTargetId = selectedId ?? 'sun'
@@ -61,6 +62,12 @@ export function SimulationControlsContent() {
   const following = followTargetId ? content.bodyById[followTargetId]?.name : undefined
 
   const surpriseMe = (): void => {
+    // Solo Earth has only one world to jump to, so there is nothing to surprise
+    // the viewer with: just reframe the globe.
+    if (soloEarth) {
+      resetView()
+      return
+    }
     const pick = content.bodies[Math.floor(Math.random() * content.bodies.length)].id
     selectBody(pick)
     focusBody(pick, 'follow', 7)

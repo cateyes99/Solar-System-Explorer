@@ -45,6 +45,10 @@ unavailable the app automatically switches to a polished 2D orrery with the same
 - Click any planet for a full information panel (diameter, distance, year, day, moons,
   temperature, gravity, facts and a "Did you know?").
 - Double-click a planet to **follow** it as it travels around the Sun.
+- Turn on **Solo Earth mode** in Settings to strip the scene back to the globe alone: the Sun,
+  the Moon and every other world are unmounted and their textures released, so nothing else
+  costs anything while you study Earth. The camera orbits the globe and zooms down to its
+  surface — mountains included — but can never pass inside it.
 - Hover anything for a subtle highlight, a name label and a pointer cursor.
 - Turn on Earth's **World map** — from the Earth panel, the Layers list, or with `G` — to
   overlay real national and regional borders, capitals and major cities. The lines are

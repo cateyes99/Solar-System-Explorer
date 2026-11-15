@@ -68,6 +68,30 @@ export function tumbleQuaternion(
   return out.multiplyQuaternions(_qYaw, _qPitch)
 }
 
+/**
+ * Pushes `position` back out to `minRadius` if it has strayed inside the sphere
+ * at `center`, returning whether it moved. It is the hard guarantee behind Solo
+ * Earth's "the camera never enters the globe": the orbit controller clamps zoom
+ * from its target, but a pan, a flight or a free tumble could otherwise carry
+ * the camera inside, so the position is re-checked every frame.
+ */
+export function clampCameraToSphere(position: Vector3, center: Vector3, minRadius: number): boolean {
+  const dx = position.x - center.x
+  const dy = position.y - center.y
+  const dz = position.z - center.z
+  const distanceSq = dx * dx + dy * dy + dz * dz
+  if (distanceSq >= minRadius * minRadius) return false
+  const distance = Math.sqrt(distanceSq)
+  if (distance < 1e-6) {
+    // Exactly at the centre: there is no direction to push along, so pick one.
+    position.set(center.x, center.y, center.z + minRadius)
+    return true
+  }
+  const scale = minRadius / distance
+  position.set(center.x + dx * scale, center.y + dy * scale, center.z + dz * scale)
+  return true
+}
+
 /** The camera types this controller can drive. */
 type OrbitCamera = PerspectiveCamera | OrthographicCamera
 

@@ -301,6 +301,11 @@ export const en = {
   'settings.quality.high': 'High',
   'settings.qualityNote':
     'Changing quality rebuilds the surface maps at the new resolution and adjusts geometry detail, star counts and post-processing. Higher settings load larger maps and use more graphics memory.',
+  'settings.soloEarthSection': 'Earth focus',
+  'settings.soloEarthHint': 'experimental',
+  'settings.soloEarth': 'Solo Earth mode',
+  'settings.soloEarthDesc':
+    'Show Earth alone — the Sun, Moon and planets are unloaded — with a camera that zooms to the surface but never inside it',
   'settings.scaleSection': 'Scale, layers and camera',
   'settings.scaleSectionHint': 'also on the left on bigger screens',
   'settings.explore': 'Explore',
