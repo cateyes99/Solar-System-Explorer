@@ -3,6 +3,22 @@ import { Vector3 } from 'three'
 /** The Sun sits at the origin of the scene: everything else orbits around it. */
 export const SUN_POSITION = new Vector3(0, 0, 0)
 
+/**
+ * Where Earth sits in Solo Earth mode.
+ *
+ * A fixed point, kept clear of the light at the origin, so the globe never
+ * drifts along its orbit while it spins. Every one of Earth's shaders still
+ * reads `SUN_POSITION` (the origin), so the day/night terminator is unchanged.
+ */
+export const SOLO_EARTH_POSITION = new Vector3(3, 0, 0)
+
+/**
+ * How far, in scene units, the Solo Earth camera must stay above the globe's
+ * surface. It clears the canvas's 0.1 near plane, so the surface the camera is
+ * zoomed onto is never clipped away by it.
+ */
+export const SOLO_EARTH_SURFACE_MARGIN = 0.12
+
 /** Outside-in unit vector used when sizing the camera for a focused body. */
 export const CAMERA_UP = new Vector3(0, 1, 0)
 

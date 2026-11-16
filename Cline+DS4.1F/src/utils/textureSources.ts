@@ -135,6 +135,37 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
   },
 }
 
+/** Which maps a build should produce: the whole set, or Earth's subset. */
+export type TextureScope = 'all' | 'earth'
+
+/**
+ * The maps Solo Earth mode still needs: the globe's own maps, plus the sky.
+ *
+ * Everything else — the Sun, the Moon, the other planets, their rings, the
+ * comets — is not built at all, so the mode genuinely offloads their textures
+ * rather than merely hiding their meshes.
+ *
+ * The order matters: `earth` must come before `earthRoughness` and `earthNight`,
+ * because building it runs the land/water analysis those two derive from.
+ */
+export const EARTH_TEXTURE_IDS: TextureId[] = [
+  'nebula',
+  'star',
+  'earth',
+  'earthHeightmap',
+  'earthBathymetry',
+  'earthClouds',
+  'earthNight',
+  'earthRoughness',
+  'seafloorRamp',
+  'waterNormal',
+]
+
+/** The map ids a build of `scope` must end up with. */
+export function textureIdsForScope(scope: TextureScope): TextureId[] {
+  return scope === 'earth' ? EARTH_TEXTURE_IDS : TEXTURE_IDS
+}
+
 /** Everything the loader must end up with, procedural or photographic. */
 export const TEXTURE_IDS: TextureId[] = [
   'nebula',

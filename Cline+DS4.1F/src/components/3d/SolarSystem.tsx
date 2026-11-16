@@ -13,6 +13,7 @@ import { Timekeeper } from './Timekeeper'
 import { CameraController } from './CameraController'
 import { TourDirector } from './TourDirector'
 import { PostProcessing } from './PostProcessing'
+import { SoloEarth } from './SoloEarth'
 
 /**
  * Everything that lives inside the WebGL canvas.
@@ -36,8 +37,15 @@ export function SolarSystem({ quality }: SolarSystemProps) {
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const whatIfId = useSimulationStore((state) => state.whatIfId)
+  const soloEarth = useSimulationStore((state) => state.soloEarth)
+  const systemTexturesReady = useSimulationStore((state) => state.systemTexturesReady)
 
   const sunRadius = sunRadiusFor(scaleMode, customScale, orbitModel)
+
+  // The full system is shown only once its maps are back. While leaving Solo
+  // Earth rebuilds them the globe stays on screen (behind the rebuild overlay),
+  // so no body ever mounts holding the grey fallback instead of its real map.
+  const showSystem = !soloEarth && systemTexturesReady
 
   return (
     <>
@@ -47,47 +55,67 @@ export function SolarSystem({ quality }: SolarSystemProps) {
       <Timekeeper />
 
       {/* The Sun's point light does the heavy lifting; this just keeps the night
-          sides readable instead of pitch black. */}
+          sides readable instead of pitch black. In Solo Earth mode the Sun is
+          gone, so `SoloEarth` supplies its own light. */}
       <ambientLight intensity={0.26} color="#8ea6d8" />
 
       <StarField quality={quality} reducedMotion={reducedMotion} showNebula={showNebula} />
-      <Sun
-        radius={sunRadius}
-        reducedMotion={reducedMotion}
-        extinguished={whatIfId === 'no-sun'}
-      />
 
-      {ORBITING_WORLDS.map((body) => (
-        <Planet
-          key={body.id}
-          body={body}
-          quality={quality}
-          reducedMotion={reducedMotion}
-          showLabels={showLabels}
-        />
-      ))}
+      {showSystem ? (
+        <>
+          <Sun
+            radius={sunRadius}
+            reducedMotion={reducedMotion}
+            extinguished={whatIfId === 'no-sun'}
+          />
 
-      {COMETS.map((comet) => (
-        <Comet key={comet.id} body={comet} reducedMotion={reducedMotion} showLabels={showLabels} />
-      ))}
+          {ORBITING_WORLDS.map((body) => (
+            <Planet
+              key={body.id}
+              body={body}
+              quality={quality}
+              reducedMotion={reducedMotion}
+              showLabels={showLabels}
+            />
+          ))}
 
-      {showOrbits
-        ? ORBITING_WORLDS.map((body) => (
-            <Orbit key={body.id} body={body} showFlow={showOrbitFlow} quality={quality} />
-          ))
-        : null}
+          {COMETS.map((comet) => (
+            <Comet
+              key={comet.id}
+              body={comet}
+              reducedMotion={reducedMotion}
+              showLabels={showLabels}
+            />
+          ))}
 
-      {showOrbits
-        ? COMETS.map((comet) => (
-            <Orbit key={comet.id} body={comet} showFlow={showOrbitFlow} quality={quality} />
-          ))
-        : null}
+          {showOrbits
+            ? ORBITING_WORLDS.map((body) => (
+                <Orbit key={body.id} body={body} showFlow={showOrbitFlow} quality={quality} />
+              ))
+            : null}
 
-      {showAsteroidBelt ? <AsteroidBelt quality={quality} reducedMotion={reducedMotion} /> : null}
+          {showOrbits
+            ? COMETS.map((comet) => (
+                <Orbit key={comet.id} body={comet} showFlow={showOrbitFlow} quality={quality} />
+              ))
+            : null}
 
-      <Spacecraft />
+          {showAsteroidBelt ? (
+            <AsteroidBelt quality={quality} reducedMotion={reducedMotion} />
+          ) : null}
+
+          <Spacecraft />
+          <TourDirector />
+        </>
+      ) : (
+        // Earth alone (or the globe kept on screen while its neighbours' maps
+        // rebuild): nothing else in the Solar System is mounted, so its per-frame
+        // work, geometry and (via the preloader) textures are all offloaded
+        // rather than merely hidden.
+        <SoloEarth quality={quality} />
+      )}
+
       <CameraController />
-      <TourDirector />
       <PostProcessing quality={quality} reducedMotion={reducedMotion} />
     </>
   )

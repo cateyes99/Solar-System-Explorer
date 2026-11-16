@@ -44,6 +44,9 @@ export function BottomBar() {
   const cinematicActive = useSimulationStore((state) => state.cinematic.active)
   const collapsed = useSimulationStore((state) => state.ui.bottomBarCollapsed)
   const toggleBottomBar = useSimulationStore((state) => state.toggleBottomBar)
+  // Solo Earth has only one world, so the quick-travel strip is hidden; the time
+  // controls stay, because they still drive the globe's spin.
+  const soloEarth = useSimulationStore((state) => state.soloEarth)
 
   return (
     <footer
@@ -63,6 +66,7 @@ export function BottomBar() {
           }`}
         >
           <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
+            {!soloEarth ? (
             <nav
               aria-label={t('bottom.quickTravel')}
               className="sse-scroll -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1"
@@ -98,6 +102,7 @@ export function BottomBar() {
                 )
               })}
             </nav>
+            ) : null}
 
             <div
               role="group"

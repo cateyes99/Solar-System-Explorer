@@ -25,6 +25,8 @@ export function SettingsPanel() {
   const setReducedMotion = useSimulationStore((state) => state.setReducedMotion)
   const freeTumble = useSimulationStore((state) => state.freeTumble)
   const setFreeTumble = useSimulationStore((state) => state.setFreeTumble)
+  const soloEarth = useSimulationStore((state) => state.soloEarth)
+  const setSoloEarth = useSimulationStore((state) => state.setSoloEarth)
   const quality = useSimulationStore((state) => state.quality)
   const setQuality = useSimulationStore((state) => state.setQuality)
   const resetView = useSimulationStore((state) => state.resetView)
@@ -107,6 +109,18 @@ export function SettingsPanel() {
           <section className="mt-4 md:hidden">
             <SectionTitle hint={t('settings.scaleSectionHint')}>{t('settings.scaleSection')}</SectionTitle>
             <SimulationControlsContent />
+          </section>
+
+          <section className="mt-4">
+            <SectionTitle hint={t('settings.soloEarthHint')}>
+              {t('settings.soloEarthSection')}
+            </SectionTitle>
+            <ToggleRow
+              label={t('settings.soloEarth')}
+              description={t('settings.soloEarthDesc')}
+              checked={soloEarth}
+              onChange={() => setSoloEarth(!soloEarth)}
+            />
           </section>
 
           <section className="mt-4">

@@ -47,6 +47,9 @@ export function Header() {
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const toggleOrbitModel = useSimulationStore((state) => state.toggleOrbitModel)
   const realisticOrbits = orbitModel === 'realistic'
+  // Solo Earth has no other worlds to tour, fly to or experiment on, so those
+  // modes are hidden rather than left to open onto an empty scene.
+  const soloEarth = useSimulationStore((state) => state.soloEarth)
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-start justify-between gap-2 bg-gradient-to-b from-void/92 via-void/55 to-transparent px-3 pb-4 pt-3 sm:px-5 sm:pb-6">
@@ -73,15 +76,17 @@ export function Header() {
       </div>
 
       <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5">
-        <ToolbarButton
-          compact
-          variant={cinematicActive ? 'primary' : 'ghost'}
-          active={cinematicActive}
-          icon={<RocketIcon />}
-          onClick={() => (cinematicActive ? exitTour() : startTour())}
-        >
-          {t('header.cinematicTour')}
-        </ToolbarButton>
+        {!soloEarth ? (
+          <ToolbarButton
+            compact
+            variant={cinematicActive ? 'primary' : 'ghost'}
+            active={cinematicActive}
+            icon={<RocketIcon />}
+            onClick={() => (cinematicActive ? exitTour() : startTour())}
+          >
+            {t('header.cinematicTour')}
+          </ToolbarButton>
+        ) : null}
 
         <ToolbarButton
           compact
@@ -94,23 +99,27 @@ export function Header() {
           {t('header.exploreLearn')}
         </ToolbarButton>
 
-        <ToolbarButton
-          compact
-          variant={whatIfOpen ? 'primary' : 'ghost'}
-          icon={<QuestionIcon />}
-          onClick={() => toggleWhatIf()}
-        >
-          {t('header.whatIf')}
-        </ToolbarButton>
+        {!soloEarth ? (
+          <ToolbarButton
+            compact
+            variant={whatIfOpen ? 'primary' : 'ghost'}
+            icon={<QuestionIcon />}
+            onClick={() => toggleWhatIf()}
+          >
+            {t('header.whatIf')}
+          </ToolbarButton>
+        ) : null}
 
-        <ToolbarButton
-          compact
-          variant={missionActive ? 'primary' : 'ghost'}
-          icon={<RocketIcon />}
-          onClick={() => (missionActive ? endMission() : startMission())}
-        >
-          {t('header.missionControl')}
-        </ToolbarButton>
+        {!soloEarth ? (
+          <ToolbarButton
+            compact
+            variant={missionActive ? 'primary' : 'ghost'}
+            icon={<RocketIcon />}
+            onClick={() => (missionActive ? endMission() : startMission())}
+          >
+            {t('header.missionControl')}
+          </ToolbarButton>
+        ) : null}
 
         <ToolbarButton compact variant="ghost" icon={<BulbIcon />} onClick={teachMeSomething}>
           {t('header.teachMe')}

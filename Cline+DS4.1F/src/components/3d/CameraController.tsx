@@ -1,14 +1,18 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import { useSimulationStore } from '../../store/simulationStore'
 import { FreeOrbitControls } from './FreeOrbitControls'
+import { clampCameraToSphere } from '../../utils/freeOrbitControls'
 import type { FreeOrbitControls as FreeOrbitControlsImpl } from '../../utils/freeOrbitControls'
 import { getBodyWorldPosition } from '../../utils/bodyRegistry'
 import { spacecraft } from '../../utils/spacecraftSim'
 import { spacecraftScaleForLevel } from '../../utils/spacecraftSize'
 import { visualRadiusOf } from '../../utils/scale'
+import { BODY_VISUALS } from '../../data/visuals'
 import { clamp } from '../../utils/random'
+import { SOLO_EARTH_SURFACE_MARGIN } from './constants'
+import { terrainDisplacement } from './terrain'
 import type { FocusTargetId } from '../../types'
 
 /**
@@ -46,6 +50,12 @@ function easeInOutCubic(t: number): number {
 const RECENTRE_RATE = 2.5
 
 /**
+ * The closest the camera may normally come to its target. Solo Earth overrides
+ * this each frame with the globe's own surface radius (see `soloMinRadius`).
+ */
+const DEFAULT_MIN_DISTANCE = 0.35
+
+/**
  * Where the chase camera sits relative to the ship, in the ship's own frame: a
  * little above and behind the nose (its local +Z). Normalised when used.
  */
@@ -80,6 +90,7 @@ export function CameraController() {
   const deltaVec = useRef(new Vector3())
   const chaseOffset = useRef(new Vector3())
   const chaseDesired = useRef(new Vector3())
+  const soloCenter = useRef(new Vector3())
   const dragging = useRef(false)
 
   const cameraRequest = useSimulationStore((state) => state.cameraRequest)
@@ -93,6 +104,8 @@ export function CameraController() {
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const reducedMotion = useSimulationStore((state) => state.reducedMotion)
   const freeTumble = useSimulationStore((state) => state.freeTumble)
+  const soloEarth = useSimulationStore((state) => state.soloEarth)
+  const earthTerrainRelief = useSimulationStore((state) => state.earthTerrainRelief)
 
   const { camera } = useThree()
   const requestId = cameraRequest?.id ?? 0
@@ -100,6 +113,19 @@ export function CameraController() {
   // Framing follows the ship's size, so a smaller ship is still framed the same.
   const spacecraftScale = spacecraftScaleForLevel(spacecraftSize)
   const chaseFramingDistance = CHASE_FRAMING_DISTANCE * spacecraftScale
+
+  /**
+   * Solo Earth keeps the camera off the globe. The surface it must clear is the
+   * highest ground the terrain can reach — the elevation model is exaggerated, so
+   * peaks stand a good fraction of the radius above sea level — plus a margin
+   * that clears the canvas's near plane.
+   */
+  const soloMinRadius = useMemo(() => {
+    const radius = visualRadiusOf('earth', scaleMode, customScale, orbitModel)
+    const terrain = BODY_VISUALS.earth.terrain
+    const peak = terrain ? terrainDisplacement(terrain, earthTerrainRelief).peakRadius : 0
+    return radius * (1 + peak) + SOLO_EARTH_SURFACE_MARGIN
+  }, [scaleMode, customScale, orbitModel, earthTerrainRelief])
 
   // A new camera request starts a fresh tween.
   useEffect(() => {
@@ -156,6 +182,19 @@ export function CameraController() {
     // still preventing a huge jump after the tab has been in the background.
     const step = Math.min(delta, 0.08)
 
+    // Solo Earth: the globe is the whole world. Pin the orbit target to its
+    // centre — so a scroll is a pure radial dolly and a drag simply rotates the
+    // globe — switch panning off, and hold the camera off the surface below.
+    const solo = soloEarth ? getBodyWorldPosition('earth', soloCenter.current) : undefined
+    if (solo) {
+      controls.target.copy(solo)
+      controls.enablePan = false
+      controls.minDistance = soloMinRadius
+    } else {
+      controls.enablePan = true
+      controls.minDistance = DEFAULT_MIN_DISTANCE
+    }
+
     const active = tween.current
     if (active) {
       active.elapsed += step
@@ -180,6 +219,11 @@ export function CameraController() {
       if (active.elapsed >= active.duration) {
         tween.current = null
         controls.enabled = true
+      }
+      // A flight may end up inside the globe (a focus framed from a start point
+      // that was already within it), so the guarantee is re-applied here too.
+      if (solo && clampCameraToSphere(camera.position, solo, soloMinRadius)) {
+        camera.lookAt(controls.target)
       }
       return
     }
@@ -259,6 +303,15 @@ export function CameraController() {
         else previous.copy(position)
       }
     }
+
+    // The hard guarantee for Solo Earth: whatever the drag, pan or follow did
+    // this frame, the camera is pushed back out of the globe before it renders.
+    if (solo) {
+      controls.target.copy(solo)
+      if (clampCameraToSphere(camera.position, solo, soloMinRadius)) {
+        camera.lookAt(controls.target)
+      }
+    }
   })
 
   return (
@@ -270,7 +323,7 @@ export function CameraController() {
       zoomSpeed={0.85}
       panSpeed={0.7}
       screenSpacePanning
-      minDistance={0.35}
+      minDistance={DEFAULT_MIN_DISTANCE}
       maxDistance={1500}
       freeTumble={freeTumble}
       onStart={() => {

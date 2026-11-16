@@ -295,6 +295,12 @@ export interface SimulationState {
    * old 180° range and the horizon stays level. See `utils/freeOrbitControls`.
    */
   freeTumble: boolean
+  /**
+   * Solo Earth mode: Earth alone, with the Sun, Moon and every other world
+   * unmounted and their textures released, and a camera that orbits the globe
+   * without ever entering it. See `components/3d/SoloEarth.tsx`.
+   */
+  soloEarth: boolean
   quality: QualityLevel
   /** The interface language. See `src/i18n`. */
   language: Language
@@ -317,6 +323,13 @@ export interface SimulationState {
    * the loading overlay without unmounting the canvas.
    */
   rebuilding: boolean
+  /**
+   * Whether the full Solar System's maps are built. It is false while Solo Earth
+   * mode holds the reduced map set, so leaving the mode keeps the globe on screen
+   * (behind the rebuild overlay) until the other bodies' maps are back — mounting
+   * them early would capture the grey fallback instead of their real textures.
+   */
+  systemTexturesReady: boolean
 }
 
 export interface SimulationActions {
@@ -389,6 +402,7 @@ export interface SimulationActions {
   setVolume: (volume: number) => void
   setReducedMotion: (reduced: boolean) => void
   setFreeTumble: (enabled: boolean) => void
+  setSoloEarth: (enabled: boolean) => void
   setQuality: (quality: QualityLevel) => void
   setLanguage: (language: Language) => void
   applySettings: (patch: SettingsPatch) => void
@@ -414,6 +428,7 @@ export interface SimulationActions {
   setAssetsProgress: (progress: number, label: string) => void
   setReady: (ready: boolean) => void
   setRebuilding: (rebuilding: boolean) => void
+  setSystemTexturesReady: (ready: boolean) => void
 }
 
 export type SimulationStore = SimulationState & SimulationActions
@@ -547,6 +562,8 @@ const initialState: SimulationState = {
   // what the orbit camera was asked for. The horizon can roll once past a pole,
   // so the switch can restore the old level-only behaviour.
   freeTumble: true,
+  // The full Solar System is the default; Solo Earth is an opt-in mode.
+  soloEarth: false,
   quality: 'medium',
   language: 'en',
 
@@ -561,6 +578,7 @@ const initialState: SimulationState = {
   assetsLabel: 'loading.preparing',
   ready: false,
   rebuilding: false,
+  systemTexturesReady: false,
 }
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   ...initialState,
@@ -615,12 +633,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       cameraRequest: { id: (requestCounter += 1), targetId: id, mode, distanceScale },
     })),
 
+  // In Solo Earth mode "the full view" is the globe itself, so the reset frames
+  // Earth rather than the (now empty) Solar System.
   resetView: () =>
-    set({
-      cameraMode: 'system',
-      followTargetId: null,
-      cameraRequest: { id: (requestCounter += 1), targetId: null, mode: 'system', distanceScale: 0 },
-    }),
+    set((state) => ({
+      cameraMode: state.soloEarth ? 'follow' : 'system',
+      followTargetId: state.soloEarth ? 'earth' : null,
+      cameraRequest: {
+        id: (requestCounter += 1),
+        targetId: state.soloEarth ? 'earth' : null,
+        mode: state.soloEarth ? 'follow' : 'system',
+        distanceScale: state.soloEarth ? 4 : 0,
+      },
+    })),
 
   setCameraMode: (mode) =>
     set((state) => ({
@@ -866,6 +891,51 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setFreeTumble: (freeTumble) => set({ freeTumble }),
 
+  // Entering Solo Earth re-homes the camera onto the globe and stands down
+  // everything that scripts other bodies, so nothing is left pointing at a world
+  // that is about to unmount.
+  setSoloEarth: (enabled) =>
+    set((state) => {
+      if (enabled) {
+        return {
+          soloEarth: true,
+          cameraMode: 'follow',
+          followTargetId: 'earth',
+          selectedId: 'earth',
+          cameraRequest: {
+            id: (requestCounter += 1),
+            targetId: 'earth',
+            mode: 'follow',
+            distanceScale: 4,
+          },
+          whatIfId: null,
+          showOrbitFlow: false,
+          cinematic: { ...state.cinematic, active: false, paused: false },
+          missionActive: false,
+          autopilot: false,
+          ui: {
+            ...state.ui,
+            educationOpen: false,
+            whatIfOpen: false,
+            factCardOpen: false,
+            spacecraftHelpOpen: false,
+            welcomeVisible: false,
+          },
+        }
+      }
+      return {
+        soloEarth: false,
+        cameraMode: 'system',
+        followTargetId: null,
+        cameraRequest: {
+          id: (requestCounter += 1),
+          targetId: null,
+          mode: 'system',
+          distanceScale: 0,
+        },
+      }
+    }),
+
   setQuality: (quality) => set({ quality }),
 
   setLanguage: (language) => set({ language }),
@@ -973,6 +1043,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setAssetsProgress: (assetsProgress, assetsLabel) => set({ assetsProgress, assetsLabel }),
   setReady: (ready) => set({ ready }),
   setRebuilding: (rebuilding) => set({ rebuilding }),
+  setSystemTexturesReady: (systemTexturesReady) => set({ systemTexturesReady }),
 }))
 
 /** Current simulation speed in days per second, including direction. */

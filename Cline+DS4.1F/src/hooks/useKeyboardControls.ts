@@ -102,6 +102,8 @@ export function useKeyboardControls(): void {
           store.resetView()
           break
         case 'KeyT':
+          // The tour and the What If experiments have no place in Solo Earth.
+          if (store.soloEarth) break
           if (store.cinematic.active) store.exitTour()
           else store.startTour()
           break
@@ -110,6 +112,7 @@ export function useKeyboardControls(): void {
           else store.openEducation(null)
           break
         case 'KeyI':
+          if (store.soloEarth) break
           store.toggleWhatIf()
           break
         case 'KeyF':
