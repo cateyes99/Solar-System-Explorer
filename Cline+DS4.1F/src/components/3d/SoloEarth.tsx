@@ -17,10 +17,21 @@ import { Planet } from './Planet'
  */
 export function SoloEarth({ quality }: { quality: QualityLevel }) {
   const reducedMotion = useSimulationStore((state) => state.reducedMotion)
+  // The World map's city and country names are the point of the mode, so they
+  // keep following the "Labels" toggle. Only the globe's own floating "Earth"
+  // tag is dropped (`bodyLabel`), because a standalone globe does not need it.
+  const showLabels = useSimulationStore((state) => state.showLabels)
   return (
     <>
       <pointLight color="#fff3dc" intensity={3.5} distance={0} decay={0} />
-      <Planet body={EARTH} quality={quality} reducedMotion={reducedMotion} showLabels={false} solo />
+      <Planet
+        body={EARTH}
+        quality={quality}
+        reducedMotion={reducedMotion}
+        showLabels={showLabels}
+        bodyLabel={false}
+        solo
+      />
     </>
   )
 }

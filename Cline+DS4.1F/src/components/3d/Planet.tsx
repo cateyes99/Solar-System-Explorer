@@ -92,7 +92,18 @@ interface PlanetProps {
   body: CelestialBody
   quality: QualityLevel
   reducedMotion: boolean
+  /**
+   * The "Labels" layer toggle. It drives the World map's city and country names
+   * (Earth only) as well as every body's own floating name label.
+   */
   showLabels: boolean
+  /**
+   * Whether this body's own floating name label is drawn. It defaults to
+   * `showLabels`; Solo Earth turns it off so the standalone globe carries no
+   * redundant "Earth" tag, while the World map's names — which follow
+   * `showLabels`, not this — still come through.
+   */
+  bodyLabel?: boolean
   /**
    * Solo Earth mode: the body is the whole world, so it is pinned to a fixed
    * point (instead of orbiting the clock) and its moons are left out. Only Earth
@@ -101,7 +112,14 @@ interface PlanetProps {
   solo?: boolean
 }
 
-export function Planet({ body, quality, reducedMotion, showLabels, solo = false }: PlanetProps) {
+export function Planet({
+  body,
+  quality,
+  reducedMotion,
+  showLabels,
+  bodyLabel = showLabels,
+  solo = false,
+}: PlanetProps) {
   const { t } = useTranslation()
   const content = useContent()
   const orbitRef = useRef<Group>(null)
@@ -692,7 +710,7 @@ export function Planet({ body, quality, reducedMotion, showLabels, solo = false 
         ))}
       </group>
 
-      {showLabels ? (
+      {bodyLabel ? (
         <PlanetLabel
           bodyId={body.id}
           name={content.bodyById[body.id]?.name ?? body.name}
