@@ -30,6 +30,7 @@ import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { audio } from '../../utils/audio'
 import { PlanetLabel } from './PlanetLabel'
+import { focusBodyOnPointer } from './bodyFocus'
 
 /**
  * A comet.
@@ -205,7 +206,6 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const selectBody = useSimulationStore((state) => state.selectBody)
-  const focusBody = useSimulationStore((state) => state.focusBody)
   const setHovered = useSimulationStore((state) => state.setHovered)
   const registerDiscovery = useSimulationStore((state) => state.registerDiscovery)
   const showToast = useSimulationStore((state) => state.showToast)
@@ -394,7 +394,7 @@ export function Comet({ body, reducedMotion, showLabels }: CometProps) {
         onClick={(event) => {
           event.stopPropagation()
           selectBody(body.id)
-          focusBody(body.id, 'planet', 9)
+          focusBodyOnPointer(event, body.id, 'planet', 9)
           audio.play('arrive')
           if (!discovered) {
             registerDiscovery(body.id)

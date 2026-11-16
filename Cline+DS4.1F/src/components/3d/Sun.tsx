@@ -9,6 +9,7 @@ import { createRandom } from '../../utils/random'
 import { useSimulationStore } from '../../store/simulationStore'
 import { audio } from '../../utils/audio'
 import { HIGH_DETAIL_SPHERE } from './geometry'
+import { focusBodyOnPointer } from './bodyFocus'
 
 /**
  * The Sun: a bright emissive surface, a layered corona, a point light that
@@ -80,7 +81,6 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
   const flareId = useSimulationStore((state) => state.flareId)
   const registerSunClick = useSimulationStore((state) => state.registerSunClick)
   const selectBody = useSimulationStore((state) => state.selectBody)
-  const focusBody = useSimulationStore((state) => state.focusBody)
   const setHovered = useSimulationStore((state) => state.setHovered)
 
   /**
@@ -237,7 +237,7 @@ export function Sun({ radius, reducedMotion, extinguished }: SunProps) {
         onClick={(event) => {
           event.stopPropagation()
           selectBody('sun')
-          focusBody('sun', 'planet', 3.6)
+          focusBodyOnPointer(event, 'sun', 'planet', 3.6)
           registerSunClick()
           audio.play('click')
         }}

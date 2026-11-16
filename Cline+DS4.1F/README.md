@@ -42,6 +42,9 @@ unavailable the app automatically switches to a polished 2D orrery with the same
   The vertical rotation is unlimited: the view can tumble right over the top of the scene
   instead of stopping at the poles. Passing a pole rolls the horizon, so a **Free tumbling**
   switch in Settings can restore the old level-only behaviour.
+- Hold `Alt` while clicking or dragging a world to keep the camera exactly where it is: the
+  world is still selected, but it is not flown out to a framing distance — handy for staying
+  on a close-up, and especially on Earth in Solo Earth mode.
 - Click any planet for a full information panel (diameter, distance, year, day, moons,
   temperature, gravity, facts and a "Did you know?").
 - Double-click a planet to **follow** it as it travels around the Sun.

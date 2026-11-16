@@ -19,6 +19,7 @@ import { useSimulationStore } from '../../store/simulationStore'
 import { useTranslation } from '../../i18n'
 import { useContent } from '../../i18n/content'
 import { SPHERE_LODS, sphereTierForApparentSize } from './geometry'
+import { focusBodyOnPointer } from './bodyFocus'
 
 /**
  * A moon orbiting its parent planet.
@@ -74,7 +75,6 @@ export function Moon({
   const worldPos = useRef(new Vector3())
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
-  const focusBody = useSimulationStore((state) => state.focusBody)
   const showToast = useSimulationStore((state) => state.showToast)
   const showOrbits = useSimulationStore((state) => state.showOrbits)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
@@ -236,7 +236,7 @@ export function Moon({
             event.stopPropagation()
             if (bodyId) {
               selectBody(bodyId)
-              focusBody(bodyId, 'planet', 7)
+              focusBodyOnPointer(event, bodyId, 'planet', 7)
             } else {
               showToast(
                 t('toast.satellite', {

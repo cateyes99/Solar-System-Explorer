@@ -7,6 +7,7 @@ import { asteroidBeltRadii } from '../../utils/scale'
 import { createRandom, lerp } from '../../utils/random'
 import { registerBody, unregisterBody } from '../../utils/bodyRegistry'
 import { useSimulationStore } from '../../store/simulationStore'
+import { focusBodyOnPointer } from './bodyFocus'
 
 /**
  * The asteroid belt: one instanced mesh for the whole ring.
@@ -28,7 +29,6 @@ export function AsteroidBelt({ quality, reducedMotion }: AsteroidBeltProps) {
   const customScale = useSimulationStore((state) => state.customScale)
   const orbitModel = useSimulationStore((state) => state.orbitModel)
   const selectBody = useSimulationStore((state) => state.selectBody)
-  const focusBody = useSimulationStore((state) => state.focusBody)
   const setHovered = useSimulationStore((state) => state.setHovered)
 
   const [innerRadius, outerRadius] = asteroidBeltRadii(scaleMode, customScale, orbitModel)
@@ -105,7 +105,7 @@ export function AsteroidBelt({ quality, reducedMotion }: AsteroidBeltProps) {
         onClick={(event) => {
           event.stopPropagation()
           selectBody('belt')
-          focusBody('belt', 'planet', 2.4)
+          focusBodyOnPointer(event, 'belt', 'planet', 2.4)
         }}
       />
       <object3D ref={anchorRef} position={[midpoint, 0, 0]} />

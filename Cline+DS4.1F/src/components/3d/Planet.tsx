@@ -49,6 +49,7 @@ import { NightLights } from './NightLights'
 import { Rings } from './Rings'
 import { Moon } from './Moon'
 import { PlanetLabel } from './PlanetLabel'
+import { focusBodyOnPointer } from './bodyFocus'
 import {
   SOLO_EARTH_POSITION,
   SUN_POSITION,
@@ -199,7 +200,6 @@ export function Planet({
   )
   const setHovered = useSimulationStore((state) => state.setHovered)
   const selectBody = useSimulationStore((state) => state.selectBody)
-  const focusBody = useSimulationStore((state) => state.focusBody)
   const registerDiscovery = useSimulationStore((state) => state.registerDiscovery)
   const showToast = useSimulationStore((state) => state.showToast)
 
@@ -552,9 +552,11 @@ export function Planet({
 
   const sphereGeometry = SPHERE_LODS[sphereTier]
 
-  const handleClick = (): void => {
+  const handleClick = (event: { altKey?: boolean }): void => {
     selectBody(body.id)
-    focusBody(body.id, 'planet', 6)
+    // Holding Alt keeps the camera where it is, so a close-up is not thrown away
+    // when the pointer is released (see `focusBodyOnPointer`).
+    focusBodyOnPointer(event, body.id, 'planet', 6)
     if (body.id === 'earth') {
       showToast(t('toast.helloEarth'), 'fun')
       registerDiscovery('hello-earth')
@@ -577,11 +579,13 @@ export function Planet({
             onPointerOut={() => setHovered(null)}
             onClick={(event) => {
               event.stopPropagation()
-              handleClick()
+              handleClick(event)
             }}
             onDoubleClick={(event) => {
               event.stopPropagation()
-              focusBody(body.id, 'follow', 5)
+              // Alt holds the camera here too, so a double-click on a close-up
+              // does not yank the view out to the follow distance.
+              focusBodyOnPointer(event, body.id, 'follow', 5)
             }}
           />
 
