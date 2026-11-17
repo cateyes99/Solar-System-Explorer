@@ -49,6 +49,13 @@ export interface AppConfig {
    */
   earthTerrainRelief: number
   /**
+   * Whether Earth restores the old mirror-smooth "mountain sheen" (store:
+   * `earthMountainSheen`). Off — the matte land — is the shipped look; on brings
+   * back the pre-fix highlight, and the pale frames the old map drew around
+   * coasts. The planet panel's switch is the live version of this value.
+   */
+  earthMountainSheen: boolean
+  /**
    * How far the real seafloor is displaced, 0…1 (store: `earthSeafloorRelief`).
    * 0 is a flat floor, 1 is the full exaggeration.
    */
@@ -145,6 +152,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   earthCloudOpacity: 0.5,
   earthCloudDynamics: 0.5,
   earthTerrainRelief: 0.5,
+  earthMountainSheen: false,
   earthSeafloorRelief: 0.4,
   earthSeawaterOpacity: 1,
   earthSeaLevel: 1,
@@ -338,6 +346,15 @@ export function validateAppConfig(raw: unknown): { config: AppConfig; issues: st
     }
   }
 
+  const mountainSheen = record['Mountain Sheen']
+  if (mountainSheen !== undefined) {
+    if (typeof mountainSheen === 'boolean') {
+      config.earthMountainSheen = mountainSheen
+    } else {
+      issues.push(`Mountain Sheen: expected true or false, got ${JSON.stringify(mountainSheen)}`)
+    }
+  }
+
   return { config, issues }
 }
 
@@ -387,6 +404,7 @@ export function applyAppConfig(config: AppConfig): void {
     earthCloudOpacity: config.earthCloudOpacity,
     earthCloudDynamics: config.earthCloudDynamics,
     earthTerrainRelief: config.earthTerrainRelief,
+    earthMountainSheen: config.earthMountainSheen,
     earthSeafloorRelief: config.earthSeafloorRelief,
     earthSeawaterOpacity: config.earthSeawaterOpacity,
     earthSeaLevel: config.earthSeaLevel,

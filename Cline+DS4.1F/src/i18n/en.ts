@@ -184,6 +184,9 @@ export const en = {
   'planet.terrainRelief': 'Terrain relief',
   'planet.terrainReliefHint':
     'How far the real surface rises out of the globe. Earth’s continents are pushed up by a global NASA / USGS elevation model, so mountain ranges, plateaus and canyons are genuinely three-dimensional. The height is exaggerated — the real thing is only 0.14% of Earth’s radius — and this slider sets how much.',
+  'planet.mountainSheen': 'Mountain sheen',
+  'planet.mountainSheenHint':
+    'Restores the old mirror-smooth land. When sunlight skims across the globe, the mountains catch a brilliant, glassy highlight — the pre-fix look, including the pale rectangular frames the old ocean map drew around lakes and coasts. Off keeps the matte, physically consistent land.',
   'planet.earthSeafloor': 'Earth’s seafloor',
   'planet.seafloorHint': '100% = the usual ocean',
   'planet.seawaterMode': 'Ocean rendering',

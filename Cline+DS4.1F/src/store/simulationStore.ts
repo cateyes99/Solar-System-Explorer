@@ -41,6 +41,8 @@ export interface SettingsPatch {
   earthCloudOpacity?: number
   earthCloudDynamics?: number
   earthTerrainRelief?: number
+  /** Whether Earth's old mirror-smooth mountain sheen is restored (see `earthMountainSheen`). */
+  earthMountainSheen?: boolean
   earthSeafloorRelief?: number
   earthSeawaterOpacity?: number
   /** How full the volumetric ocean is, 0…1 (see `earthSeaLevel`). */
@@ -180,6 +182,17 @@ export interface SimulationState {
    * it scales.
    */
   earthTerrainRelief: number
+  /**
+   * Whether Earth's land is mirror-smooth again, restoring the old "mountain
+   * sheen": when sunlight grazes the globe, mountains catch a brilliant, glassy
+   * highlight instead of staying matte. Off by default, because it is caused by
+   * a long-standing premultiplied-alpha accident in the ocean maps — every land
+   * texel ended up with zero roughness, and the partial-alpha coast texels kept
+   * their old matte green, drawing pale rectangular frames around the lakes and
+   * coasts. The switch is honest about that: on returns the exact pre-fix look,
+   * frames included. Only Earth reads it (see `components/3d/terrain.ts`).
+   */
+  earthMountainSheen: boolean
   /**
    * How far the real seafloor is displaced below sea level: 0 = a flat floor,
    * 1 = the full vertical exaggeration. It is deliberately separate from
@@ -364,6 +377,7 @@ export interface SimulationActions {
   setEarthCloudDynamics: (value: number) => void
   setEarthCloudCoverage: (value: number) => void
   setEarthTerrainRelief: (value: number) => void
+  setEarthMountainSheen: (enabled: boolean) => void
   setEarthSeafloorRelief: (value: number) => void
   setEarthSeawaterOpacity: (value: number) => void
   setEarthSeaLevel: (value: number) => void
@@ -494,6 +508,9 @@ const initialState: SimulationState = {
   // ship with: mountains read clearly from orbit without turning Earth into a
   // pincushion when the camera comes close.
   earthTerrainRelief: 0.5,
+  // Off by default: the matte land that stays matte under a grazing sun is the
+  // shipped look. The switch restores the old mirror-smooth mountain sheen.
+  earthMountainSheen: false,
   // A touch less than the land's default, so a drained ocean reads as deep
   // basins and long ridges rather than a pincushion.
   earthSeafloorRelief: 0.4,
@@ -703,6 +720,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   setEarthTerrainRelief: (value) =>
     set({ earthTerrainRelief: Math.max(0, Math.min(1, value)) }),
+
+  setEarthMountainSheen: (enabled) => set({ earthMountainSheen: enabled }),
 
   setEarthSeafloorRelief: (value) =>
     set({ earthSeafloorRelief: Math.max(0, Math.min(1, value)) }),
@@ -948,6 +967,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       earthCloudOpacity: clamp01(patch.earthCloudOpacity, state.earthCloudOpacity),
       earthCloudDynamics: clamp01(patch.earthCloudDynamics, state.earthCloudDynamics),
       earthTerrainRelief: clamp01(patch.earthTerrainRelief, state.earthTerrainRelief),
+      earthMountainSheen: patch.earthMountainSheen ?? state.earthMountainSheen,
       earthSeafloorRelief: clamp01(patch.earthSeafloorRelief, state.earthSeafloorRelief),
       earthSeawaterOpacity: clamp01(patch.earthSeawaterOpacity, state.earthSeawaterOpacity),
       earthSeaLevel: clamp01(patch.earthSeaLevel, state.earthSeaLevel),

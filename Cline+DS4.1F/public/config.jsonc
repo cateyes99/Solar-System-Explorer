@@ -40,6 +40,13 @@
   // canyons stand out of the sphere. The relief is exaggerated because the true
   // thing is only 0.14% of Earth's radius — a fraction of a pixel from orbit.
   "Earth Terrain Relief": 0.25,
+  // Restore the old mirror-smooth land. When sunlight skims across the globe,
+  // mountains catch a brilliant, glassy highlight instead of staying matte. This
+  // was the pre-fix look: it comes from an old premultiplied-alpha accident in
+  // the ocean maps, so it also brings back the pale rectangular frames those
+  // maps drew around lakes and coasts. false (the default) keeps the land matte.
+  // The planet panel's "Mountain Sheen" switch is the live version.
+  "Mountain Sheen": false,
 
   // --- Earth's seafloor ----------------------------------------------------
   // How far the real seafloor is displaced below sea level, from 0 (a flat
