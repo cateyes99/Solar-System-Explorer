@@ -28,6 +28,8 @@ import {
   createRingGeometry,
 } from './geometry'
 import {
+  MOUNTAIN_SHEEN_FRAGMENT_PARS,
+  MOUNTAIN_SHEEN_ROUGHNESS,
   SEAFLOOR_COLOR_BLEND,
   SEAFLOOR_FRAGMENT_PARS,
   SEAFLOOR_NORMAL_BUMP,
@@ -185,6 +187,11 @@ export function Planet({
   // What the *surface* material's seafloor opacity uniform takes: the slider in
   // a fading mode, a pinned 0 (fully drained) in a layered mode.
   const seafloorOpacity = seafloorOpacityFor(seawaterMode, seawaterOpacity)
+  // The old mirror-smooth mountain sheen, opt-in. A non-Earth body keeps the
+  // constant `false`, so it never re-renders when the switch moves.
+  const mountainSheen = useSimulationStore((state) =>
+    body.id === 'earth' ? state.earthMountainSheen : false,
+  )
   // Earth's optional world-map overlay. The selector returns a constant for
   // every other world, so they never re-render when the switch moves.
   const showEarthMap = useSimulationStore((state) =>
@@ -319,6 +326,7 @@ export function Planet({
       state.earthTerrainRelief,
       visuals.textureOffsetU,
       seafloor,
+      state.earthMountainSheen,
     )
   }, [visuals])
 
@@ -378,12 +386,12 @@ export function Planet({
           // standard material declares in `normal_pars_fragment`.
           .replace(
             '#include <normal_pars_fragment>',
-            `#include <normal_pars_fragment>\n${SEAFLOOR_FRAGMENT_PARS}`,
+            `#include <normal_pars_fragment>\n${SEAFLOOR_FRAGMENT_PARS}\n${MOUNTAIN_SHEEN_FRAGMENT_PARS}`,
           )
           .replace('#include <map_fragment>', `#include <map_fragment>\n${SEAFLOOR_COLOR_BLEND}`)
           .replace(
             '#include <roughnessmap_fragment>',
-            `#include <roughnessmap_fragment>\n${SEAFLOOR_ROUGHNESS_BLEND}`,
+            `#include <roughnessmap_fragment>\n${MOUNTAIN_SHEEN_ROUGHNESS}\n${SEAFLOOR_ROUGHNESS_BLEND}`,
           )
           .replace(
             '#include <normal_fragment_maps>',
@@ -423,6 +431,13 @@ export function Planet({
     uniforms.uSeafloorBumpScale.value = radius * seafloorFloor.maxDepthRadius
     uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
   }, [terrainUniforms, visuals.seafloor, seafloorFloor, seafloorOpacity, radius])
+
+  // The "Mountain Sheen" switch is a live uniform as well, so flipping it is one
+  // number write and never a material rebuild or shader recompile.
+  useEffect(() => {
+    if (!terrainUniforms) return
+    terrainUniforms.uniforms.uMountainSheen.value = mountainSheen ? 1 : 0
+  }, [terrainUniforms, mountainSheen])
 
   const focusRingGeometry = useMemo(() => {
     const outer = Math.max(radius * visuals.focusRingScale, radius + 0.12)

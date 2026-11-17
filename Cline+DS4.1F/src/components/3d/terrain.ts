@@ -122,6 +122,8 @@ export interface TerrainUniforms {
     /** The colour the water column scatters toward. */
     uSeafloorWaterTint: { value: Color }
     uBathyEnabled: { value: number }
+    /** 1 restores the old mirror-smooth land (the "Mountain Sheen" switch). */
+    uMountainSheen: { value: number }
   }
 }
 
@@ -157,6 +159,7 @@ export function createTerrainUniforms(
   relief: number,
   uvOffset: number,
   seafloor: SeafloorBinding | null = null,
+  mountainSheen = false,
 ): TerrainUniforms {
   const start = terrainDisplacement(terrain, relief)
   const floor = seafloor ? seafloorDisplacement(seafloor.visuals, seafloor.relief) : null
@@ -185,6 +188,7 @@ export function createTerrainUniforms(
       },
       uSeafloorWaterTint: { value: new Color(seafloor?.visuals.waterTint ?? '#000000') },
       uBathyEnabled: { value: seafloor?.enabled ? 1 : 0 },
+      uMountainSheen: { value: mountainSheen ? 1 : 0 },
     },
   }
 }
@@ -342,6 +346,32 @@ if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
     uSeafloorRoughness,
     seafloorReveal(seaUv) * seafloorVisibility(seaUv)
   );
+}
+`
+
+/** The "Mountain Sheen" switch's own uniform (see `MOUNTAIN_SHEEN_ROUGHNESS`). */
+export const MOUNTAIN_SHEEN_FRAGMENT_PARS = /* glsl */ `
+uniform float uMountainSheen;
+`
+
+/**
+ * Restores the old "mountain sheen": before the ocean-roughness map was fixed,
+ * its water mask lived in the alpha channel, and the canvas premultiplied it.
+ * Every land texel had alpha 0, so its green (the roughness three.js reads) was
+ * uploaded as 0 — mirror-smooth land that catches a brilliant highlight when the
+ * Sun grazes the mountains. The partial-alpha coast texels did *not* vanish, and
+ * kept their matte green, drawing the pale rectangular frames around lakes and
+ * coasts. This samples the same mask that now rides in the red channel and, when
+ * the switch is on, multiplies the roughness by the old on/off result: 0 on land
+ * (alpha 0), untouched everywhere the old map had any alpha at all. Injected
+ * after `roughnessmap_fragment` and before the seafloor blend, so the drained
+ * floor's own roughness is unchanged.
+ */
+export const MOUNTAIN_SHEEN_ROUGHNESS = /* glsl */ `
+if (uMountainSheen > 0.5) {
+  vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
+  float water = texture2D(uWaterMask, seaUv).r;
+  roughnessFactor *= step(1.0 / 255.0, water);
 }
 `
 
