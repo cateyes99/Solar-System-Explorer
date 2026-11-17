@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useTranslation } from '../../i18n'
 import { useSimulationStore } from '../../store/simulationStore'
 import { SimulationControlsContent } from './SimulationControls'
 import { SectionTitle, Sheet, SliderRow, ToggleRow, ToolbarButton } from './primitives'
+import { maxTextureSize } from '../../utils/webgl'
 import type { QualityLevel } from '../../types'
 
 /**
@@ -11,7 +13,10 @@ import type { QualityLevel } from '../../types'
  * On phones and tablets this sheet is also where the scale picker and the layer
  * toggles live, so nothing is unreachable on a small screen.
  */
-const QUALITY_LEVELS: QualityLevel[] = ['low', 'medium', 'high']
+const QUALITY_LEVELS: QualityLevel[] = ['low', 'medium', 'high', 'ultra']
+
+/** The smallest MAX_TEXTURE_SIZE that can actually take the 16K Earth maps. */
+const ULTRA_MIN_TEXTURE_SIZE = 16384
 
 export function SettingsPanel() {
   const { t } = useTranslation()
@@ -30,6 +35,11 @@ export function SettingsPanel() {
   const quality = useSimulationStore((state) => state.quality)
   const setQuality = useSimulationStore((state) => state.setQuality)
   const resetView = useSimulationStore((state) => state.resetView)
+
+  // Ultra needs a GPU that accepts a 16384-pixel texture. Below that the maps
+  // would silently upload at the smaller limit, so the tier is offered only when
+  // it can actually do what it says.
+  const ultraAvailable = useMemo(() => maxTextureSize() >= ULTRA_MIN_TEXTURE_SIZE, [])
 
   return (
     <AnimatePresence>
@@ -85,25 +95,35 @@ export function SettingsPanel() {
           <section className="mt-4">
             <SectionTitle hint={t('settings.graphicsHint')}>{t('settings.graphics')}</SectionTitle>
             <div className="flex flex-wrap gap-1.5">
-              {QUALITY_LEVELS.map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  aria-pressed={quality === level}
-                  onClick={() => setQuality(level)}
-                  className={`min-h-[2.5rem] rounded-lg border px-3 text-xs font-medium transition-colors ${
-                    quality === level
-                      ? 'border-ice/60 bg-ice/20 text-parchment'
-                      : 'border-white/12 bg-white/4 text-mist hover:text-parchment'
-                  }`}
-                >
-                  {t(`settings.quality.${level}`)}
-                </button>
-              ))}
+              {QUALITY_LEVELS.map((level) => {
+                const disabled = level === 'ultra' && !ultraAvailable
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    aria-pressed={quality === level}
+                    disabled={disabled}
+                    title={disabled ? t('settings.quality.ultraUnavailable') : undefined}
+                    onClick={() => setQuality(level)}
+                    className={`min-h-[2.5rem] rounded-lg border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      quality === level
+                        ? 'border-ice/60 bg-ice/20 text-parchment'
+                        : 'border-white/12 bg-white/4 text-mist hover:text-parchment'
+                    }`}
+                  >
+                    {t(`settings.quality.${level}`)}
+                  </button>
+                )
+              })}
             </div>
             <p className="mt-1 text-[0.68rem] leading-relaxed text-mist/80">
               {t('settings.qualityNote')}
             </p>
+            {!ultraAvailable ? (
+              <p className="mt-1 text-[0.68rem] leading-relaxed text-solar/85">
+                {t('settings.quality.ultraUnavailable')}
+              </p>
+            ) : null}
           </section>
 
           <section className="mt-4 md:hidden">

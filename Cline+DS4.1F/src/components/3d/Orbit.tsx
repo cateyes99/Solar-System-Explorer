@@ -12,7 +12,7 @@ import {
   Object3D,
   Vector3,
 } from 'three'
-import type { CelestialBody, CustomScale, OrbitModel, ScaleMode } from '../../types'
+import type { CelestialBody, CustomScale, OrbitModel, QualityLevel, ScaleMode } from '../../types'
 import { orbitPathKm } from '../../utils/astronomy'
 import { bodyRadius, sceneFromEclipticKm } from '../../utils/scale'
 import { clock } from '../../utils/simulationClock'
@@ -70,7 +70,7 @@ function buildOrbitPositions(
 interface OrbitProps {
   body: CelestialBody
   showFlow: boolean
-  quality: 'low' | 'medium' | 'high'
+  quality: QualityLevel
 }
 
 export function Orbit({ body, showFlow, quality }: OrbitProps) {
@@ -96,7 +96,7 @@ export function Orbit({ body, showFlow, quality }: OrbitProps) {
 
   // Cheap machines get fewer ellipse segments and fewer direction arrows.
   const sampleCount = quality === 'low' ? 128 : ORBIT_SAMPLES
-  const arrowCount = quality === 'high' ? FLOW_ARROWS : 10
+  const arrowCount = quality === 'high' || quality === 'ultra' ? FLOW_ARROWS : 10
 
   const geometry = useMemo(() => {
     const positions = buildOrbitPositions(

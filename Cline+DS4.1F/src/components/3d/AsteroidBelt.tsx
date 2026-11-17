@@ -32,7 +32,7 @@ export function AsteroidBelt({ quality, reducedMotion }: AsteroidBeltProps) {
   const setHovered = useSimulationStore((state) => state.setHovered)
 
   const [innerRadius, outerRadius] = asteroidBeltRadii(scaleMode, customScale, orbitModel)
-  const count = quality === 'high' ? 1800 : quality === 'medium' ? 1100 : 520
+  const count = quality === 'high' || quality === 'ultra' ? 1800 : quality === 'medium' ? 1100 : 520
 
   const { geometry, material, matrices } = useMemo(() => {
     const rockGeometry = new IcosahedronGeometry(1, 0)

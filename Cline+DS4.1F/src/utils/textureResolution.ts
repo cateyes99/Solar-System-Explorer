@@ -8,7 +8,12 @@ import type { QualityLevel } from '../types'
  * a lower texel density rather than a different map, and the browser's own
  * high-quality downscaler does the work once, at load time.
  */
-export const QUALITY_SCALE: Record<QualityLevel, number> = { high: 1, medium: 0.5, low: 0.25 }
+export const QUALITY_SCALE: Record<QualityLevel, number> = {
+  ultra: 1,
+  high: 1,
+  medium: 0.5,
+  low: 0.25,
+}
 
 /**
  * The width a map is uploaded at: the tier's fraction of the source, reduced by
@@ -51,4 +56,8 @@ export const EARTH_ANALYSIS_WIDTH: Record<QualityLevel, number> = {
   low: 512,
   medium: 2048,
   high: 2048,
+  // Ultra uploads a 16K day map, but the analysis stays capped: it reads every
+  // pixel back and blurs it twice, and the land/water masks are broad fields
+  // that gain nothing from the extra density.
+  ultra: 2048,
 }

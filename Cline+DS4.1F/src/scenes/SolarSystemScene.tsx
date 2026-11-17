@@ -8,7 +8,7 @@ import { clamp } from '../utils/random'
 import type { QualityLevel } from '../types'
 
 /** Lowest to highest. Automatic changes stay inside this range. */
-const QUALITY_ORDER: QualityLevel[] = ['low', 'medium', 'high']
+const QUALITY_ORDER: QualityLevel[] = ['low', 'medium', 'high', 'ultra']
 
 /**
  * The look the app was designed around, and the highest tier the automatic

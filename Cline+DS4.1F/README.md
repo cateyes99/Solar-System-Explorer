@@ -239,7 +239,8 @@ A few decisions worth knowing about:
 - **Real maps, baked in.** `public/textures` holds real equirectangular map data — NASA / JPL /
   USGS imagery via Solar System Scope, CC BY 4.0, listed in `public/textures/CREDITS.md` — and
   `utils/textures.ts` decodes it into GPU textures before the scene mounts, reporting progress on
-  the loading screen. Earth's day and night maps are kept at full 8K (8192×4096): they are the maps a
+  the loading screen. Earth's day and night maps are kept at full 8K (8192×4096) — and a 16K
+  (16384×8192) pair for the Ultra tier — because they are the maps a
   viewer inspects most closely — coastlines and terrain by day, city lights by night — and the
   terrain relief only makes their limits more obvious. Whatever has no real counterpart (the Sun's
   corona, the star and comet sprites, Earth's ocean-roughness map, Uranus's ring strip) is still
@@ -295,7 +296,12 @@ A few decisions worth knowing about:
   8K day and night maps therefore upload at 8K on High, 4K on Medium and 2K on Low, while the
   ocean-roughness mask derived from the day map is analysed at 2K regardless, so an 8K surface never
   turns into a quarter of a gigabyte of scratch memory. Mipmaps and the driver's best anisotropic
-  filtering keep every zoom level clean.
+  filtering keep every zoom level clean. An **Ultra** tier sits above High and is the one tier that
+  loads different *files*: Earth's day and night maps ship a 16384×8192 pair — built offline from
+  public-domain NASA imagery by `tools/fetch-16k-earth.mjs`, and tone-matched to the 8K maps so the
+  colour does not change — that only Ultra loads, leaving Low/Medium/High untouched. Ultra is offered
+  only when the GPU's `MAX_TEXTURE_SIZE` reaches 16384; below that the button is disabled rather than
+  quietly uploading at the smaller limit.
 - **Changing quality rebuilds the maps live.** The Graphics-quality buttons are not just a geometry
   setting: they rebuild the surface maps at the new resolution. The maps are swapped *in place* —
   every material, shader uniform and terrain uniform holds a reference to its texture, so updating
@@ -325,7 +331,9 @@ A few decisions worth knowing about:
   about 1.5 MB of JavaScript, 420 kB gzipped, including three.js).
 - The texture-resolution policy is unit-tested (`npm test`): Earth's 8K day and night maps upload at
   8K / 4K / 2K by tier, are clamped to the driver's maximum texture size, and the elevation model's
-  own ceiling still applies.
+  own ceiling still applies. The Ultra tier is covered too — it uploads the full 16K source (clamped
+  to the driver), keeps the analysis capped at 2K, and only Earth's day and night maps change file,
+  so every other map and every other tier is byte-identical.
 - The single-flight build queue is unit-tested too: duplicate requests share one build, a request
   that arrives mid-build supersedes the one in flight, rapid changes collapse to the newest target,
   a failed build is not cached, and `reset` starts over.

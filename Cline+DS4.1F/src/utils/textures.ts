@@ -2,7 +2,7 @@ import { CanvasTexture, ClampToEdgeWrapping, NoColorSpace, RepeatWrapping, SRGBC
 import type { QualityLevel } from '../types'
 import { SEAFLOOR_RAMP } from '../data/visuals'
 import type { TextureId } from '../data/visuals'
-import { TEXTURE_IDS, TEXTURE_SOURCES, textureIdsForScope } from './textureSources'
+import { TEXTURE_IDS, TEXTURE_SOURCES, textureFileFor, textureIdsForScope } from './textureSources'
 import type { TextureScope } from './textureSources'
 import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
 import { createBuildQueue } from './buildQueue'
@@ -1513,7 +1513,7 @@ function resolutionFor(id: TextureId, quality: QualityLevel): MapSize {
   if (id === 'waterNormal') return { width: 256, height: 256 }
 
   const large = LARGE_MAPS.includes(id)
-  if (quality === 'high') return large ? { width: 1024, height: 512 } : { width: 512, height: 256 }
+  if (quality === 'high' || quality === 'ultra') return large ? { width: 1024, height: 512 } : { width: 512, height: 256 }
   if (quality === 'medium') return large ? { width: 512, height: 256 } : { width: 256, height: 128 }
   return large ? { width: 384, height: 192 } : { width: 192, height: 96 }
 }
@@ -1627,7 +1627,9 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
   const source = TEXTURE_SOURCES[id]
   if (source) {
     try {
-      const image = await loadImage(imageUrl(source.file))
+      // The Ultra tier loads Earth's 16K day/night maps here; every other map,
+      // and every other tier, gets the same `file` it always did.
+      const image = await loadImage(imageUrl(textureFileFor(id, quality) ?? source.file))
       if (id === 'earth') analyseEarth(image, quality)
       const width = textureUploadWidth(image.naturalWidth, quality, TEXTURE_MAX_WIDTH[id], maxTextureSize())
       // When nothing has to be downscaled the decoded image is uploaded directly.
