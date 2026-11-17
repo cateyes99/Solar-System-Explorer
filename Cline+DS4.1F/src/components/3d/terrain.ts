@@ -129,7 +129,7 @@ export interface TerrainUniforms {
 export interface SeafloorMaps {
   /** The grayscale depth field (0 = sea level, 255 = the deepest point). */
   bathymetry: Texture
-  /** The water mask, carried in the alpha channel of the ocean roughness map. */
+  /** The water mask, carried in the red channel of the ocean roughness map. */
   waterMask: Texture
   /** The 1-D depth ramp. */
   ramp: Texture
@@ -244,7 +244,7 @@ if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   // floats on it, so it also marks the ice-covered Arctic as deep ocean; the water
   // mask is 0 there (and over land), which keeps the sea ice — and the continents —
   // at sea level instead of dropping them to the floor.
-  float water = texture2D(uWaterMask, seaUv).a;
+  float water = texture2D(uWaterMask, seaUv).r;
   float drained = pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma);
   transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water);
 }
@@ -271,13 +271,27 @@ float seafloorDepthAt(vec2 seaUv) {
   return pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
 }
 
+// Whether there is any real seafloor here at all. The water mask is soft at the
+// coast, so it reaches several texels inland; without this gate the *colour*
+// mix (below) would blend the ramp's pale shelf sand over dry land wherever that
+// soft edge falls, drawing a bright outline around every coast and lake. Land
+// has no depth in the bathymetry, so requiring a little depth keeps the blended
+// edge on the water side. The first few metres are all the gate needs to reject.
+float seafloorShelf(vec2 seaUv) {
+  return smoothstep(0.0, 0.02, texture2D(uBathyMap, seaUv).r);
+}
+
 // How much of this pixel is ocean showing the floor through it: 0 on land and 0
 // at 100% opacity, 1 where the water is fully drained. The revealGamma curve
 // bends the middle of the slider (see SeafloorVisuals), and is exactly 0 and 1
 // at the endpoints either way.
 float seafloorReveal(vec2 seaUv) {
-  float water = texture2D(uWaterMask, seaUv).a;
-  return clamp(water * pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma), 0.0, 1.0);
+  float water = texture2D(uWaterMask, seaUv).r;
+  return clamp(
+    water * seafloorShelf(seaUv) * pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma),
+    0.0,
+    1.0
+  );
 }
 
 // Beer–Lambert transmittance of the water column, per channel. The optical path
