@@ -188,7 +188,7 @@ export function StarField({ quality, reducedMotion, showNebula }: StarFieldProps
   const nebulaMaterialRef = useRef<Mesh>(null)
 
   const layers = useMemo(() => {
-    if (quality === 'high') return LAYERS
+    if (quality === 'high' || quality === 'ultra') return LAYERS
     if (quality === 'medium') {
       return LAYERS.map((layer) => ({ ...layer, count: Math.round(layer.count * 0.62) }))
     }

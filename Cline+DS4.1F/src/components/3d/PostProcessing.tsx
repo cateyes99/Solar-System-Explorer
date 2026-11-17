@@ -16,9 +16,9 @@ export function PostProcessing({ quality, reducedMotion }: PostProcessingProps) 
   if (quality === 'low' || reducedMotion) return null
 
   return (
-    <EffectComposer multisampling={quality === 'high' ? 4 : 0}>
+    <EffectComposer multisampling={quality === 'high' || quality === 'ultra' ? 4 : 0}>
       <Bloom
-        intensity={quality === 'high' ? 0.9 : 0.62}
+        intensity={quality === 'high' || quality === 'ultra' ? 0.9 : 0.62}
         luminanceThreshold={0.68}
         luminanceSmoothing={0.3}
         mipmapBlur

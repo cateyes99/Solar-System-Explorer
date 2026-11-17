@@ -297,8 +297,10 @@ export const zh: Record<TranslationKey, string> = {
   'settings.quality.low': '低',
   'settings.quality.medium': '中',
   'settings.quality.high': '高',
+  'settings.quality.ultra': '超清',
+  'settings.quality.ultraUnavailable': '超清需要支持 16K 纹理的显卡。',
   'settings.qualityNote':
-    '更改质量会按新的分辨率重建表面纹理，并调整几何细节、星星数量和后期处理。更高的设置会加载更大的纹理，占用更多显存。',
+    '更改质量会按新的分辨率重建表面纹理，并调整几何细节、星星数量和后期处理。更高的设置会加载更大的纹理，占用更多显存。超清会加载 16K 地球纹理，提供最清晰的近景。',
   'settings.soloEarthSection': '专注地球',
   'settings.soloEarthHint': '实验性',
   'settings.soloEarth': '地球独显模式',

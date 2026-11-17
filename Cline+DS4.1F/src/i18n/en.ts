@@ -299,8 +299,10 @@ export const en = {
   'settings.quality.low': 'Low',
   'settings.quality.medium': 'Medium',
   'settings.quality.high': 'High',
+  'settings.quality.ultra': 'Ultra',
+  'settings.quality.ultraUnavailable': 'Ultra needs a GPU that supports 16K textures.',
   'settings.qualityNote':
-    'Changing quality rebuilds the surface maps at the new resolution and adjusts geometry detail, star counts and post-processing. Higher settings load larger maps and use more graphics memory.',
+    'Changing quality rebuilds the surface maps at the new resolution and adjusts geometry detail, star counts and post-processing. Higher settings load larger maps and use more graphics memory. Ultra loads 16K Earth maps, for the sharpest close-ups.',
   'settings.soloEarthSection': 'Earth focus',
   'settings.soloEarthHint': 'experimental',
   'settings.soloEarth': 'Solo Earth mode',

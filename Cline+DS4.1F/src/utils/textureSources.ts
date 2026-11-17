@@ -1,4 +1,5 @@
 import type { TextureId } from '../data/visuals'
+import type { QualityLevel } from '../types'
 
 /**
  * Where every surface map comes from.
@@ -23,10 +24,31 @@ import type { TextureId } from '../data/visuals'
 export interface TextureSource {
   /** File name inside `public/textures`. */
   file: string
+  /**
+   * The larger file used only by the Ultra tier, for the few maps that have one.
+   * Today that is Earth's day and night maps (16K); every other map, and every
+   * other tier, uses `file`. See `textureFileFor`.
+   */
+  ultraFile?: string
   /** Shown on the loading screen while the map decodes. */
   label: string
   /** Human-readable provenance, shown in the credits file. */
   credit: string
+}
+
+/**
+ * The file a given map should load at a given quality tier.
+ *
+ * Almost every map has one file and one answer. Earth's day and night maps are
+ * the exception: the Ultra tier loads their 16K file while Low/Medium/High keep
+ * the 8K one, so the existing tiers stay byte-identical and only Ultra pays for
+ * the larger maps. Returns `undefined` for ids that have no source file (they
+ * are painted procedurally).
+ */
+export function textureFileFor(id: TextureId, quality: QualityLevel): string | undefined {
+  const source = TEXTURE_SOURCES[id]
+  if (!source) return undefined
+  return quality === 'ultra' && source.ultraFile ? source.ultraFile : source.file
 }
 
 export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
@@ -52,8 +74,12 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     // at four times the width; `textures.ts` uploads it at 8K / 4K / 2K by
     // quality tier so the extra resolution is only spent when it is asked for.
     file: '8k_earth_daymap.jpg',
+    // The Ultra tier's 16384×8192 map, built from NASA Blue Marble: Next
+    // Generation by `tools/fetch-16k-earth.mjs` and tone-matched to the 8K map
+    // so switching tiers does not change Earth's colour.
+    ultraFile: '16k_earth_daymap.jpg',
     label: 'Unfolding the Blue Marble',
-    credit: 'NASA Blue Marble land and ocean colour, 8192×4096',
+    credit: 'NASA Blue Marble land and ocean colour, 8192×4096 (16K for Ultra)',
   },
   earthHeightmap: {
     // The only map here that is not a colour photograph: it is a grayscale
@@ -85,8 +111,12 @@ export const TEXTURE_SOURCES: Partial<Record<TextureId, TextureSource>> = {
     // as the 2K map it replaced; uploaded at 8K / 4K / 2K by quality tier, exactly
     // like the day map.
     file: '8k_earth_nightmap.jpg',
+    // The Ultra tier's 16384×8192 map, built from NASA Black Marble 2016 by the
+    // same tool. Reduced to a grayscale lights mask, matching how the shader
+    // reads it (see `NightLights.tsx`).
+    ultraFile: '16k_earth_nightmap.jpg',
     label: 'Switching on the real city lights',
-    credit: 'NASA Black Marble city lights, 8192×4096',
+    credit: 'NASA Black Marble city lights, 8192×4096 (16K for Ultra)',
   },
   moon: {
     file: '2k_moon.jpg',

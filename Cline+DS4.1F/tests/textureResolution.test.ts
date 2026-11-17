@@ -63,3 +63,16 @@ test('the analysis resolution stays small even when the map is 8K', () => {
   assert.ok(EARTH_ANALYSIS_WIDTH.medium <= 2048)
   assert.ok(EARTH_ANALYSIS_WIDTH.low < EARTH_ANALYSIS_WIDTH.high)
 })
+
+test('the ultra tier uploads the full source, clamped to the GPU', () => {
+  assert.equal(QUALITY_SCALE.ultra, 1)
+  // A 16K source uploads at 16K on a GPU that accepts it…
+  assert.equal(textureUploadWidth(16384, 'ultra', undefined, 16384), 16384)
+  // …and at the driver's limit on one that does not.
+  assert.equal(textureUploadWidth(16384, 'ultra', undefined, 8192), 8192)
+})
+
+test('the ultra tier keeps the analysis capped, like high', () => {
+  assert.equal(EARTH_ANALYSIS_WIDTH.ultra, 2048)
+  assert.ok(EARTH_ANALYSIS_WIDTH.ultra <= EARTH_ANALYSIS_WIDTH.high)
+})

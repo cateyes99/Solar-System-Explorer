@@ -135,7 +135,13 @@ export type ScaleMode = 'educational' | 'relativeSize' | 'distances' | 'custom'
  */
 export type OrbitModel = 'realistic' | 'educational'
 
-export type QualityLevel = 'low' | 'medium' | 'high'
+/**
+ * Graphics quality. `ultra` is "high, plus the 16K Earth maps" — a deliberately
+ * chosen tier that only Earth's day and night maps answer to; everything else
+ * (geometry, stars, asteroids, post-processing) is identical to `high`. It is
+ * never selected automatically (see `SolarSystemScene`).
+ */
+export type QualityLevel = 'low' | 'medium' | 'high' | 'ultra'
 
 /**
  * Which implementation draws Earth's ocean. Only Earth has a sea, so only Earth
