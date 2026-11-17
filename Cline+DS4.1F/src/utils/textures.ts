@@ -1408,12 +1408,12 @@ function roughnessFromWater(
   const image = ctx.createImageData(width, height)
   const data = image.data
   for (let i = 0; i < mask.length; i += 1) {
-    const texel = roughnessChannels(mask[i], waterGloss(raw[i]))
-    data[i * 4] = texel.r
-    data[i * 4 + 1] = texel.g
-    data[i * 4 + 2] = texel.b
+    const { r: red, g: green, b: blue, a: alpha } = roughnessChannels(mask[i], waterGloss(raw[i]))
+    data[i * 4] = red
+    data[i * 4 + 1] = green
+    data[i * 4 + 2] = blue
     // Opaque, always: see `roughnessChannels`. The mask is a colour channel.
-    data[i * 4 + 3] = texel.a
+    data[i * 4 + 3] = alpha
   }
   ctx.putImageData(image, 0, 0)
   return canvas

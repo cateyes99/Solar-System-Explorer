@@ -183,6 +183,9 @@ export const zh: Record<TranslationKey, string> = {
   'planet.terrainRelief': '地形起伏',
   'planet.terrainReliefHint':
     '真实地表从球面上隆起的程度。地球的陆地由 NASA / USGS 的全球高程模型顶起，因此山脉、高原和峡谷都是真正的三维形状。高度经过夸张处理——真实起伏只有地球半径的 0.14%——这个滑块决定夸张多少。',
+  'planet.mountainSheen': '山体光泽',
+  'planet.mountainSheenHint':
+    '恢复旧版镜面般光滑的陆地。当阳光斜掠过地球时，山脉会泛起耀眼的玻璃般高光——也就是修复前的效果，连旧海洋贴图在湖泊与海岸周围绘出的浅色矩形边框也一并重现。关闭时保持哑光、物理一致的陆地外观。',
   'planet.earthSeafloor': '地球的海底',
   'planet.seafloorHint': '100% = 平常的海洋',
   'planet.seawaterMode': '海洋渲染方式',

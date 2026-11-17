@@ -57,6 +57,8 @@ export function PlanetPanel() {
   const setEarthWaveStyle = useSimulationStore((state) => state.setEarthWaveStyle)
   const earthSeawaterMode = useSimulationStore((state) => state.earthSeawaterMode)
   const setEarthSeawaterMode = useSimulationStore((state) => state.setEarthSeawaterMode)
+  const earthMountainSheen = useSimulationStore((state) => state.earthMountainSheen)
+  const setEarthMountainSheen = useSimulationStore((state) => state.setEarthMountainSheen)
   const showEarthMap = useSimulationStore((state) => state.showEarthMap)
   const toggleEarthMap = useSimulationStore((state) => state.toggleEarthMap)
   const showCountryNames = useSimulationStore((state) => state.showCountryNames)
@@ -200,6 +202,12 @@ export function PlanetPanel() {
                   onChange={setEarthTerrainRelief}
                   format={(value) => `${Math.round(value * 100)}%`}
                   hint={t('planet.terrainReliefHint')}
+                />
+                <ToggleRow
+                  label={t('planet.mountainSheen')}
+                  description={t('planet.mountainSheenHint')}
+                  checked={earthMountainSheen}
+                  onChange={() => setEarthMountainSheen(!earthMountainSheen)}
                 />
               </div>
             </div>
