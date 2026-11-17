@@ -42,7 +42,7 @@ interface OceanProps {
   visuals: WaterVisuals
   /** The seafloor's depth field, for Beer's law. */
   bathymetry: Texture
-  /** The ocean roughness map, whose alpha channel is the water mask. */
+  /** The ocean roughness map, whose red channel is the water mask. */
   waterMask: Texture
   depthExponent: number
   uvOffset: number
