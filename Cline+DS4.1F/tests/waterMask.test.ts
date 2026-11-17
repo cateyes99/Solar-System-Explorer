@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { waterMaskFromColor } from '../src/utils/waterMask.ts'
+import { roughnessChannels, waterGloss, waterMaskFromColor } from '../src/utils/waterMask.ts'
 
 /**
  * The day-map water classifier. Run with `npm test`.
@@ -43,4 +43,62 @@ test('the ice cap and the ocean beside it separate cleanly', () => {
 
 test('more blue lead means more water', () => {
   assert.ok(waterMaskFromColor(30, 59, 117) > waterMaskFromColor(120, 140, 150))
+})
+
+/**
+ * The gloss curve that turns the mask into a roughness value. Its job is to
+ * keep the shoreline matte: a blurred lake edge must not land in the middle of
+ * the glossy range, or it catches the sun as a bright outline around the lake.
+ */
+test('dry land is fully matte', () => {
+  assert.equal(waterGloss(0), 0)
+  assert.equal(waterGloss(0.3), 0, 'uncertain half-land still reads as land')
+})
+
+test('open ocean is fully glossy', () => {
+  assert.equal(waterGloss(0.95), 1)
+  assert.equal(waterGloss(1), 1)
+})
+
+test('the shoreline stays on the matte side of the ramp', () => {
+  // A blurred lake edge sits around 0.5; it must not become glossy.
+  assert.equal(waterGloss(0.5), 0)
+  assert.ok(waterGloss(0.6) < 0.1, 'the ramp only just begins here')
+})
+
+test('gloss rises monotonically with the mask', () => {
+  let previous = -1
+  for (let mask = 0; mask <= 1; mask += 0.01) {
+    const gloss = waterGloss(mask)
+    assert.ok(gloss >= previous, `gloss fell at mask ${mask}`)
+    assert.ok(gloss >= 0 && gloss <= 1, `gloss out of range at mask ${mask}`)
+    previous = gloss
+  }
+})
+
+/**
+ * The roughness map's channels. The mask must not ride in alpha: a 2D canvas
+ * premultiplies, so opaque land with alpha 0 would come back as black (perfectly
+ * smooth) and the blurred coast ring would become a matte rectangle — the
+ * "golden frame" artifact around every lake.
+ */
+test('the roughness map is opaque, with the mask in red', () => {
+  const land = roughnessChannels(0, waterGloss(0))
+  assert.deepEqual(land, { r: 0, g: 235, b: 235, a: 255 }, 'dry land is matte and opaque')
+
+  const sea = roughnessChannels(1, waterGloss(1))
+  assert.deepEqual(sea, { r: 255, g: 26, b: 26, a: 255 }, 'open sea is glossy and opaque')
+})
+
+test('every roughness texel is fully opaque, whatever the mask', () => {
+  for (let mask = 0; mask <= 1; mask += 0.01) {
+    const texel = roughnessChannels(mask, waterGloss(mask))
+    assert.equal(texel.a, 255, `alpha must be opaque at mask ${mask}`)
+    assert.ok(texel.r >= 0 && texel.r <= 255)
+  }
+})
+
+test('the water mask reaches red at full strength', () => {
+  assert.equal(roughnessChannels(0.5, 0).r, 128)
+  assert.equal(roughnessChannels(1, 0).r, 255)
 })

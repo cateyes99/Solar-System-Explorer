@@ -299,7 +299,7 @@ export function Planet({
           visuals: visuals.seafloor,
           maps: {
             bathymetry: getTexture(visuals.seafloor.bathymetryMapId),
-            // The water mask rides in the ocean roughness map's alpha channel.
+            // The water mask rides in the ocean roughness map's red channel.
             waterMask: getTexture('earthRoughness'),
             ramp: getTexture(visuals.seafloor.rampMapId),
           },

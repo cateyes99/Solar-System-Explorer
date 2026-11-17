@@ -215,7 +215,7 @@ export interface WaterUniforms {
 
 export interface WaterBinding {
   visuals: WaterVisuals
-  /** The ocean roughness map; its **alpha** channel is the water mask. */
+  /** The ocean roughness map; its **red** channel is the water mask. */
   waterMask: Texture
   /** The depth field, for Beer's law. */
   bathymetry: Texture
@@ -530,7 +530,7 @@ float waterRippleFade(vec3 viewNormal) {
 export const WATER_FRAGMENT_BODY = /* glsl */ `
 {
   vec2 seaUv = vSeaUv + vec2(uUvOffset, 0.0);
-  float waterMask = texture2D(uWaterMask, seaUv).a;
+  float waterMask = texture2D(uWaterMask, seaUv).r;
   if (waterMask * uWaterAlpha < 0.004) discard;
   // The depth fraction under this pixel, minus how far the surface has dropped:
   // 0 exactly at the waterline, 1 where the column is still at full depth.

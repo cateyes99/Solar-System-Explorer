@@ -8,7 +8,7 @@ import { EARTH_ANALYSIS_WIDTH, textureUploadWidth } from './textureResolution'
 import { createBuildQueue } from './buildQueue'
 import { maxTextureSize } from './webgl'
 import { cylindricalFbm, clamp, createRandom, lerp, smoothstep } from './random'
-import { waterMaskFromColor } from './waterMask'
+import { roughnessChannels, waterGloss, waterMaskFromColor } from './waterMask'
 
 /**
  * Every surface in the Solar System is mapped here.
@@ -1376,34 +1376,54 @@ function soften(mask: Float32Array, width: number, height: number): Float32Array
  * photograph of Earth from space, and the reason the real planet is not
  * uniformly matte.
  *
- * The *alpha* channel carries the raw water mask itself (1 = open water, 0 =
- * land). The standard material ignores a roughness map's alpha, so this costs
- * nothing and gives the seafloor shader an exact, encoding-independent water
- * mask to reveal the floor through — no second texture and no guessing from the
- * roughness value.
+ * The **green** channel is built from `raw`, the *unblurred* classifier, through
+ * `waterGloss`: gloss only rises for unambiguous water, so the specular
+ * transition sits on the water side of the shoreline. Ramping it across the
+ * blurred mask spread a halo of intermediate roughness several texels onto the
+ * land, which caught the sun as a bright outline.
+ *
+ * The **red** channel carries the softened water mask (1 = open water, 0 =
+ * land). The standard material only reads green, so this costs nothing and gives
+ * the water layer and the seafloor shader a coast the eye can follow. Those
+ * consumers must (and do) require real bathymetric depth before they draw a
+ * seafloor, so this soft edge can never become a film of water — or of the
+ * ramp's pale sand — lying on dry land.
+ *
+ * The mask deliberately does **not** live in alpha. A canvas stores its pixels
+ * premultiplied, so an opaque green (land) with alpha 0 is saved as black and
+ * comes back as 0: every dry texel would upload as perfectly smooth, turning the
+ * whole planet into a mirror. Worse, the blur's partial alpha across every
+ * coastline survives as a ring of green ≈ 235, which then reads as a matte
+ * rectangle around each lake. Keeping the map fully opaque and putting the mask
+ * in red is what makes the land actually rough.
  */
-function roughnessFromWater(mask: Float32Array, width: number, height: number): HTMLCanvasElement {
+function roughnessFromWater(
+  raw: Float32Array,
+  mask: Float32Array,
+  width: number,
+  height: number,
+): HTMLCanvasElement {
   const canvas = makeCanvas(width, height)
   const ctx = context2d(canvas)
   const image = ctx.createImageData(width, height)
   const data = image.data
   for (let i = 0; i < mask.length; i += 1) {
-    const roughness = Math.round(lerp(235, 26, mask[i]))
-    data[i * 4] = roughness
-    data[i * 4 + 1] = roughness
-    data[i * 4 + 2] = roughness
-    // Water mask in the alpha channel: white = water. Alpha 0 keeps the seafloor
-    // hidden if the day map never loaded (see `plainRoughness`).
-    data[i * 4 + 3] = Math.round(clamp(mask[i], 0, 1) * 255)
+    const texel = roughnessChannels(mask[i], waterGloss(raw[i]))
+    data[i * 4] = texel.r
+    data[i * 4 + 1] = texel.g
+    data[i * 4 + 2] = texel.b
+    // Opaque, always: see `roughnessChannels`. The mask is a colour channel.
+    data[i * 4 + 3] = texel.a
   }
   ctx.putImageData(image, 0, 0)
   return canvas
 }
 
 /**
- * A flat, mid-rough surface: used when nothing better can be worked out. Its
- * alpha is 0, so with no day map there is no water mask and the seafloor stays
- * hidden rather than covering the whole globe.
+ * A flat, mid-rough surface: used when nothing better can be worked out. Its red
+ * channel is 0, so with no day map there is no water mask and the seafloor stays
+ * hidden rather than covering the whole globe. It stays fully opaque so the
+ * canvas cannot premultiply the roughness away (see `roughnessFromWater`).
  */
 function plainRoughness(width: number, height: number): HTMLCanvasElement {
   const canvas = makeCanvas(width, height)
@@ -1411,10 +1431,10 @@ function plainRoughness(width: number, height: number): HTMLCanvasElement {
   const image = ctx.createImageData(width, height)
   const data = image.data
   for (let i = 0; i < data.length; i += 4) {
-    data[i] = 180
+    data[i] = 0
     data[i + 1] = 180
     data[i + 2] = 180
-    data[i + 3] = 0
+    data[i + 3] = 255
   }
   ctx.putImageData(image, 0, 0)
   return canvas
@@ -1426,7 +1446,7 @@ function plainRoughness(width: number, height: number): HTMLCanvasElement {
  * painter needs and the ocean roughness the material needs — so both travel
  * through here.
  */
-let earthWater: { mask: Float32Array; width: number; height: number } | null = null
+let earthWater: { mask: Float32Array; raw: Float32Array; width: number; height: number } | null = null
 let sharedLandMask: SharedBuild | null = null
 
 /**
@@ -1439,8 +1459,13 @@ let sharedLandMask: SharedBuild | null = null
 function analyseEarth(image: HTMLImageElement, quality: QualityLevel): void {
   const canvas = drawScaled(image, Math.min(EARTH_ANALYSIS_WIDTH[quality], maxTextureSize()))
   const { width, height } = canvas
-  const mask = soften(waterMaskFromImage(canvas), width, height)
-  earthWater = { mask, width, height }
+  // Keep both forms: the sharp classifier drives the specular roughness, while
+  // the blurred mask gives the water layer and the seafloor shader a soft coast.
+  // Neither can paint over dry land on its own — the shaders also require real
+  // bathymetric depth (see `terrain.ts`).
+  const raw = waterMaskFromImage(canvas)
+  const mask = soften(raw, width, height)
+  earthWater = { mask, raw, width, height }
   const landMask = new Uint8Array(width * height)
   for (let i = 0; i < landMask.length; i += 1) landMask[i] = mask[i] < 0.5 ? 1 : 0
   sharedLandMask = { landMask, width, height }
@@ -1651,13 +1676,13 @@ async function buildMap(id: TextureId, quality: QualityLevel, shared: SharedBuil
 
   if (id === 'earthRoughness') {
     if (earthWater) {
-      return roughnessFromWater(earthWater.mask, earthWater.width, earthWater.height)
+      return roughnessFromWater(earthWater.raw, earthWater.mask, earthWater.width, earthWater.height)
     }
     const land = sharedLandMask?.landMask
     if (land && shared.width > 0) {
-      const mask = Float32Array.from(land, (value) => (value ? 0 : 1))
-      const soft = soften(mask, shared.width, shared.height)
-      return roughnessFromWater(soft, shared.width, shared.height)
+      const raw = Float32Array.from(land, (value) => (value ? 0 : 1))
+      const soft = soften(raw, shared.width, shared.height)
+      return roughnessFromWater(raw, soft, shared.width, shared.height)
     }
     return plainRoughness(256, 128)
   }
