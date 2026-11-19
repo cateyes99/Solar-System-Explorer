@@ -1,8 +1,8 @@
 /**
  * Downloads the Natural Earth vector data behind the optional "World map"
- * overlay — national boundaries, regional (state/province) boundaries, capitals
- * and major cities — and writes compact, ready-to-serve JSON into
- * `public/geo`.
+ * overlay — national boundaries, regional (state/province) boundaries, national
+ * and state/provincial capitals, and major cities — and writes compact,
+ * ready-to-serve JSON into `public/geo`.
  *
  *   node tools/fetch-geo.mjs
  *
@@ -35,14 +35,17 @@
  *    never be drawn the long way round the globe.
  *
  *  - `places-*.json`
- *      `{ "places": [ { name, zh, lon, lat, cap, pop, rank, label, tier }, … ] }`
+ *      `{ "places": [ { name, zh, lon, lat, cap, stateCap, pop, rank, label, tier }, … ] }`
  *    `name` is the ASCII (English) place name and `zh` its Simplified Chinese
  *    name from Natural Earth's `NAME_ZH` (empty when the source has none, and the
- *    scene then falls back to `name`). `cap` is 1 for a national capital, `pop`
- *    is the metro population estimate and `rank` is Natural Earth's importance
- *    rank (0 = most important). `label` marks the subset important enough to show
- *    a text label next to its marker, and `tier` splits those into 0 (named from
- *    the first close-up) and 1 (named once the viewer zooms in further).
+ *    scene then falls back to `name`). `cap` is 1 for a national capital,
+ *    `stateCap` is 1 for a state/province/regional capital, `pop` is the metro
+ *    population estimate and `rank` is Natural Earth's importance rank (0 = most
+ *    important). `label` marks the subset important enough to show a text label
+ *    next to its marker, and `tier` splits those into 0 (named from the first
+ *    close-up), 1 (named once the viewer zooms in further), 2 (state and
+ *    provincial capitals) and 3 (cities of at least a million people, named only
+ *    at the closest zoom).
  */
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -53,12 +56,21 @@ const OUTPUT_DIR = join(HERE, '..', 'public', 'geo')
 const BASE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/'
 
 /**
- * How many of the largest *non-capital* cities also get a text label. Every
- * national capital is labelled regardless (there are about two hundred), and
- * this adds the biggest cities on top, so the map names capitals and major
- * cities rather than capitals alone.
+ * How many of the largest *non-national-capital* cities are named from the
+ * first couple of close-ups. Every national capital is labelled regardless
+ * (there are about two hundred), every state/provincial capital is labelled, and
+ * every city of at least `CITY_LABEL_POPULATION` is labelled, so the map names
+ * capitals and major cities rather than capitals alone.
  */
 const EXTRA_CITY_LABELS = 60
+
+/**
+ * The population at which an otherwise unremarkable city earns a text label:
+ * every city of about a million people or more. They form their own tier,
+ * because there are a couple of hundred of them worldwide and they would swamp
+ * the national capitals and the biggest cities if they all arrived together.
+ */
+const CITY_LABEL_POPULATION = 1_000_000
 
 /**
  * How many of the most important places are named from the first close-up. The
@@ -67,6 +79,21 @@ const EXTRA_CITY_LABELS = 60
  * the small capitals can zoom in for them.
  */
 const PRIMARY_LABELS = 60
+
+/**
+ * The tier for cities that are labelled only because they pass the population
+ * threshold. It is the deepest tier, after the state capitals: a provincial seat
+ * is the more telling label, so it earns its place first even when the city
+ * beside it is larger.
+ */
+const MILLION_CITY_TIER = 3
+
+/**
+ * The third label tier: state/provincial capitals. They are several hundred
+ * strong, so they are named only once the viewer is close enough for a regional
+ * view, but before the generic million-plus cities.
+ */
+const STATE_CAPITAL_TIER = 2
 
 /**
  * Natural Earth's importance rank (`LABELRANK`, 1 = most important) at or below
@@ -233,24 +260,70 @@ function buildPlaces(geojson) {
     const lat = Number(prop(properties, 'LATITUDE', 'latitude') ?? coords[1])
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
     const cap = Number(prop(properties, 'ADM0CAP', 'adm0cap') ?? 0) === 1 ? 1 : 0
+    // Natural Earth marks subnational seats in `FEATURECLA` rather than a
+    // dedicated boolean: `Admin-1 capital` and `Admin-1 region capital` are the
+    // state/province capitals, while `Admin-0 region capital` covers the capitals
+    // of constituent countries and territories (Edinburgh, Cardiff, Mariehamn…).
+    const featureClass = String(prop(properties, 'FEATURECLA', 'featurecla') ?? '')
+    const stateCap =
+      featureClass.startsWith('Admin-1') || featureClass === 'Admin-0 region capital' ? 1 : 0
     const pop = Math.max(0, Math.round(Number(prop(properties, 'POP_MAX', 'pop_max') ?? 0) || 0))
     const rank = Math.max(0, Math.round(Number(prop(properties, 'SCALERANK', 'scalerank') ?? 10) || 0))
-    places.push({ name, zh, lon: round4(lon), lat: round4(lat), cap, pop, rank, label: 0, tier: 1 })
+    places.push({
+      name,
+      zh,
+      lon: round4(lon),
+      lat: round4(lat),
+      cap,
+      stateCap,
+      pop,
+      rank,
+      label: 0,
+      tier: STATE_CAPITAL_TIER,
+    })
   }
-  // Label every national capital, plus the largest cities that are not capitals.
+  // The "major cities" are chosen exactly as before: the largest non-national-
+  // capital cities, so adding the regional capitals and the million-plus cities
+  // does not disturb the set.
   const cities = places
     .filter((place) => place.cap === 0)
     .sort((a, b) => b.pop - a.pop || a.rank - b.rank)
-  for (const place of places) place.label = place.cap
-  for (let i = 0; i < Math.min(EXTRA_CITY_LABELS, cities.length); i += 1) cities[i].label = 1
+  const majorCities = new Set(cities.slice(0, EXTRA_CITY_LABELS))
 
-  // The labelled places are split into two importance tiers. A capital is
-  // boosted so a country's seat is named even when its metro is small.
+  // Label every national capital, every state/provincial capital, those major
+  // cities, and every other city of a million people or more.
+  for (const place of places) {
+    place.label =
+      place.cap === 1 ||
+      place.stateCap === 1 ||
+      majorCities.has(place) ||
+      place.pop >= CITY_LABEL_POPULATION
+        ? 1
+        : 0
+  }
+
+  // Tiers 0 and 1 keep their old meaning: the national capitals and major cities,
+  // split by importance. A capital is boosted so a country's seat is named even
+  // when its metro is small.
   const importance = (place) => place.pop * (place.cap === 1 ? 1.4 : 1)
   const ranked = places
-    .filter((place) => place.label === 1)
+    .filter((place) => place.label === 1 && (place.cap === 1 || majorCities.has(place)))
     .sort((a, b) => importance(b) - importance(a))
   for (let i = 0; i < ranked.length; i += 1) ranked[i].tier = i < PRIMARY_LABELS ? 0 : 1
+
+  // Everything still at the state-capital tier that is only there because of its
+  // population drops one step: a plain city of a million is named after the
+  // provincial seats, which are the more useful labels.
+  for (const place of places) {
+    if (
+      place.label === 1 &&
+      place.tier === STATE_CAPITAL_TIER &&
+      place.stateCap === 0 &&
+      place.pop >= CITY_LABEL_POPULATION
+    ) {
+      place.tier = MILLION_CITY_TIER
+    }
+  }
   return { places }
 }
 
@@ -334,8 +407,9 @@ writeFileSync(
     '# World map data credits',
     '',
     'The optional **World map** layer (national boundaries, regional boundaries,',
-    'country names, capitals and major cities) is built from **Natural Earth**',
-    'vector data.',
+    'country names, national and state/provincial capitals, and major cities —',
+    'including every city of a million people or more) is built from **Natural',
+    'Earth** vector data.',
     '',
     '- Source: [Natural Earth](https://www.naturalearthdata.com/), from the',
     '  project’s own vector repository (`nvkelso/natural-earth-vector`).',
@@ -343,8 +417,12 @@ writeFileSync(
     '  Crediting the authors is unnecessary." Attribution is given here anyway.',
     '- Layers: `admin_0_boundary_lines_land` (national borders),',
     '  `admin_1_states_provinces_lines` (regional borders), `admin_0_countries`',
-    '  (country names and their label points) and `populated_places` (capitals and',
-    '  cities).',
+    '  (country names and their label points) and `populated_places` (national and',
+    '  state/provincial capitals, and cities of every size).',
+    '- State/provincial capitals are the `Admin-1 capital`, `Admin-1 region capital`',
+    '  and `Admin-0 region capital` classes in `populated_places`; cities with a',
+    '  population of at least one million are named too. The provincial seats come',
+    '  first, with the million-plus cities at the closest zoom.',
     '- Projection: WGS84 geographic (longitude/latitude), the same equirectangular',
     '  layout as the surface maps, so the overlay lines up with the continents.',
     '- Place names carry Natural Earth’s localized names (`NAME_ZH`), so the city',

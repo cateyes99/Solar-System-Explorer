@@ -1,7 +1,7 @@
 /**
  * The look of the optional "World map" overlay — national and regional borders,
- * country names, capitals and major cities — derived from the app's palette
- * rather than chosen by eye in a component.
+ * country names, national and state/provincial capitals, and major cities —
+ * derived from the app's palette rather than chosen by eye in a component.
  *
  * Colours are deliberately cool and low-saturation so the overlay reads as a
  * cartographic annotation on top of the real imagery instead of competing with
@@ -72,6 +72,16 @@ export interface EarthMapVisuals {
     border: string
   }
   /**
+   * State/provincial capital names. A cool mint against the national capitals'
+   * warm amber, on its own dark badge, so a regional seat is distinguishable at
+   * a glance without ever outranking a country's own capital.
+   */
+  stateCapitalLabel: {
+    color: string
+    background: string
+    border: string
+  }
+  /**
    * Country names. Quiet and wide-tracked, with no marker dot: they sit between
    * the capitals and the cities in weight, reading as a soft parchment rather
    * than the cool white of a city.
@@ -92,11 +102,27 @@ export interface EarthMapVisuals {
    * viewer is looking at the planet, and nothing shows at the wide system view,
    * where Earth is barely a dot. The rest of the names arrive at
    * `labelDetailFade`, once the globe is large enough to carry them without the
-   * text piling up.
+   * text piling up. State/provincial capitals wait for `labelStateFade`, and
+   * cities of a million people or more for `labelMillionFade`, the closest tier
+   * of all, because there are several hundred regional seats and a hundred more
+   * million-plus cities, and they would otherwise swamp the mid-distance globe.
    */
   regionFade: [number, number]
   labelFade: [number, number]
   labelDetailFade: [number, number]
+  /**
+   * When the state/provincial capitals are named, with the same hysteresis as
+   * the other thresholds. They are the first of the two dense sets, so they
+   * arrive once Earth is a large regional view and leave again as the viewer
+   * pulls back out.
+   */
+  labelStateFade: [number, number]
+  /**
+   * When cities of at least a million people are named, with the same hysteresis
+   * as the other thresholds. They are the last set, after the provincial seats,
+   * and arrive only when the globe overfills the viewport.
+   */
+  labelMillionFade: [number, number]
   /**
    * How strongly the overlay follows the day/night terminator. 1 lets the
    * borders and cities disappear onto the night side (the default, which keeps
@@ -128,9 +154,11 @@ export const EARTH_MAP: EarthMapVisuals = {
   capital: { color: '#ffd98a', size: 5 },
   city: { color: '#d8ecff', size: 3 },
   label: { color: '#eaf5ff', lift: 0.004, limbRadius: 27 / 30 },
-  // Capitals take the marker amber on a dark, ringed badge; countries a soft
-  // parchment, wide-tracked, so the three label kinds read apart at a glance.
+  // Capitals take the marker amber on a dark, ringed badge; state capitals a
+  // cool mint on their own dark badge; countries a soft parchment, wide-tracked,
+  // so the four label kinds read apart at a glance.
   capitalLabel: { color: '#ffd98a', background: 'rgba(42, 31, 12, 0.82)', border: 'rgba(255, 217, 138, 0.45)' },
+  stateCapitalLabel: { color: '#a9e9d2', background: 'rgba(9, 32, 28, 0.78)', border: 'rgba(169, 233, 210, 0.42)' },
   countryLabel: { color: '#ece3d2', background: 'rgba(8, 11, 22, 0.42)' },
   // Regional borders and labels only earn their space once Earth is a decent
   // size on screen; the thresholds are apparent diameters, so they behave the
@@ -138,6 +166,13 @@ export const EARTH_MAP: EarthMapVisuals = {
   regionFade: [0.08, 0.18],
   labelFade: [0.16, 0.22],
   labelDetailFade: [0.4, 0.5],
+  // State/provincial capitals arrive first of the two dense sets: there are
+  // several hundred of them, and they need the room before the million-plus
+  // cities join in.
+  labelStateFade: [0.7, 0.8],
+  // Million-plus cities are the last names, once the globe overfills the
+  // viewport.
+  labelMillionFade: [0.8, 0.9],
   dayFade: 1,
   cameraLift: 0.0025,
 }

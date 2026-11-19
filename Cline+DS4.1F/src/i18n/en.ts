@@ -158,7 +158,7 @@ export const en = {
   'planet.worldMapHint': 'off by default',
   'planet.worldMapToggle': 'Borders, capitals and cities',
   'planet.worldMapToggleDesc':
-    'National and regional borders, capitals and major cities worldwide. Real Natural Earth map data, aligned to the surface and following the terrain.',
+    'National and regional borders, national and state/provincial capitals, and major cities worldwide — every city of a million people or more included. Real Natural Earth map data, aligned to the surface and following the terrain. The densest names appear when you zoom in close.',
   'planet.countryNames': 'Country names',
   'planet.countryNamesDesc': 'Name countries instead of the smaller cities.',
   'planet.capitalNames': 'Capital names',

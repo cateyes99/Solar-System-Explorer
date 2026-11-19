@@ -45,7 +45,8 @@ import type { TerrainRelief } from './terrain'
 
 /**
  * The optional "World map" overlay: national borders, regional (state/province)
- * borders, country names, capitals and major cities.
+ * borders, country names, national and state/provincial capitals, and cities
+ * down to about a million people.
  *
  * It is real Natural Earth vector data (public domain — see
  * `public/geo/CREDITS.md`), drawn as a single merged `LineSegments2` per border
@@ -343,9 +344,9 @@ function buildMarkerOverlay(
   return points
 }
 
-/** One name the overlay draws: a country, a capital, or another city. */
+/** One name the overlay draws: a country, a national or regional capital, or another city. */
 export interface MapLabelEntry {
-  kind: 'country' | 'capital' | 'city'
+  kind: 'country' | 'capital' | 'state' | 'city'
   name: string
   lon: number
   lat: number
@@ -434,6 +435,10 @@ function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: 
         element.style.color = visuals.capitalLabel.color
         element.style.background = visuals.capitalLabel.background
         element.style.borderColor = visuals.capitalLabel.border
+      } else if (entry.kind === 'state') {
+        element.style.color = visuals.stateCapitalLabel.color
+        element.style.background = visuals.stateCapitalLabel.background
+        element.style.borderColor = visuals.stateCapitalLabel.border
       } else if (entry.kind === 'country') {
         element.style.color = visuals.countryLabel.color
         element.style.background = visuals.countryLabel.background
@@ -603,7 +608,9 @@ export function EarthMap({
   const { language } = useTranslation()
   const groupRef = useRef<Group>(null)
   const [labelsVisible, setLabelsVisible] = useState(false)
-  // 0 names only the biggest places; 1 adds every capital and major city.
+  // 0 names only the biggest places; 1 adds the rest of the national capitals and
+  // largest cities; 2 adds the state/provincial capitals; 3 adds every city of a
+  // million people or more once the viewer is close enough.
   const [labelTier, setLabelTier] = useState(0)
 
   const visuals = EARTH_MAP
@@ -664,8 +671,10 @@ export function EarthMap({
   // Which names are drawn. The city names carry their capitals always; the
   // country names carry them only when asked, because a capital's badge beside
   // its own country's name hides the smaller countries. Countries and cities
-  // both arrive in two importance tiers — the big names from the first close-up,
-  // the rest once the viewer zooms in.
+  // arrive in importance tiers — the big names from the first close-up, the rest
+  // once the viewer zooms in — followed by the state/provincial capitals, then
+  // cities of a million people or more at the closest tier, so they never crowd
+  // the wider views.
   const labelEntries = useMemo<MapLabelEntry[]>(() => {
     if (!data) return []
     const places = labelledPlaces(data.places)
@@ -684,7 +693,14 @@ export function EarthMap({
     } else {
       for (const place of places) {
         if (place.cap === 0 && place.tier <= labelTier) {
-          entries.push({ kind: 'city', name: placeName(place, language), lon: place.lon, lat: place.lat })
+          entries.push({
+            // A provincial seat keeps its own badge, even when its population
+            // would also have earned it a plain city name.
+            kind: place.stateCap === 1 ? 'state' : 'city',
+            name: placeName(place, language),
+            lon: place.lon,
+            lat: place.lat,
+          })
         }
       }
     }
@@ -729,12 +745,23 @@ export function EarthMap({
 
     // Labels only appear once Earth fills enough of the view, with hysteresis so
     // a camera parked on the threshold cannot flicker. A second, higher
-    // threshold reveals the smaller capitals and cities.
+    // threshold reveals the smaller capitals and cities; a third reveals the
+    // state/provincial capitals; a fourth, closer one reveals the million-plus
+    // cities.
     const wanted = showLabels && apparent > (labelsVisible ? visuals.labelFade[0] : visuals.labelFade[1])
     if (wanted !== labelsVisible) setLabelsVisible(wanted)
-    const detail =
-      showLabels && apparent > (labelTier >= 1 ? visuals.labelDetailFade[0] : visuals.labelDetailFade[1])
-    const nextTier = detail ? 1 : 0
+    let nextTier = 0
+    if (showLabels) {
+      const detail =
+        apparent > (labelTier >= 1 ? visuals.labelDetailFade[0] : visuals.labelDetailFade[1])
+      if (detail) nextTier = 1
+      const regional =
+        apparent > (labelTier >= 2 ? visuals.labelStateFade[0] : visuals.labelStateFade[1])
+      if (regional) nextTier = 2
+      const million =
+        apparent > (labelTier >= 3 ? visuals.labelMillionFade[0] : visuals.labelMillionFade[1])
+      if (million) nextTier = 3
+    }
     if (nextTier !== labelTier) setLabelTier(nextTier)
   })
 

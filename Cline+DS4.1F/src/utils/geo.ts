@@ -6,9 +6,9 @@ import type { QualityLevel } from '../types'
  * The files live in `public/geo` (see `tools/fetch-geo.mjs` and
  * `public/geo/CREDITS.md`) and are real Natural Earth data — public domain —
  * rather than hand-drawn: national borders, regional (state/province) borders,
- * capitals and major cities. They are fetched the first time the layer is turned
- * on and cached for the session, so a viewer who never opens the map never pays
- * for it.
+ * national and state/provincial capitals, and cities down to about a million
+ * people. They are fetched the first time the layer is turned on and cached for
+ * the session, so a viewer who never opens the map never pays for it.
  *
  * Everything here is deliberately pure: no Three.js and no DOM. The projection
  * and the geometry builders are unit-tested (see `tests/geo.test.ts`), and the
@@ -34,6 +34,12 @@ export interface GeoPlace {
   lat: number
   /** 1 for a national capital, 0 otherwise. */
   cap: number
+  /**
+   * 1 for a state, province or other regional capital — Natural Earth's
+   * `Admin-1 capital`, `Admin-1 region capital` and `Admin-0 region capital`
+   * classes — and 0 otherwise. A national capital is marked by `cap` instead.
+   */
+  stateCap: number
   /** Metro population estimate, used only to size the marker. */
   pop: number
   /** Natural Earth importance rank; 0 is the most important. */
@@ -41,8 +47,10 @@ export interface GeoPlace {
   /** 1 when the place is important enough to carry a text label. */
   label: number
   /**
-   * Label importance: 0 for the biggest places, named from the first close-up,
-   * and 1 for the rest, named once the viewer zooms in further. Meaningless when
+   * Label importance: 0 for the biggest places, named from the first close-up;
+   * 1 for the rest of the national capitals and largest cities, named once the
+   * viewer zooms in further; 2 for state/provincial capitals; 3 for cities of at
+   * least a million people, named only at the closest zoom. Meaningless when
    * `label` is 0.
    */
   tier: number
