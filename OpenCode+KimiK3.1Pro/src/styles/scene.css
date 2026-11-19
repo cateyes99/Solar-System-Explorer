@@ -1,0 +1,38 @@
+.planet-panel { position: absolute; z-index: 70; top: 91px; right: 24px; bottom: 112px; width: 338px; padding: 23px; border-radius: 16px; overflow-x: hidden; overflow-y: auto; }
+.planet-panel__close { position: absolute; z-index: 2; right: 13px; top: 13px; }
+.planet-panel__hero { position: relative; padding-top: 4px; }
+.planet-panel__hero .eyebrow { margin-top: 16px; color: #627a8f; font-size: 7px; }
+.planet-panel__hero h2 { margin-top: 6px; font-size: 32px; font-weight: 400; letter-spacing: -.045em; }
+.planet-portrait { --planet-color: #888; --planet-accent: #aaa; position: relative; width: 102px; height: 102px; margin: 1px auto 15px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #ffffff80, transparent 35%), var(--planet-color); box-shadow: inset -22px -13px 28px #000b, -9px 5px 35px #0008, 0 0 30px color-mix(in srgb, var(--planet-color) 17%, transparent); }
+.planet-portrait::after { content: ''; position: absolute; inset: -6px; border: 1px solid color-mix(in srgb, var(--planet-accent) 12%, transparent); border-radius: 50%; }
+.planet-portrait--sun { background: radial-gradient(circle at 36% 30%, #fffbd0 0, #ffd06b 22%, #f79432 55%, #be3e16 100%); box-shadow: inset -14px -10px 25px #b83b2550, 0 0 30px #ff9a3970, 0 0 70px #ff7b2c25; }
+.planet-portrait--moon { background: radial-gradient(circle at 32% 28%, #99988e 0 5%, transparent 6%), radial-gradient(circle at 62% 60%, #62625d 0 8%, transparent 9%), radial-gradient(circle at 30% 25%, #deddd2, #8b8c87 60%, #424541); }
+.planet-portrait--saturn { margin-top: 18px; margin-bottom: 28px; }
+.planet-portrait--saturn > i { position: absolute; z-index: -1; left: -37px; top: 34px; width: 176px; height: 40px; border: 12px double #b8a77c; border-left-color: #d7c99e; border-right-color: #807556; border-radius: 50%; transform: rotate(-18deg); box-shadow: 0 0 8px #c9b99030; }
+.planet-type { margin-top: 7px; display: flex; align-items: center; gap: 7px; color: #8b9eb1; font-size: 10px; }
+.planet-type span { width: 4px; height: 4px; border-radius: 50%; }
+.planet-description { margin-top: 17px; color: #8b9daf; font-size: 11px; line-height: 1.7; }
+.camera-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 17px; }
+.camera-actions button { height: 37px; display: flex; align-items: center; justify-content: center; gap: 6px; color: #8499ac; border: 1px solid var(--line); border-radius: 8px; font-size: 9px; }
+.camera-actions button:hover, .camera-actions button.active { color: var(--cyan); border-color: #79ddff38; background: #79ddff09; }
+.planet-stats { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.planet-stats > div { min-height: 69px; padding: 12px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.planet-stats span { display: block; color: #536b80; font-family: var(--display); font-size: 6px; letter-spacing: .13em; }
+.planet-stats strong { display: block; margin-top: 7px; color: #d1dfe9; font-family: var(--display); font-size: 11px; font-weight: 500; line-height: 1.35; }
+.planet-stats small { color: #71879a; font-size: 8px; font-weight: 400; }
+.planet-facts { margin-top: 23px; }
+.planet-facts h3 { margin-bottom: 10px; color: #afc1d0; font-size: 11px; font-weight: 500; }
+.planet-facts > div { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #a5c5db0b; }
+.planet-facts > div > span { padding-top: 2px; color: #49657b; font-family: var(--display); font-size: 7px; }
+.planet-facts p { color: #8398aa; font-size: 10px; line-height: 1.6; }
+.did-you-know { margin-top: 18px; padding: 14px; display: flex; align-items: flex-start; gap: 10px; border: 1px solid #ffb45d22; border-radius: 10px; background: #ffb45d07; }
+.did-you-know > svg { color: var(--orange); flex-shrink: 0; }
+.did-you-know h3 { color: #e9c18f; font-size: 10px; font-weight: 500; }
+.did-you-know p { margin-top: 6px; color: #aa9985; font-size: 10px; line-height: 1.65; }
+.data-note { margin-top: 15px; color: #475f73; font-size: 8px; line-height: 1.55; }
+.what-if-banner { position: absolute; z-index: 65; top: 87px; left: 50%; transform: translateX(-50%); width: 390px; padding: 14px 16px; border-color: #c1a0ff30; border-radius: 12px; }
+.what-if-banner > span { display: flex; align-items: center; gap: 6px; color: #c6aaff; font-family: var(--display); font-size: 7px; letter-spacing: .12em; }
+.what-if-banner > strong { display: block; margin-top: 8px; font-family: var(--display); font-size: 14px; font-weight: 500; }
+.what-if-banner > p { margin-top: 7px; color: #8e9aae; font-size: 9px; line-height: 1.55; }
+.what-if-banner > button { margin-top: 10px; display: flex; align-items: center; gap: 5px; color: #a5b6c8; font-size: 8px; }
+.what-if-banner > button:hover { color: white; }

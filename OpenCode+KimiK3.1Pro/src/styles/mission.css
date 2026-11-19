@@ -1,0 +1,44 @@
+.mission-control { position: absolute; z-index: 70; top: 91px; right: 24px; width: 310px; max-height: calc(100dvh - 210px); padding: 18px; overflow-y: auto; border-radius: 15px; }
+.mission-control > header { display: flex; align-items: center; gap: 10px; }
+.mission-icon { width: 35px; height: 35px; display: grid; place-items: center; color: var(--cyan); border: 1px solid #79ddff28; border-radius: 9px; background: #79ddff0a; }
+.mission-control header > div { flex: 1; }
+.mission-control header h2 { margin-top: 2px; font-size: 17px; font-weight: 400; }
+.mission-control header .icon-button { width: 29px; height: 29px; }
+.mission-status { margin-top: 15px; padding: 8px 9px; display: flex; align-items: center; gap: 6px; color: #7ea491; border: 1px solid #71d9ae17; border-radius: 6px; background: #71d9ae06; font-family: var(--display); font-size: 6px; letter-spacing: .1em; }
+.mission-status small { margin-left: auto; color: #465f5b; font-size: 5px; }
+.telemetry { display: grid; grid-template-columns: 1fr 1.35fr; gap: 8px; margin-top: 13px; }
+.telemetry > div { padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: #060b1355; }
+.telemetry span, .destination-select > span { display: block; color: #536c80; font-family: var(--display); font-size: 6px; letter-spacing: .12em; }
+.telemetry strong { display: block; margin-top: 6px; color: #d1e2ed; font-family: var(--display); font-size: 17px; font-weight: 400; }
+.telemetry small { color: #668095; font-size: 8px; }
+.destination-select { display: block; margin-top: 15px; }
+.destination-select > div { position: relative; margin-top: 7px; }
+.destination-select svg { position: absolute; z-index: 1; left: 10px; top: 10px; color: #6d8da3; pointer-events: none; }
+.destination-select select { width: 100%; padding-left: 32px; }
+.autopilot-actions { display: flex; gap: 6px; margin-top: 8px; }
+.autopilot-actions button { height: 34px; display: flex; align-items: center; justify-content: center; gap: 7px; color: #7892a6; border: 1px solid var(--line); border-radius: 7px; font-size: 8px; }
+.autopilot-actions button:first-child { flex: 1; }
+.autopilot-actions button:last-child { width: 36px; }
+.autopilot-actions button.active { color: var(--cyan); border-color: #79ddff40; background: #79ddff0c; }
+.flight-pad { margin-top: 16px; padding: 12px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 9px; background: #050a1255; }
+.flight-pad__grid { display: grid; grid-template-columns: repeat(3, 30px); gap: 4px; }
+.flight-key { min-width: 30px; height: 30px; display: grid; place-items: center; color: #8299ad; border: 1px solid #2a3e52; border-radius: 5px; background: #111c29; touch-action: none; user-select: none; }
+.flight-key:active { color: #06131a; background: var(--cyan); transform: translateY(1px); }
+.vertical-keys { display: flex; flex-direction: column; gap: 5px; }
+.flight-pad > .flight-key { margin-left: auto; width: 43px; height: 43px; border-radius: 50%; color: #d1a7ff; border-color: #b69aff30; background: #b69aff0b; }
+.flight-pad > .flight-key span { font-family: var(--display); font-size: 6px; }
+.flight-hint { margin-top: 8px; color: #4f687c; font-size: 7px; text-align: center; }
+.track-ship { width: 100%; height: 34px; margin-top: 13px; display: flex; align-items: center; justify-content: center; gap: 7px; color: #8ba5b7; border: 1px solid var(--line); border-radius: 7px; font-size: 9px; }
+.track-ship:hover { color: var(--cyan); }
+.mission-control .panel-footnote { margin-top: 11px; font-size: 7px; }
+.what-if-intro { margin-bottom: 18px; }
+.what-if-intro svg { color: #c6a4ff; }
+.experiment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.experiment-card { position: relative; min-height: 238px; padding: 20px; text-align: left; border: 1px solid var(--line); border-radius: 12px; background: #0b121e; transition: transform .2s, border-color .2s, background .2s; }
+.experiment-card:hover, .experiment-card.active { transform: translateY(-2px); border-color: #b69aff45; background: #111528; }
+.experiment-card__icon { width: 45px; height: 45px; margin-bottom: 15px; display: grid; place-items: center; color: #c0a6f1; border: 1px solid #b69aff24; border-radius: 11px; background: #b69aff09; }
+.experiment-card > small { position: absolute; top: 24px; right: 19px; color: #524b69; font-family: var(--display); font-size: 6px; letter-spacing: .13em; }
+.experiment-card h3 { font-size: 19px; font-weight: 400; }
+.experiment-card > strong { display: block; margin-top: 6px; color: #8c9eb1; font-size: 10px; font-weight: 500; }
+.experiment-card > p { margin-top: 11px; color: #718397; font-size: 9px; line-height: 1.65; }
+.experiment-card__action { position: absolute; left: 20px; bottom: 18px; display: flex; align-items: center; gap: 7px; color: #bca4e8; font-size: 9px; }
