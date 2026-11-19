@@ -1,8 +1,9 @@
 # World map data credits
 
 The optional **World map** layer (national boundaries, regional boundaries,
-country names, capitals and major cities) is built from **Natural Earth**
-vector data.
+country names, national and state/provincial capitals, and major cities —
+including every city of a million people or more) is built from **Natural
+Earth** vector data.
 
 - Source: [Natural Earth](https://www.naturalearthdata.com/), from the
   project’s own vector repository (`nvkelso/natural-earth-vector`).
@@ -10,8 +11,12 @@ vector data.
   Crediting the authors is unnecessary." Attribution is given here anyway.
 - Layers: `admin_0_boundary_lines_land` (national borders),
   `admin_1_states_provinces_lines` (regional borders), `admin_0_countries`
-  (country names and their label points) and `populated_places` (capitals and
-  cities).
+  (country names and their label points) and `populated_places` (national and
+  state/provincial capitals, and cities of every size).
+- State/provincial capitals are the `Admin-1 capital`, `Admin-1 region capital`
+  and `Admin-0 region capital` classes in `populated_places`; cities with a
+  population of at least one million are named too. The provincial seats come
+  first, with the million-plus cities at the closest zoom.
 - Projection: WGS84 geographic (longitude/latitude), the same equirectangular
   layout as the surface maps, so the overlay lines up with the continents.
 - Place names carry Natural Earth’s localized names (`NAME_ZH`), so the city

@@ -155,18 +155,21 @@ test('labelled places are ordered by tier, then capitals-first by population', (
     label: number,
     tier: number,
     zh = '',
-  ): GeoPlace => ({ name, zh, lon: 0, lat: 0, cap, pop, rank: 0, label, tier })
+  ): GeoPlace => ({ name, zh, lon: 0, lat: 0, cap, stateCap: 0, pop, rank: 0, label, tier })
   const places = [
     place('Small Town', 0, 1_000, 0, 1),
     place('Secondary City', 0, 20_000_000, 1, 1),
     place('Capital', 1, 500_000, 1, 0),
     place('Mega City', 0, 40_000_000, 1, 0),
+    place('Million City', 0, 1_200_000, 1, 3),
+    place('State Capital', 0, 5_000_000, 1, 2),
   ]
   const labelled = labelledPlaces(places)
-  // Tier 0 first (a capital before a larger non-capital), then tier 1.
+  // Tier 0 first (a capital before a larger non-capital), then tier 1, the
+  // state/provincial capitals, and the million-plus cities at the deepest tier.
   assert.deepEqual(
     labelled.map((entry) => entry.name),
-    ['Capital', 'Mega City', 'Secondary City'],
+    ['Capital', 'Mega City', 'Secondary City', 'State Capital', 'Million City'],
   )
 })
 
@@ -177,6 +180,7 @@ test('a place name follows the interface language, falling back to English', () 
     lon: 0,
     lat: 0,
     cap: 1,
+    stateCap: 0,
     pop: 1,
     rank: 0,
     label: 1,

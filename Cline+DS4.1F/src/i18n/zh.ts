@@ -157,7 +157,7 @@ export const zh: Record<TranslationKey, string> = {
   'planet.worldMapHint': '默认关闭',
   'planet.worldMapToggle': '国界、首都与城市',
   'planet.worldMapToggleDesc':
-    '全世界的国界、行政区界、首都与主要城市。真实的 Natural Earth 地图数据，与地表对齐并贴合地形。',
+    '全世界的国界、行政区界、国家首都、州/省首府以及主要城市，包含所有人口一百万以上的城市。真实的 Natural Earth 地图数据，与地表对齐并贴合地形。名称越密集，需要的缩放越近；将鼠标悬停在任意城市圆点上即可显示其名称。',
   'planet.countryNames': '国家名称',
   'planet.countryNamesDesc': '显示国家名称而非较小的城市名称。',
   'planet.capitalNames': '首都名称',

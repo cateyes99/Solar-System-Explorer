@@ -12,7 +12,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import type { Group } from 'three'
+import type { Camera, Group } from 'three'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
@@ -45,7 +45,8 @@ import type { TerrainRelief } from './terrain'
 
 /**
  * The optional "World map" overlay: national borders, regional (state/province)
- * borders, country names, capitals and major cities.
+ * borders, country names, national and state/provincial capitals, and cities
+ * down to about a million people.
  *
  * It is real Natural Earth vector data (public domain — see
  * `public/geo/CREDITS.md`), drawn as a single merged `LineSegments2` per border
@@ -65,6 +66,11 @@ import type { TerrainRelief } from './terrain'
  * is off by default, because a capital's badge beside its own country's name
  * hides the smaller countries; with the city names the capitals are always
  * there, and there is room for them.
+ *
+ * A city that carries no name at all still answers the pointer: hovering its dot
+ * brings its name up for as long as the pointer stays by it, so the small places
+ * are discoverable without crowding every view with several hundred more names
+ * (see `pickUnlabelledCity`).
  *
  * It only ever exists for Earth, is off by default, and loads its data the first
  * time it is switched on.
@@ -343,9 +349,9 @@ function buildMarkerOverlay(
   return points
 }
 
-/** One name the overlay draws: a country, a capital, or another city. */
+/** One name the overlay draws: a country, a national or regional capital, or another city. */
 export interface MapLabelEntry {
-  kind: 'country' | 'capital' | 'city'
+  kind: 'country' | 'capital' | 'state' | 'city'
   name: string
   lon: number
   lat: number
@@ -434,6 +440,10 @@ function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: 
         element.style.color = visuals.capitalLabel.color
         element.style.background = visuals.capitalLabel.background
         element.style.borderColor = visuals.capitalLabel.border
+      } else if (entry.kind === 'state') {
+        element.style.color = visuals.stateCapitalLabel.color
+        element.style.background = visuals.stateCapitalLabel.background
+        element.style.borderColor = visuals.stateCapitalLabel.border
       } else if (entry.kind === 'country') {
         element.style.color = visuals.countryLabel.color
         element.style.background = visuals.countryLabel.background
@@ -587,6 +597,98 @@ function refreshOccluders(cameraPosition: Vector3): number {
   return bodies.length
 }
 
+/**
+ * One unlabelled city, with the direction and elevation its marker is drawn at —
+ * the same figures `MapLabels` uses, so the pointer is tested against the dot
+ * the viewer actually sees.
+ */
+interface HoverCandidate {
+  place: GeoPlace
+  dir: Vector3
+  height: number
+}
+
+/** How near a marker the pointer has to come to name it, in CSS pixels. */
+const HOVER_PICK_RADIUS = 8
+
+/**
+ * The nearest unlabelled city under the pointer, or null.
+ *
+ * Only the cities that never carry a name are candidates (see `EarthMap`), so a
+ * city that already shows its label never gains a second one. The test is done
+ * in screen space: each marker is projected exactly as the names are, the ones
+ * on the far side or behind another body are skipped with the names' own tests,
+ * and the closest dot within `HOVER_PICK_RADIUS` wins. Projecting a few hundred
+ * dots once a frame is far cheaper than turning the markers into pickable
+ * geometry, and it keeps the hit area generous enough to find a three-pixel dot.
+ */
+function pickUnlabelledCity(
+  candidates: HoverCandidate[],
+  camera: Camera,
+  group: Group,
+  terrain: TerrainRelief | null,
+  visuals: EarthMapVisuals,
+  pointer: { x: number; y: number },
+  width: number,
+  height: number,
+): GeoPlace | null {
+  if (candidates.length === 0) return null
+
+  // The same frame and cull set-up as `MapLabels`: the globe's own frame, one
+  // combined camera-and-globe matrix, and one quaternion inversion.
+  group.updateWorldMatrix(true, false)
+  group.matrixWorld.decompose(_centerWorld, _globeQuaternion, _globeScale)
+  _viewDirection.subVectors(camera.position, _centerWorld).normalize()
+  _globeQuaternion.invert()
+  _viewLocal.copy(_viewDirection).applyQuaternion(_globeQuaternion)
+
+  camera.updateMatrixWorld()
+  _projectionView
+    .multiplyMatrices(camera.projectionMatrix, _viewMatrix.copy(camera.matrixWorld).invert())
+    .multiply(group.matrixWorld)
+
+  const facingMin = limbFacingThreshold(visuals.label.limbRadius)
+  const terrainScale = terrain?.scale ?? 0
+  const terrainBias = terrain?.bias ?? 0
+  const lift = visuals.label.lift
+  const occluderCount = refreshOccluders(camera.position)
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+  let picked: GeoPlace | null = null
+  let nearest = HOVER_PICK_RADIUS * HOVER_PICK_RADIUS
+
+  for (const candidate of candidates) {
+    const dir = candidate.dir
+    // 1 at the point facing the camera, 0 at the limb, negative behind it.
+    if (dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z <= facingMin) continue
+    const radius = 1 + candidate.height * terrainScale + terrainBias + lift
+    // The same hand-run occlusion test the names get: the globe and the other
+    // worlds are never depth-tested against either.
+    _anchor.copy(dir).multiplyScalar(radius).applyMatrix4(group.matrixWorld)
+    const rayLength = cameraRayTo(_anchor, camera.position, _labelRay)
+    if (rayLength > 0) {
+      let blocked = false
+      for (let body = 0; body < occluderCount; body += 1) {
+        if (rayBlockedBySphere(_labelRay, rayLength, _occluderCentres[body], _occluderRadii[body])) {
+          blocked = true
+          break
+        }
+      }
+      if (blocked) continue
+    }
+    _ndc.copy(dir).multiplyScalar(radius).applyMatrix4(_projectionView)
+    if (_ndc.x < -1 || _ndc.x > 1 || _ndc.y < -1 || _ndc.y > 1) continue
+    const dx = (_ndc.x + 1) * halfWidth - pointer.x
+    const dy = (1 - _ndc.y) * halfHeight - pointer.y
+    const distance = dx * dx + dy * dy
+    if (distance < nearest) {
+      nearest = distance
+      picked = candidate.place
+    }
+  }
+  return picked
+}
+
 export function EarthMap({
   radius,
   uvOffsetU,
@@ -599,12 +701,20 @@ export function EarthMap({
   showCapitalNames,
 }: EarthMapProps) {
   const data = useGeoData(quality)
+  const gl = useThree((state) => state.gl)
   // The names follow the interface language, like every other label.
   const { language } = useTranslation()
   const groupRef = useRef<Group>(null)
   const [labelsVisible, setLabelsVisible] = useState(false)
-  // 0 names only the biggest places; 1 adds every capital and major city.
+  // 0 names only the biggest places; 1 adds the rest of the national capitals and
+  // largest cities; 2 adds the state/provincial capitals; 3 adds every city of a
+  // million people or more once the viewer is close enough.
   const [labelTier, setLabelTier] = useState(0)
+  // The unlabelled city under the pointer, if any, and where the pointer is in
+  // canvas pixels (null while it is elsewhere or a drag is under way).
+  const [hovered, setHovered] = useState<GeoPlace | null>(null)
+  const hoveredRef = useRef<GeoPlace | null>(null)
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
 
   const visuals = EARTH_MAP
   const uniforms = useMemo(
@@ -633,6 +743,53 @@ export function EarthMap({
     () => createElevationSampler(uvOffsetU, meshColumns, meshRows),
     [uvOffsetU, meshColumns, meshRows],
   )
+
+  // The dots that answer the pointer: the cities that never carry a name. A city
+  // that already carries one would only be given a second label, so it is left
+  // to the names (see `pickUnlabelledCity`).
+  const hoverCandidates = useMemo<HoverCandidate[]>(() => {
+    if (!data) return []
+    const candidates: HoverCandidate[] = []
+    for (const place of data.places) {
+      if (place.label === 1) continue
+      const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
+      candidates.push({
+        place,
+        dir: new Vector3(x, y, z),
+        height: sampler ? sampler(place.lon, place.lat) : 0,
+      })
+    }
+    return candidates
+  }, [data, uvOffsetU, sampler])
+
+  // The pointer's own position, tracked on the canvas. A drag clears it (the
+  // viewer is turning the globe, not pointing at a city), and so does leaving the
+  // canvas for the interface. Touch is ignored: hovering is a mouse gesture, and
+  // a finger has no hover state to leave.
+  useEffect(() => {
+    const canvas = gl.domElement
+    const track = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') return
+      const bounds = canvas.getBoundingClientRect()
+      pointerRef.current =
+        event.buttons === 0
+          ? { x: event.clientX - bounds.left, y: event.clientY - bounds.top }
+          : null
+    }
+    const forget = () => {
+      pointerRef.current = null
+    }
+    canvas.addEventListener('pointermove', track)
+    canvas.addEventListener('pointerdown', forget)
+    canvas.addEventListener('pointerleave', forget)
+    canvas.addEventListener('pointercancel', forget)
+    return () => {
+      canvas.removeEventListener('pointermove', track)
+      canvas.removeEventListener('pointerdown', forget)
+      canvas.removeEventListener('pointerleave', forget)
+      canvas.removeEventListener('pointercancel', forget)
+    }
+  }, [gl])
 
   const borders = useMemo(
     () => (data ? buildLineOverlay(data.borders, uvOffsetU, uniforms, visuals.border) : null),
@@ -664,8 +821,10 @@ export function EarthMap({
   // Which names are drawn. The city names carry their capitals always; the
   // country names carry them only when asked, because a capital's badge beside
   // its own country's name hides the smaller countries. Countries and cities
-  // both arrive in two importance tiers — the big names from the first close-up,
-  // the rest once the viewer zooms in.
+  // arrive in importance tiers — the big names from the first close-up, the rest
+  // once the viewer zooms in — followed by the state/provincial capitals, then
+  // cities of a million people or more at the closest tier, so they never crowd
+  // the wider views.
   const labelEntries = useMemo<MapLabelEntry[]>(() => {
     if (!data) return []
     const places = labelledPlaces(data.places)
@@ -684,7 +843,14 @@ export function EarthMap({
     } else {
       for (const place of places) {
         if (place.cap === 0 && place.tier <= labelTier) {
-          entries.push({ kind: 'city', name: placeName(place, language), lon: place.lon, lat: place.lat })
+          entries.push({
+            // A provincial seat keeps its own badge, even when its population
+            // would also have earned it a plain city name.
+            kind: place.stateCap === 1 ? 'state' : 'city',
+            name: placeName(place, language),
+            lon: place.lon,
+            lat: place.lat,
+          })
         }
       }
     }
@@ -699,7 +865,24 @@ export function EarthMap({
     return entries
   }, [data, language, showCountryNames, showCapitalNames, labelTier])
 
-  useFrame(({ camera, gl }) => {
+  // The hovered city's name, in its own one-entry overlay so that moving between
+  // dots never rebuilds the several hundred names above.
+  const hoverEntries = useMemo<MapLabelEntry[]>(
+    () =>
+      hovered
+        ? [
+            {
+              kind: hovered.stateCap === 1 ? 'state' : 'city',
+              name: placeName(hovered, language),
+              lon: hovered.lon,
+              lat: hovered.lat,
+            },
+          ]
+        : [],
+    [hovered, language],
+  )
+
+  useFrame(({ camera, size }) => {
     const group = groupRef.current
     if (!group) return
 
@@ -729,13 +912,47 @@ export function EarthMap({
 
     // Labels only appear once Earth fills enough of the view, with hysteresis so
     // a camera parked on the threshold cannot flicker. A second, higher
-    // threshold reveals the smaller capitals and cities.
+    // threshold reveals the smaller capitals and cities; a third reveals the
+    // state/provincial capitals; a fourth, closer one reveals the million-plus
+    // cities.
     const wanted = showLabels && apparent > (labelsVisible ? visuals.labelFade[0] : visuals.labelFade[1])
     if (wanted !== labelsVisible) setLabelsVisible(wanted)
-    const detail =
-      showLabels && apparent > (labelTier >= 1 ? visuals.labelDetailFade[0] : visuals.labelDetailFade[1])
-    const nextTier = detail ? 1 : 0
+    let nextTier = 0
+    if (showLabels) {
+      const detail =
+        apparent > (labelTier >= 1 ? visuals.labelDetailFade[0] : visuals.labelDetailFade[1])
+      if (detail) nextTier = 1
+      const regional =
+        apparent > (labelTier >= 2 ? visuals.labelStateFade[0] : visuals.labelStateFade[1])
+      if (regional) nextTier = 2
+      const million =
+        apparent > (labelTier >= 3 ? visuals.labelMillionFade[0] : visuals.labelMillionFade[1])
+      if (million) nextTier = 3
+    }
     if (nextTier !== labelTier) setLabelTier(nextTier)
+
+    // Name the city under the pointer, if it is one that carries no name of its
+    // own. The dots are only worth aiming at once Earth is large enough for the
+    // permanent names to be about to appear, and the test runs every frame so a
+    // turning globe takes the name away with the dot.
+    const pointer = pointerRef.current
+    const picked =
+      pointer && apparent > visuals.labelFade[1]
+        ? pickUnlabelledCity(
+            hoverCandidates,
+            camera,
+            group,
+            terrain,
+            visuals,
+            pointer,
+            size.width,
+            size.height,
+          )
+        : null
+    if (picked !== hoveredRef.current) {
+      hoveredRef.current = picked
+      setHovered(picked)
+    }
   })
 
   if (!data) return null
@@ -748,6 +965,19 @@ export function EarthMap({
       {labelsVisible ? (
         <MapLabels
           entries={labelEntries}
+          uvOffsetU={uvOffsetU}
+          sampler={sampler}
+          terrain={terrain}
+          groupRef={groupRef}
+          visuals={visuals}
+        />
+      ) : null}
+      {/* The hovered city's name gets its own overlay, so the permanent names are
+          never rebuilt when the pointer moves from one dot to the next. It is not
+          tied to the labels' switch: the dots always answer the pointer. */}
+      {hoverEntries.length > 0 ? (
+        <MapLabels
+          entries={hoverEntries}
           uvOffsetU={uvOffsetU}
           sampler={sampler}
           terrain={terrain}

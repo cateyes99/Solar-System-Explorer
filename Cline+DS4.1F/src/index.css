@@ -226,6 +226,14 @@
     box-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
   }
 
+  /* A state/provincial capital: the mint counterpart to a national capital's
+     amber, on its own ringed badge but lighter than the country's own seat. */
+  .sse-map-label--state {
+    font-weight: 500;
+    border: 1px solid;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  }
+
   /* A country: wide-tracked and uppercase, with no dot — a cartographer's name
      rather than a marker's. */
   .sse-map-label--country {
