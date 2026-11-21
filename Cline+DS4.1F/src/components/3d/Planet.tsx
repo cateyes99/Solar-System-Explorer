@@ -30,6 +30,7 @@ import {
 import {
   MOUNTAIN_SHEEN_FRAGMENT_PARS,
   MOUNTAIN_SHEEN_ROUGHNESS,
+  SEAFLOOR_COAST_CLIP,
   SEAFLOOR_COLOR_BLEND,
   SEAFLOOR_FRAGMENT_PARS,
   SEAFLOOR_NORMAL_BUMP,
@@ -318,6 +319,7 @@ export function Planet({
             state.earthSeawaterOpacity,
           ),
           enabled: hasTexture(visuals.seafloor.bathymetryMapId),
+          layeredWater: seawaterModeFor(state.earthSeawaterMode).layeredWater,
         }
       : null
     return createTerrainUniforms(
@@ -388,7 +390,10 @@ export function Planet({
             '#include <normal_pars_fragment>',
             `#include <normal_pars_fragment>\n${SEAFLOOR_FRAGMENT_PARS}\n${MOUNTAIN_SHEEN_FRAGMENT_PARS}`,
           )
-          .replace('#include <map_fragment>', `#include <map_fragment>\n${SEAFLOOR_COLOR_BLEND}`)
+          .replace(
+            '#include <map_fragment>',
+            `${SEAFLOOR_COAST_CLIP}\n#include <map_fragment>\n${SEAFLOOR_COLOR_BLEND}`,
+          )
           .replace(
             '#include <roughnessmap_fragment>',
             `#include <roughnessmap_fragment>\n${MOUNTAIN_SHEEN_ROUGHNESS}\n${SEAFLOOR_ROUGHNESS_BLEND}`,
@@ -425,12 +430,13 @@ export function Planet({
     if (!terrainUniforms || !visuals.seafloor || !seafloorFloor) return
     const { uniforms } = terrainUniforms
     uniforms.uSeawaterOpacity.value = seafloorOpacity
+    uniforms.uLayeredWater.value = seawaterMode.layeredWater ? 1 : 0
     uniforms.uSeafloorScale.value = seafloorFloor.maxDepthRadius
     // Like the land's `material.bumpScale`, the seafloor's bump strength is the
     // object-space depth scaled by the planet's drawn radius.
     uniforms.uSeafloorBumpScale.value = radius * seafloorFloor.maxDepthRadius
     uniforms.uBathyEnabled.value = hasTexture(visuals.seafloor.bathymetryMapId) ? 1 : 0
-  }, [terrainUniforms, visuals.seafloor, seafloorFloor, seafloorOpacity, radius])
+  }, [terrainUniforms, visuals.seafloor, seafloorFloor, seafloorOpacity, seawaterMode.layeredWater, radius])
 
   // The "Mountain Sheen" switch is a live uniform as well, so flipping it is one
   // number write and never a material rebuild or shader recompile.

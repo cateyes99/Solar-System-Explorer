@@ -10,13 +10,15 @@ function shaderChunk(name: string): string {
 }
 
 // Node cannot execute the GLSL, so these source-level checks pin the coastal
-// displacement contract and the single declarations needed by both materials
-// that inject these chunks (the planet and its night lights).
-test('revealed seafloor attenuates land relief by the dry fraction of coastal texels', () => {
-  const displacement = shaderChunk('TERRAIN_VERTEX_DISPLACE')
-  assert.match(displacement, /uBathyEnabled > 0\.5 && uSeawaterOpacity < 0\.999/)
-  assert.match(displacement, /texture2D\(uWaterMask, terrainUv\)\.r/)
-  assert.match(displacement, /max\(landOffset, 0\.0\) \* \(1\.0 - water\)/)
+// clipping contract and the single declarations needed by both materials that
+// inject the vertex chunks (the planet and its night lights).
+test('layered water clips only above-sea fragments in real water', () => {
+  const clip = shaderChunk('SEAFLOOR_COAST_CLIP')
+  assert.match(clip, /uLayeredWater > 0\.5 && uBathyEnabled > 0\.5 && vSurfaceRadius > 1\.000001/)
+  assert.match(clip, /water >= 0\.004 && bathyTexel > 0\.0/)
+  assert.match(clip, /discard/)
+  const displacement = shaderChunk('SEAFLOOR_VERTEX_DISPLACE')
+  assert.match(displacement, /vSurfaceRadius = length\(transformed\)/)
 })
 
 test('terrain and seafloor vertex chunks declare their shared uniforms exactly once', () => {

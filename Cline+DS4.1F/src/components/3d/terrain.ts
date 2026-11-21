@@ -122,6 +122,8 @@ export interface TerrainUniforms {
     /** The colour the water column scatters toward. */
     uSeafloorWaterTint: { value: Color }
     uBathyEnabled: { value: number }
+    /** 1 only in Volumetric mode, where a separate water mesh covers the floor. */
+    uLayeredWater: { value: number }
     /** 1 restores the old mirror-smooth land (the "Mountain Sheen" switch). */
     uMountainSheen: { value: number }
   }
@@ -151,6 +153,8 @@ export interface SeafloorBinding {
   opacity: number
   /** 1 when a real bathymetry map loaded, 0 when it is missing (feature off). */
   enabled: boolean
+  /** Whether a separate sea-level water mesh covers the drained solid surface. */
+  layeredWater: boolean
 }
 
 export function createTerrainUniforms(
@@ -188,6 +192,7 @@ export function createTerrainUniforms(
       },
       uSeafloorWaterTint: { value: new Color(seafloor?.visuals.waterTint ?? '#000000') },
       uBathyEnabled: { value: seafloor?.enabled ? 1 : 0 },
+      uLayeredWater: { value: seafloor?.layeredWater ? 1 : 0 },
       uMountainSheen: { value: mountainSheen ? 1 : 0 },
     },
   }
@@ -196,45 +201,34 @@ export function createTerrainUniforms(
 /** The uniform declarations a vertex shader needs to read the elevation model. */
 export const TERRAIN_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uTerrainMap;
-uniform sampler2D uWaterMask;
 uniform float uTerrainScale;
 uniform float uTerrainBias;
 uniform float uTerrainUvOffset;
-uniform float uSeawaterOpacity;
-uniform float uBathyEnabled;
 `
 
 /**
  * The land relief: the ground is pushed out along its own normal by the height
  * field, exactly as the map says. Sea level has a scale of zero, so the oceans
  * stay on the mean radius and only land moves.
- *
- * When the seafloor is revealed, the softened water mask also weights the land
- * term. Its mixed texels straddle each coast, where the independent elevation
- * and bathymetry fields can otherwise push adjacent vertices in opposite
- * directions and stretch a triangle through the sea-level water mesh. Fully
- * opaque surface mode keeps the original displacement exactly.
  */
 export const TERRAIN_VERTEX_DISPLACE = /* glsl */ `
 {
-  vec2 terrainUv = uv + vec2(uTerrainUvOffset, 0.0);
-  float terrainHeight = texture2D(uTerrainMap, terrainUv).x;
-  float landOffset = terrainHeight * uTerrainScale + uTerrainBias;
-  if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
-    float water = texture2D(uWaterMask, terrainUv).r;
-    landOffset = max(landOffset, 0.0) * (1.0 - water);
-  }
-  transformed += normalize(position) * landOffset;
+  float terrainHeight = texture2D(uTerrainMap, uv + vec2(uTerrainUvOffset, 0.0)).x;
+  transformed += normalize(position) * (terrainHeight * uTerrainScale + uTerrainBias);
 }
 `
 
 /** The seafloor's own vertex uniforms (shared by the surface material only). */
 export const SEAFLOOR_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uBathyMap;
+uniform sampler2D uWaterMask;
 uniform float uSeafloorScale;
 uniform float uSeafloorExponent;
 uniform float uSeafloorRevealGamma;
+uniform float uSeawaterOpacity;
+uniform float uBathyEnabled;
 varying vec2 vSeaUv;
+varying float vSurfaceRadius;
 `
 
 /**
@@ -264,6 +258,7 @@ if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   float drained = pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma);
   transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water);
 }
+vSurfaceRadius = length(transformed);
 `
 
 /** The seafloor's fragment uniforms and the shared "how much is revealed" term. */
@@ -279,8 +274,10 @@ uniform float uSeafloorRevealGamma;
 uniform vec3 uSeafloorAbsorption;
 uniform vec3 uSeafloorWaterTint;
 uniform float uBathyEnabled;
+uniform float uLayeredWater;
 uniform float uTerrainUvOffset;
 varying vec2 vSeaUv;
+varying float vSurfaceRadius;
 
 // The depth fraction at a seafloor UV: 0 at sea level, 1 at the deepest point.
 float seafloorDepthAt(vec2 seaUv) {
@@ -325,6 +322,24 @@ vec3 seafloorTransmittance(vec2 seaUv) {
 // terms (the colour blend uses the full per-channel transmittance instead).
 float seafloorVisibility(vec2 seaUv) {
   return clamp(dot(seafloorTransmittance(seaUv), vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+}
+`
+
+/**
+ * Clips the coastal "blades" in the layered water implementation. A coarse
+ * triangle can join an above-sea land vertex to a deep seafloor vertex; its
+ * interpolated middle then pierces the separate sea-level mesh even where the
+ * maps say there is water. Vertex weighting cannot remove that interior. Test
+ * the actual fragment instead, and discard only above-sea fragments covered by
+ * real water. The seafloor below sea level and every dry-land fragment remain.
+ * Surface mode never runs this clip because it has no second water mesh.
+ */
+export const SEAFLOOR_COAST_CLIP = /* glsl */ `
+if (uLayeredWater > 0.5 && uBathyEnabled > 0.5 && vSurfaceRadius > 1.000001) {
+  vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
+  float water = texture2D(uWaterMask, seaUv).r;
+  float bathyTexel = texture2D(uBathyMap, seaUv).r;
+  if (water >= 0.004 && bathyTexel > 0.0) discard;
 }
 `
 
