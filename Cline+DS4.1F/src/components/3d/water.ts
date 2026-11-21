@@ -2,6 +2,7 @@ import { Color, Vector2, Vector3 } from 'three'
 import type { Texture } from 'three'
 import type { OceanColour } from '../../data/oceanColours'
 import type { WaterVisuals } from '../../data/visuals'
+import { WATER_COVERAGE } from './terrain'
 
 /**
  * The ocean surface's shader plumbing.
@@ -416,6 +417,8 @@ varying vec3 vWaveBasisZ;
 varying vec3 vWaterWorldNormal;
 varying vec3 vWaterWorldPosition;
 
+${WATER_COVERAGE}
+
 // 3D value noise, sampled along the sphere's own direction: a solid field, so it
 // is continuous everywhere — no seam at longitude 0, nothing pinched at the
 // poles. (The same primitive the cloud deck is built from.)
@@ -531,13 +534,14 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
 {
   vec2 seaUv = vSeaUv + vec2(uUvOffset, 0.0);
   float waterMask = texture2D(uWaterMask, seaUv).r;
-  if (waterMask * uWaterAlpha < 0.004) discard;
+  float fullDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent);
+  // The solid relief pass uses this exact predicate before clipping a blade.
+  // If there is not enough alpha or the floor is above the current waterline,
+  // the water steps aside and the continuous solid surface remains visible.
+  if (!waterCovers(waterMask, fullDepth, uWaterAlpha, uSeaLevelDrop)) discard;
   // The depth fraction under this pixel, minus how far the surface has dropped:
   // 0 exactly at the waterline, 1 where the column is still at full depth.
-  float waterDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent) - uSeaLevelDrop;
-  // Above the waterline the floor is exposed; the opaque seafloor mesh already
-  // covers these pixels, so the water steps aside.
-  if (waterDepth <= 0.0) discard;
+  float waterDepth = fullDepth - uSeaLevelDrop;
   // The water's colour. For a tinted preset the day map's ocean is recoloured:
   // its *hue* is the day map's own blue, which the preset replaces. Its
   // *brightness* is dropped almost entirely — the day map's shading *is* the

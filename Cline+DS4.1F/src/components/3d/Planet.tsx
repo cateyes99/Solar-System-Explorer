@@ -9,6 +9,7 @@ import { MOON, satellitesOf } from '../../data/planets'
 import { orbitalPositionKm } from '../../utils/astronomy'
 import { clock } from '../../utils/simulationClock'
 import { bodyRadius, orbitRadiusFor, sceneFromEclipticKm } from '../../utils/scale'
+import { seaLevelDrop } from '../../utils/seawater'
 import {
   registerBody,
   registerBodyOccluder,
@@ -48,6 +49,7 @@ import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
 import { EarthMap } from './EarthMap'
 import { Ocean } from './Ocean'
+import { waterAlpha } from './water'
 import { NightLights } from './NightLights'
 import { Rings } from './Rings'
 import { Moon } from './Moon'
@@ -299,6 +301,12 @@ export function Planet({
   const terrainUniforms = useMemo(() => {
     if (!visuals.terrain) return null
     const state = useSimulationStore.getState()
+    const layeredFloor = visuals.seafloor
+      ? seafloorDisplacement(visuals.seafloor, state.earthSeafloorRelief)
+      : null
+    const layeredDrop = layeredFloor && layeredFloor.maxDepthRadius > 0
+      ? seaLevelDrop(state.earthSeaLevel) * layeredFloor.deepestFraction
+      : 0
     // The seafloor is bound once and then dialled through its uniforms, so the
     // sliders never rebuild the material or recompile the shader. A body without
     // a bathymetry map simply gets `null` and the shader stays inert.
@@ -320,6 +328,9 @@ export function Planet({
           ),
           enabled: hasTexture(visuals.seafloor.bathymetryMapId),
           layeredWater: seawaterModeFor(state.earthSeawaterMode).layeredWater,
+          waterAlpha: waterAlpha(state.earthSeawaterOpacity, visuals.water?.revealGamma ?? 1),
+          seaLevelDrop: layeredDrop,
+          waterSurfaceRadius: 1 - layeredDrop * (layeredFloor?.maxDepthRadius ?? 0),
         }
       : null
     return createTerrainUniforms(
@@ -412,6 +423,21 @@ export function Planet({
     return material
   }, [visuals, terrainUniforms])
 
+  // A second opaque pass exists only behind Volumetric Earth's relief. Its
+  // COAST_BACKING define caps above-water vertices just inside the live ocean
+  // radius and disables the coastal discard. Where the relief pass removes a
+  // false blade, this complete surface supplies the missing colour and depth;
+  // everywhere else it remains hidden behind the relief. Cloning preserves the
+  // exact maps and lighting, while the shared uniform objects keep both passes
+  // in lockstep. No extra pass is rendered in Surface mode or for other bodies.
+  const coastBackingMaterial = useMemo(() => {
+    if (!visuals.terrain || !terrainUniforms) return null
+    const material = surfaceMaterial.clone()
+    material.onBeforeCompile = surfaceMaterial.onBeforeCompile
+    material.defines = { ...material.defines, COAST_BACKING: '' }
+    return material
+  }, [surfaceMaterial, visuals.terrain, terrainUniforms])
+
   // Relief is a live uniform, so moving the slider — or the scale preset, which
   // changes how large the planet is drawn — retunes the mountains without
   // rebuilding (and recompiling) the surface material.
@@ -420,7 +446,8 @@ export function Planet({
     terrainUniforms.uniforms.uTerrainScale.value = terrain.scale
     terrainUniforms.uniforms.uTerrainBias.value = terrain.bias
     surfaceMaterial.bumpScale = bumpScale
-  }, [surfaceMaterial, terrain, terrainUniforms, bumpScale])
+    if (coastBackingMaterial) coastBackingMaterial.bumpScale = bumpScale
+  }, [surfaceMaterial, coastBackingMaterial, terrain, terrainUniforms, bumpScale])
 
   // The seafloor-relief dial and the shared seawater slider are live uniforms
   // too: dragging either — or switching ocean mode — is a couple of number
@@ -451,6 +478,7 @@ export function Planet({
   }, [radius, visuals.focusRingScale])
 
   useEffect(() => () => surfaceMaterial.dispose(), [surfaceMaterial])
+  useEffect(() => () => coastBackingMaterial?.dispose(), [coastBackingMaterial])
   useEffect(() => () => focusRingGeometry.dispose(), [focusRingGeometry])
 
   // The camera controller and the HUD look planets up by id.
@@ -522,6 +550,19 @@ export function Planet({
     // --- Level of detail --------------------------------------------------
     // Reading state directly keeps hover and selection from re-rendering React.
     const store = useSimulationStore.getState()
+    // The coastal relief/backing passes must follow the layered ocean's own
+    // controls, not the solid material's pinned drained opacity. Keep their
+    // coverage and radius exactly in step with Ocean.tsx without subscribing
+    // the whole planet to every water-slider change.
+    if (terrainUniforms && visuals.water && seafloorFloor) {
+      const drop = seafloorFloor.maxDepthRadius > 0
+        ? seaLevelDrop(store.earthSeaLevel) * seafloorFloor.deepestFraction
+        : 0
+      const { uniforms } = terrainUniforms
+      uniforms.uWaterAlpha.value = waterAlpha(store.earthSeawaterOpacity, visuals.water.revealGamma)
+      uniforms.uSeaLevelDrop.value = drop
+      uniforms.uWaterSurfaceRadius.value = 1 - drop * seafloorFloor.maxDepthRadius
+    }
     const isHovered = store.hoveredId === body.id
     const isSelected = store.selectedId === body.id
     const cameraDistance = state.camera.position.distanceTo(orbit.position)
@@ -551,6 +592,7 @@ export function Planet({
     const highlightTarget = isHovered ? 0.2 : 0
     highlight.current += (highlightTarget - highlight.current) * Math.min(1, step * 8)
     surfaceMaterial.emissiveIntensity = highlight.current
+    if (coastBackingMaterial) coastBackingMaterial.emissiveIntensity = highlight.current
 
     // The marker is a distance cue: it answers "this world is selected" while the
     // world is a distant disc. It lies flat in the ecliptic, so on the way in its
@@ -588,6 +630,22 @@ export function Planet({
     <group ref={orbitRef}>
       <group ref={tiltRef} rotation={[0, 0, body.axialTiltDeg * (Math.PI / 180)]}>
         <group ref={spinRef} scale={flattenScale}>
+          {/* Opaque backing for the coastal relief clip in Volumetric mode.
+              This is a complete mesh, not a patch: its inward-capped vertices
+              stay behind the relief, so clipped blades reveal seafloor rather
+              than transparent holes. It shares the relief mesh's geometry. */}
+          {seawaterMode.layeredWater &&
+          coastBackingMaterial &&
+          visuals.seafloor &&
+          hasTexture(visuals.seafloor.bathymetryMapId) ? (
+            <mesh
+              geometry={sphereGeometry}
+              material={coastBackingMaterial}
+              scale={radius}
+              raycast={() => null}
+            />
+          ) : null}
+
           <mesh
             ref={surfaceMeshRef}
             geometry={sphereGeometry}

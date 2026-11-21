@@ -124,6 +124,12 @@ export interface TerrainUniforms {
     uBathyEnabled: { value: number }
     /** 1 only in Volumetric mode, where a separate water mesh covers the floor. */
     uLayeredWater: { value: number }
+    /** The layered ocean's actual live alpha, not the drained solid's opacity. */
+    uWaterAlpha: { value: number }
+    /** The filled-depth fraction removed from the layered ocean by Sea Level. */
+    uSeaLevelDrop: { value: number }
+    /** The layered ocean's current radius in object units (mean sea level = 1). */
+    uWaterSurfaceRadius: { value: number }
     /** 1 restores the old mirror-smooth land (the "Mountain Sheen" switch). */
     uMountainSheen: { value: number }
   }
@@ -155,6 +161,12 @@ export interface SeafloorBinding {
   enabled: boolean
   /** Whether a separate sea-level water mesh covers the drained solid surface. */
   layeredWater: boolean
+  /** The layered ocean's actual live alpha, from its own opacity slider. */
+  waterAlpha: number
+  /** Its filled-depth fraction removed by the Sea Level slider. */
+  seaLevelDrop: number
+  /** Its current object-space radius (1 at mean sea level). */
+  waterSurfaceRadius: number
 }
 
 export function createTerrainUniforms(
@@ -193,6 +205,9 @@ export function createTerrainUniforms(
       uSeafloorWaterTint: { value: new Color(seafloor?.visuals.waterTint ?? '#000000') },
       uBathyEnabled: { value: seafloor?.enabled ? 1 : 0 },
       uLayeredWater: { value: seafloor?.layeredWater ? 1 : 0 },
+      uWaterAlpha: { value: seafloor?.waterAlpha ?? 1 },
+      uSeaLevelDrop: { value: seafloor?.seaLevelDrop ?? 0 },
+      uWaterSurfaceRadius: { value: seafloor?.waterSurfaceRadius ?? 1 },
       uMountainSheen: { value: mountainSheen ? 1 : 0 },
     },
   }
@@ -227,6 +242,7 @@ uniform float uSeafloorExponent;
 uniform float uSeafloorRevealGamma;
 uniform float uSeawaterOpacity;
 uniform float uBathyEnabled;
+uniform float uWaterSurfaceRadius;
 varying vec2 vSeaUv;
 varying float vSurfaceRadius;
 `
@@ -259,6 +275,31 @@ if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water);
 }
 vSurfaceRadius = length(transformed);
+#ifdef COAST_BACKING
+// The backing is a complete, opaque copy of the solid surface. Above-water
+// vertices are capped just inside the ocean, while underwater vertices keep
+// their depth. The relief pass can then clip false coastal blades without ever
+// leaving a hole in colour or depth. A tiny inset prevents coplanar depth
+// fighting wherever the two passes have the same geometry.
+transformed = normalize(position) * max(
+  min(vSurfaceRadius, uWaterSurfaceRadius) - 0.00001,
+  0.0
+);
+vSurfaceRadius = length(transformed);
+#endif
+`
+
+/**
+ * The one coverage predicate shared by the layered ocean and the solid relief
+ * pass. Both depth terms are fractions of the deepest encoded water: coverage
+ * needs enough alpha to survive the water shader's cutoff and a floor below
+ * the current waterline. Keeping this in one chunk prevents the relief pass
+ * from discarding pixels where the ocean itself will not draw.
+ */
+export const WATER_COVERAGE = /* glsl */ `
+bool waterCovers(float mask, float fullDepth, float alpha, float drop) {
+  return mask * alpha >= 0.004 && fullDepth > drop;
+}
 `
 
 /** The seafloor's fragment uniforms and the shared "how much is revealed" term. */
@@ -275,9 +316,14 @@ uniform vec3 uSeafloorAbsorption;
 uniform vec3 uSeafloorWaterTint;
 uniform float uBathyEnabled;
 uniform float uLayeredWater;
+uniform float uWaterAlpha;
+uniform float uSeaLevelDrop;
+uniform float uWaterSurfaceRadius;
 uniform float uTerrainUvOffset;
 varying vec2 vSeaUv;
 varying float vSurfaceRadius;
+
+${WATER_COVERAGE}
 
 // The depth fraction at a seafloor UV: 0 at sea level, 1 at the deepest point.
 float seafloorDepthAt(vec2 seaUv) {
@@ -326,21 +372,29 @@ float seafloorVisibility(vec2 seaUv) {
 `
 
 /**
- * Clips the coastal "blades" in the layered water implementation. A coarse
- * triangle can join an above-sea land vertex to a deep seafloor vertex; its
- * interpolated middle then pierces the separate sea-level mesh even where the
- * maps say there is water. Vertex weighting cannot remove that interior. Test
- * the actual fragment instead, and discard only above-sea fragments covered by
- * real water. The seafloor below sea level and every dry-land fragment remain.
- * Surface mode never runs this clip because it has no second water mesh.
+ * Clips the coastal "blades" from the relief pass only. A coarse triangle can
+ * join an above-water land vertex to a deep seafloor vertex; its interpolated
+ * middle then pierces the layered ocean even where the maps say there is water.
+ * The COAST_BACKING pass never runs this clip: it remains behind the relief as
+ * a complete opaque surface, supplying colour and depth at these pixels.
+ *
+ * Clipping follows the ocean's live radius and exact coverage predicate. Thus
+ * zero ocean opacity disables it, and lowering Sea Level exposes the floor
+ * instead of cutting it away.
  */
 export const SEAFLOOR_COAST_CLIP = /* glsl */ `
-if (uLayeredWater > 0.5 && uBathyEnabled > 0.5 && vSurfaceRadius > 1.000001) {
+#ifndef COAST_BACKING
+if (
+  uLayeredWater > 0.5 &&
+  uBathyEnabled > 0.5 &&
+  vSurfaceRadius > uWaterSurfaceRadius + 0.000001
+) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
-  float water = texture2D(uWaterMask, seaUv).r;
-  float bathyTexel = texture2D(uBathyMap, seaUv).r;
-  if (water >= 0.004 && bathyTexel > 0.0) discard;
+  float mask = texture2D(uWaterMask, seaUv).r;
+  float fullDepth = seafloorDepthAt(seaUv);
+  if (waterCovers(mask, fullDepth, uWaterAlpha, uSeaLevelDrop)) discard;
 }
+#endif
 `
 
 /**
