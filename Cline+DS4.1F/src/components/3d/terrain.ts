@@ -196,32 +196,44 @@ export function createTerrainUniforms(
 /** The uniform declarations a vertex shader needs to read the elevation model. */
 export const TERRAIN_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uTerrainMap;
+uniform sampler2D uWaterMask;
 uniform float uTerrainScale;
 uniform float uTerrainBias;
 uniform float uTerrainUvOffset;
+uniform float uSeawaterOpacity;
+uniform float uBathyEnabled;
 `
 
 /**
  * The land relief: the ground is pushed out along its own normal by the height
  * field, exactly as the map says. Sea level has a scale of zero, so the oceans
  * stay on the mean radius and only land moves.
+ *
+ * When the seafloor is revealed, the softened water mask also weights the land
+ * term. Its mixed texels straddle each coast, where the independent elevation
+ * and bathymetry fields can otherwise push adjacent vertices in opposite
+ * directions and stretch a triangle through the sea-level water mesh. Fully
+ * opaque surface mode keeps the original displacement exactly.
  */
 export const TERRAIN_VERTEX_DISPLACE = /* glsl */ `
 {
-  float terrainHeight = texture2D(uTerrainMap, uv + vec2(uTerrainUvOffset, 0.0)).x;
-  transformed += normalize(position) * (terrainHeight * uTerrainScale + uTerrainBias);
+  vec2 terrainUv = uv + vec2(uTerrainUvOffset, 0.0);
+  float terrainHeight = texture2D(uTerrainMap, terrainUv).x;
+  float landOffset = terrainHeight * uTerrainScale + uTerrainBias;
+  if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
+    float water = texture2D(uWaterMask, terrainUv).r;
+    landOffset = max(landOffset, 0.0) * (1.0 - water);
+  }
+  transformed += normalize(position) * landOffset;
 }
 `
 
 /** The seafloor's own vertex uniforms (shared by the surface material only). */
 export const SEAFLOOR_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uBathyMap;
-uniform sampler2D uWaterMask;
 uniform float uSeafloorScale;
 uniform float uSeafloorExponent;
 uniform float uSeafloorRevealGamma;
-uniform float uSeawaterOpacity;
-uniform float uBathyEnabled;
 varying vec2 vSeaUv;
 `
 
