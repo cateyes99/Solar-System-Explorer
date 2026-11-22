@@ -1,4 +1,4 @@
-import { BufferGeometry, Float32BufferAttribute, SphereGeometry } from 'three'
+import { BufferGeometry, Float32BufferAttribute, SphereGeometry, Vector3 } from 'three'
 
 /**
  * Geometries are created once and shared by every body. Nine planets, ten moons
@@ -28,6 +28,41 @@ export const SPHERE_LODS = [
   new SphereGeometry(1, 384, 256),
   new SphereGeometry(1, 768, 512),
 ]
+
+/**
+ * Radius of the largest origin-centred sphere contained by a closed, centred
+ * triangle mesh. Every face plane is this far from the origin or farther, so a
+ * capped backing mesh at this radius cannot poke through the mesh's facets.
+ */
+export function inscribedSphereRadius(geometry: BufferGeometry): number {
+  const positions = geometry.getAttribute('position')
+  const index = geometry.index
+  const triangleCount = (index?.count ?? positions.count) / 3
+  const a = new Vector3()
+  const b = new Vector3()
+  const c = new Vector3()
+  const ab = new Vector3()
+  const ac = new Vector3()
+  const normal = new Vector3()
+  let innerRadius = Number.POSITIVE_INFINITY
+  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+    const offset = triangle * 3
+    const ai = index?.getX(offset) ?? offset
+    const bi = index?.getX(offset + 1) ?? offset + 1
+    const ci = index?.getX(offset + 2) ?? offset + 2
+    a.fromBufferAttribute(positions, ai)
+    b.fromBufferAttribute(positions, bi)
+    c.fromBufferAttribute(positions, ci)
+    normal.crossVectors(ab.subVectors(b, a), ac.subVectors(c, a))
+    if (normal.lengthSq() < 1e-12) continue
+    normal.normalize()
+    innerRadius = Math.min(innerRadius, Math.abs(normal.dot(a)))
+  }
+  return Number.isFinite(innerRadius) ? innerRadius : 1
+}
+
+/** The exact facet inset for each water/relief LOD, paid once at startup. */
+export const SPHERE_INNER_RADII = SPHERE_LODS.map(inscribedSphereRadius)
 
 /** The rung shared by the fixed shells: the Sun, the atmosphere and the lights. */
 export const HIGH_DETAIL_SPHERE = SPHERE_LODS[2]

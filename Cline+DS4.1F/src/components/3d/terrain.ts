@@ -130,6 +130,8 @@ export interface TerrainUniforms {
     uSeaLevelDrop: { value: number }
     /** The layered ocean's current radius in object units (mean sea level = 1). */
     uWaterSurfaceRadius: { value: number }
+    /** Radius of a sphere wholly inside the ocean's current triangle facets. */
+    uWaterInnerRadius: { value: number }
     /** 1 restores the old mirror-smooth land (the "Mountain Sheen" switch). */
     uMountainSheen: { value: number }
   }
@@ -167,6 +169,8 @@ export interface SeafloorBinding {
   seaLevelDrop: number
   /** Its current object-space radius (1 at mean sea level). */
   waterSurfaceRadius: number
+  /** Its inscribed-sphere radius, derived from the live sphere tessellation. */
+  waterInnerRadius: number
 }
 
 export function createTerrainUniforms(
@@ -208,6 +212,7 @@ export function createTerrainUniforms(
       uWaterAlpha: { value: seafloor?.waterAlpha ?? 1 },
       uSeaLevelDrop: { value: seafloor?.seaLevelDrop ?? 0 },
       uWaterSurfaceRadius: { value: seafloor?.waterSurfaceRadius ?? 1 },
+      uWaterInnerRadius: { value: seafloor?.waterInnerRadius ?? 1 },
       uMountainSheen: { value: mountainSheen ? 1 : 0 },
     },
   }
@@ -243,8 +248,11 @@ uniform float uSeafloorRevealGamma;
 uniform float uSeawaterOpacity;
 uniform float uBathyEnabled;
 uniform float uWaterSurfaceRadius;
+uniform float uWaterInnerRadius;
+uniform float uSeaLevelDrop;
 varying vec2 vSeaUv;
 varying float vSurfaceRadius;
+varying float vCoastWater;
 `
 
 /**
@@ -262,27 +270,41 @@ varying float vSurfaceRadius;
  */
 export const SEAFLOOR_VERTEX_DISPLACE = /* glsl */ `
 vSeaUv = uv;
+float bathyTexel = 0.0;
+float water = 0.0;
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   vec2 seaUv = uv + vec2(uTerrainUvOffset, 0.0);
-  float bathyTexel = texture2D(uBathyMap, seaUv).r;
+  bathyTexel = texture2D(uBathyMap, seaUv).r;
   float seaDepth = pow(bathyTexel, uSeafloorExponent);
   // Only genuine water sinks. The bathymetry grid knows the *sea floor*, not what
   // floats on it, so it also marks the ice-covered Arctic as deep ocean; the water
   // mask is 0 there (and over land), which keeps the sea ice — and the continents —
   // at sea level instead of dropping them to the floor.
-  float water = texture2D(uWaterMask, seaUv).r;
+  water = texture2D(uWaterMask, seaUv).r;
   float drained = pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma);
   transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water);
 }
 vSurfaceRadius = length(transformed);
+
+// A positive value at a covered vertex at/below the waterline becomes positive
+// throughout every mixed land/water triangle after interpolation. Its above-water
+// fragments can then all be clipped, including the upper part whose own UV says
+// "land". Bathymetry also marks ice-covered coasts, which the liquid mask excludes.
+float coastDepth = pow(bathyTexel, uSeafloorExponent);
+float coastCoverage = max(water, step(0.0001, bathyTexel));
+float coveredDepth = step(uSeaLevelDrop, coastDepth + 0.000001);
+vCoastWater = coastCoverage * coveredDepth * (
+  1.0 - step(uWaterSurfaceRadius + 0.000001, vSurfaceRadius)
+);
+
 #ifdef COAST_BACKING
 // The backing is a complete, opaque copy of the solid surface. Above-water
-// vertices are capped just inside the ocean, while underwater vertices keep
-// their depth. The relief pass can then clip false coastal blades without ever
-// leaving a hole in colour or depth. A tiny inset prevents coplanar depth
-// fighting wherever the two passes have the same geometry.
+// vertices are capped inside a sphere contained by the ocean's actual facets,
+// while underwater vertices keep their depth. The relief pass can then clip
+// false coastal blades without leaving holes or letting the backing itself
+// pierce a water triangle. A tiny extra inset prevents coplanar depth fighting.
 transformed = normalize(position) * max(
-  min(vSurfaceRadius, uWaterSurfaceRadius) - 0.00001,
+  min(vSurfaceRadius, uWaterInnerRadius) - 0.00001,
   0.0
 );
 vSurfaceRadius = length(transformed);
@@ -304,9 +326,12 @@ bool waterCovers(float mask, float fullDepth, float alpha, float drop) {
 
 /** The seafloor's fragment uniforms and the shared "how much is revealed" term. */
 export const SEAFLOOR_FRAGMENT_PARS = /* glsl */ `
+uniform sampler2D uTerrainMap;
 uniform sampler2D uBathyMap;
 uniform sampler2D uWaterMask;
 uniform sampler2D uSeafloorRamp;
+uniform float uTerrainScale;
+uniform float uTerrainBias;
 uniform float uSeafloorExponent;
 uniform float uSeawaterOpacity;
 uniform float uSeafloorRoughness;
@@ -319,9 +344,11 @@ uniform float uLayeredWater;
 uniform float uWaterAlpha;
 uniform float uSeaLevelDrop;
 uniform float uWaterSurfaceRadius;
+uniform float uWaterInnerRadius;
 uniform float uTerrainUvOffset;
 varying vec2 vSeaUv;
 varying float vSurfaceRadius;
+varying float vCoastWater;
 
 ${WATER_COVERAGE}
 
@@ -378,21 +405,35 @@ float seafloorVisibility(vec2 seaUv) {
  * The COAST_BACKING pass never runs this clip: it remains behind the relief as
  * a complete opaque surface, supplying colour and depth at these pixels.
  *
- * Clipping follows the ocean's live radius and exact coverage predicate. Thus
- * zero ocean opacity disables it, and lowering Sea Level exposes the floor
- * instead of cutting it away.
+ * Clipping follows the live radius of a sphere inside the ocean's facets. The
+ * per-vertex coast weight conservatively covers a whole mixed triangle, while
+ * the original fragment predicate still handles map-level water coverage. Zero
+ * ocean opacity disables both, and lowering Sea Level exposes the floor instead
+ * of cutting it away.
+ *
+ * A mixed triangle's interpolated radius is not the land's actual elevation:
+ * both a false blade over water and a real mountain can be far above the sea.
+ * Sample the elevation map per fragment so genuinely elevated land is never
+ * clipped. Only low coastal terrain inherits the triangle-wide clip; the
+ * complete backing continues that cut surface down to the sea without a hole.
  */
 export const SEAFLOOR_COAST_CLIP = /* glsl */ `
 #ifndef COAST_BACKING
 if (
   uLayeredWater > 0.5 &&
   uBathyEnabled > 0.5 &&
-  vSurfaceRadius > uWaterSurfaceRadius + 0.000001
+  vSurfaceRadius > uWaterInnerRadius + 0.000001
 ) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
   float mask = texture2D(uWaterMask, seaUv).r;
   float fullDepth = seafloorDepthAt(seaUv);
-  if (waterCovers(mask, fullDepth, uWaterAlpha, uSeaLevelDrop)) discard;
+  const float coastClipHeight = 0.002;
+  float landOffset = texture2D(uTerrainMap, seaUv).x * uTerrainScale + uTerrainBias;
+  bool elevatedLand = landOffset > coastClipHeight;
+  bool nearWaterline = 1.0 + max(landOffset, 0.0) <= uWaterSurfaceRadius + coastClipHeight;
+  bool coastTriangle = uTerrainScale > 0.0 && uWaterAlpha >= 0.004 && vCoastWater > 0.0;
+  bool waterClip = !elevatedLand && waterCovers(mask, fullDepth, uWaterAlpha, uSeaLevelDrop);
+  if ((coastTriangle && nearWaterline) || waterClip) discard;
 }
 #endif
 `

@@ -24,6 +24,7 @@ import { smoothstep } from '../../utils/random'
 import { atmosphereOpacityFromSlider } from '../../utils/atmosphere'
 import {
   SPHERE_LODS,
+  SPHERE_INNER_RADII,
   sphereTierForApparentSize,
   terrainTierForApparentSize,
   createRingGeometry,
@@ -307,6 +308,7 @@ export function Planet({
     const layeredDrop = layeredFloor && layeredFloor.maxDepthRadius > 0
       ? seaLevelDrop(state.earthSeaLevel) * layeredFloor.deepestFraction
       : 0
+    const layeredWaterRadius = 1 - layeredDrop * (layeredFloor?.maxDepthRadius ?? 0)
     // The seafloor is bound once and then dialled through its uniforms, so the
     // sliders never rebuild the material or recompile the shader. A body without
     // a bathymetry map simply gets `null` and the shader stays inert.
@@ -330,7 +332,8 @@ export function Planet({
           layeredWater: seawaterModeFor(state.earthSeawaterMode).layeredWater,
           waterAlpha: waterAlpha(state.earthSeawaterOpacity, visuals.water?.revealGamma ?? 1),
           seaLevelDrop: layeredDrop,
-          waterSurfaceRadius: 1 - layeredDrop * (layeredFloor?.maxDepthRadius ?? 0),
+          waterSurfaceRadius: layeredWaterRadius,
+          waterInnerRadius: layeredWaterRadius * SPHERE_INNER_RADII[sphereTier],
         }
       : null
     return createTerrainUniforms(
@@ -424,8 +427,8 @@ export function Planet({
   }, [visuals, terrainUniforms])
 
   // A second opaque pass exists only behind Volumetric Earth's relief. Its
-  // COAST_BACKING define caps above-water vertices just inside the live ocean
-  // radius and disables the coastal discard. Where the relief pass removes a
+  // COAST_BACKING define caps above-water vertices just inside the live ocean's
+  // inscribed sphere and disables the coastal discard. Where the relief pass removes a
   // false blade, this complete surface supplies the missing colour and depth;
   // everywhere else it remains hidden behind the relief. Cloning preserves the
   // exact maps and lighting, while the shared uniform objects keep both passes
@@ -579,6 +582,12 @@ export function Planet({
     if (wantedTier !== sphereTierRef.current) {
       sphereTierRef.current = wantedTier
       setSphereTier(wantedTier)
+    }
+    if (terrainUniforms) {
+      // Match the exact water polyhedron at this LOD, including a tier change
+      // requested just above, so neither clipping nor the backing uses a stale inset.
+      terrainUniforms.uniforms.uWaterInnerRadius.value =
+        terrainUniforms.uniforms.uWaterSurfaceRadius.value * SPHERE_INNER_RADII[sphereTierRef.current]
     }
 
     // --- Hover emphasis ---------------------------------------------------
