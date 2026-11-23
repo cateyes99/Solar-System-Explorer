@@ -253,6 +253,7 @@ uniform float uSeaLevelDrop;
 varying vec2 vSeaUv;
 varying float vSurfaceRadius;
 varying float vCoastWater;
+varying vec2 vLandRelief;
 `
 
 /**
@@ -270,6 +271,14 @@ varying float vCoastWater;
  */
 export const SEAFLOOR_VERTEX_DISPLACE = /* glsl */ `
 vSeaUv = uv;
+// Classify the mesh that is actually rasterised, not a fresh fragment DEM
+// sample. The second component is 1 at an elevated vertex, so interpolation
+// conservatively marks the whole triangle that connects it to the coast.
+float vertexLandOffset = texture2D(
+  uTerrainMap,
+  vSeaUv + vec2(uTerrainUvOffset, 0.0)
+).x * uTerrainScale + uTerrainBias;
+vLandRelief = vec2(vertexLandOffset, step(0.002, vertexLandOffset));
 float bathyTexel = 0.0;
 float water = 0.0;
 if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
@@ -326,12 +335,10 @@ bool waterCovers(float mask, float fullDepth, float alpha, float drop) {
 
 /** The seafloor's fragment uniforms and the shared "how much is revealed" term. */
 export const SEAFLOOR_FRAGMENT_PARS = /* glsl */ `
-uniform sampler2D uTerrainMap;
 uniform sampler2D uBathyMap;
 uniform sampler2D uWaterMask;
 uniform sampler2D uSeafloorRamp;
 uniform float uTerrainScale;
-uniform float uTerrainBias;
 uniform float uSeafloorExponent;
 uniform float uSeawaterOpacity;
 uniform float uSeafloorRoughness;
@@ -349,6 +356,7 @@ uniform float uTerrainUvOffset;
 varying vec2 vSeaUv;
 varying float vSurfaceRadius;
 varying float vCoastWater;
+varying vec2 vLandRelief;
 
 ${WATER_COVERAGE}
 
@@ -413,27 +421,32 @@ float seafloorVisibility(vec2 seaUv) {
  *
  * A mixed triangle's interpolated radius is not the land's actual elevation:
  * both a false blade over water and a real mountain can be far above the sea.
- * Sample the elevation map per fragment so genuinely elevated land is never
- * clipped. Only low coastal terrain inherits the triangle-wide clip; the
- * complete backing continues that cut surface down to the sea without a hole.
+ * Classify elevation at the mesh vertices and interpolate that classification,
+ * rather than sampling a different height in the fragment shader. Water cover
+ * always wins over a misleading elevation sample, removing the whole blade.
+ * A dry triangle touching a real mountain keeps its full slope down to the
+ * coast; only a wholly low coastal triangle inherits the triangle-wide clip.
+ * The complete backing fills every clipped region without a hole.
  */
 export const SEAFLOOR_COAST_CLIP = /* glsl */ `
 #ifndef COAST_BACKING
 if (
   uLayeredWater > 0.5 &&
   uBathyEnabled > 0.5 &&
+  uTerrainScale > 0.0 &&
   vSurfaceRadius > uWaterInnerRadius + 0.000001
 ) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
   float mask = texture2D(uWaterMask, seaUv).r;
   float fullDepth = seafloorDepthAt(seaUv);
   const float coastClipHeight = 0.002;
-  float landOffset = texture2D(uTerrainMap, seaUv).x * uTerrainScale + uTerrainBias;
-  bool elevatedLand = landOffset > coastClipHeight;
+  float landOffset = vLandRelief.x;
+  bool mountainTriangle = vLandRelief.y > 0.0;
   bool nearWaterline = 1.0 + max(landOffset, 0.0) <= uWaterSurfaceRadius + coastClipHeight;
-  bool coastTriangle = uTerrainScale > 0.0 && uWaterAlpha >= 0.004 && vCoastWater > 0.0;
-  bool waterClip = !elevatedLand && waterCovers(mask, fullDepth, uWaterAlpha, uSeaLevelDrop);
-  if ((coastTriangle && nearWaterline) || waterClip) discard;
+  bool coastTriangle = uWaterAlpha >= 0.004 && vCoastWater > 0.0;
+  bool lowDryCoastClip = !mountainTriangle && coastTriangle && nearWaterline;
+  bool waterClip = waterCovers(mask, fullDepth, uWaterAlpha, uSeaLevelDrop);
+  if (waterClip || lowDryCoastClip) discard;
 }
 #endif
 `

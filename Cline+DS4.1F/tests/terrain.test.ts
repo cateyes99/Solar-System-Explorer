@@ -45,29 +45,29 @@ test('terrain and seafloor vertex chunks declare their shared uniforms exactly o
   }
 })
 
-test('coastal clipping covers only the low land-sampling part of a mixed triangle', () => {
+test('coastal clipping classifies the interpolated mesh rather than resampling the DEM', () => {
   const displacement = shaderChunk('SEAFLOOR_VERTEX_DISPLACE')
-  assert.match(displacement, /varying float vCoastWater|vCoastWater =/)
+  assert.match(displacement, /vLandRelief = vec2\(vertexLandOffset, step\(0\.002, vertexLandOffset\)\)/)
   assert.match(displacement, /float coastCoverage = max\(water, step\(0\.0001, bathyTexel\)\)/)
   assert.match(displacement, /1\.0 - step\(uWaterSurfaceRadius \+ 0\.000001, vSurfaceRadius\)/)
 
   const clip = shaderChunk('SEAFLOOR_COAST_CLIP')
-  assert.match(clip, /bool coastTriangle = uTerrainScale > 0\.0 && uWaterAlpha >= 0\.004 && vCoastWater > 0\.0/)
-  assert.match(clip, /bool nearWaterline = 1\.0 \+ max\(landOffset, 0\.0\) <= uWaterSurfaceRadius \+ coastClipHeight/)
-  assert.match(clip, /if \(\(coastTriangle && nearWaterline\) \|\| waterClip\) discard/)
+  assert.match(clip, /uTerrainScale > 0\.0/)
+  assert.match(clip, /float landOffset = vLandRelief\.x;/)
+  assert.match(clip, /bool coastTriangle = uWaterAlpha >= 0\.004 && vCoastWater > 0\.0;/)
+  assert.match(clip, /bool nearWaterline = 1\.0 \+ max\(landOffset, 0\.0\) <= uWaterSurfaceRadius \+ coastClipHeight;/)
+  assert.match(clip, /if \(waterClip \|\| lowDryCoastClip\) discard;/)
 })
 
-test('genuinely elevated land survives conservative coastal triangle clipping', () => {
-  const declarations = shaderChunk('SEAFLOOR_FRAGMENT_PARS')
-  assert.match(declarations, /uniform sampler2D uTerrainMap;/)
-  assert.match(declarations, /uniform float uTerrainScale;/)
-  assert.match(declarations, /uniform float uTerrainBias;/)
+test('mountain-touching dry slopes survive while water-covered blades are always clipped', () => {
+  const declarations = `${shaderChunk('SEAFLOOR_VERTEX_PARS')}\n${shaderChunk('SEAFLOOR_FRAGMENT_PARS')}`
+  assert.equal(declarations.match(/varying vec2 vLandRelief;/g)?.length, 2)
 
   const clip = shaderChunk('SEAFLOOR_COAST_CLIP')
-  assert.match(clip, /const float coastClipHeight = 0\.002;/)
-  assert.match(clip, /float landOffset = texture2D\(uTerrainMap, seaUv\)\.x \* uTerrainScale \+ uTerrainBias;/)
-  assert.match(clip, /bool elevatedLand = landOffset > coastClipHeight;/)
-  assert.match(clip, /bool waterClip = !elevatedLand && waterCovers\(mask, fullDepth, uWaterAlpha, uSeaLevelDrop\);/)
+  assert.match(clip, /bool mountainTriangle = vLandRelief\.y > 0\.0;/)
+  assert.match(clip, /bool lowDryCoastClip = !mountainTriangle && coastTriangle && nearWaterline;/)
+  assert.match(clip, /bool waterClip = waterCovers\(mask, fullDepth, uWaterAlpha, uSeaLevelDrop\);/)
+  assert.doesNotMatch(clip, /!elevatedLand && waterCovers/)
 })
 
 test('the backing inset is derived from every water mesh’s actual facets', () => {
