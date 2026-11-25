@@ -26,7 +26,8 @@ test('a complete opaque backing remains beneath the clipped relief pass', () => 
 
   const clip = shaderChunk('SEAFLOOR_COAST_CLIP')
   assert.match(clip, /#ifndef COAST_BACKING/)
-  assert.match(clip, /vSurfaceRadius > uWaterInnerRadius \+ 0\.000001/)
+  assert.match(clip, /vSurfaceRadius > uWaterInnerRadius \+ 0\.000001 &&/)
+  assert.match(clip, /vSurfaceRadius <= uWaterSurfaceRadius \+ coastClipHeight/)
   assert.match(clip, /discard/)
 })
 
@@ -59,11 +60,15 @@ test('coastal clipping classifies the interpolated mesh rather than resampling t
   assert.match(clip, /if \(waterClip \|\| lowDryCoastClip\) discard;/)
 })
 
-test('mountain-touching dry slopes survive while water-covered blades are always clipped', () => {
+test('the height band preserves elevated relief while low water-covered blades are clipped', () => {
   const declarations = `${shaderChunk('SEAFLOOR_VERTEX_PARS')}\n${shaderChunk('SEAFLOOR_FRAGMENT_PARS')}`
   assert.equal(declarations.match(/varying vec2 vLandRelief;/g)?.length, 2)
 
   const clip = shaderChunk('SEAFLOOR_COAST_CLIP')
+  // This upper bound guards both discard paths: a water-covered UV can occur
+  // anywhere in a mixed triangle, but must not remove its elevated geometry.
+  assert.match(clip, /const float coastClipHeight = 0\.002;\s*if \(/)
+  assert.match(clip, /vSurfaceRadius <= uWaterSurfaceRadius \+ coastClipHeight\s*\)/)
   assert.match(clip, /bool mountainTriangle = vLandRelief\.y > 0\.0;/)
   assert.match(clip, /bool lowDryCoastClip = !mountainTriangle && coastTriangle && nearWaterline;/)
   assert.match(clip, /bool waterClip = waterCovers\(mask, fullDepth, uWaterAlpha, uSeaLevelDrop\);/)

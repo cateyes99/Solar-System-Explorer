@@ -419,27 +419,27 @@ float seafloorVisibility(vec2 seaUv) {
  * ocean opacity disables both, and lowering Sea Level exposes the floor instead
  * of cutting it away.
  *
- * A mixed triangle's interpolated radius is not the land's actual elevation:
- * both a false blade over water and a real mountain can be far above the sea.
- * Classify elevation at the mesh vertices and interpolate that classification,
- * rather than sampling a different height in the fragment shader. Water cover
- * always wins over a misleading elevation sample, removing the whole blade.
- * A dry triangle touching a real mountain keeps its full slope down to the
- * coast; only a wholly low coastal triangle inherits the triangle-wide clip.
- * The complete backing fills every clipped region without a hole.
+ * Both clipping paths are confined to a narrow band above the water. The
+ * interpolated mesh radius, rather than a fresh DEM sample at a misleading
+ * coastal UV, decides which fragments belong to that band. Higher terrain skips
+ * the discard entirely, preserving real mountain slopes and the upper part of
+ * mixed coast triangles. Below it, water cover removes false blades and only a
+ * wholly low coastal triangle inherits the triangle-wide dry-coast clip. The
+ * complete backing fills every clipped low region without a hole.
  */
 export const SEAFLOOR_COAST_CLIP = /* glsl */ `
 #ifndef COAST_BACKING
+const float coastClipHeight = 0.002;
 if (
   uLayeredWater > 0.5 &&
   uBathyEnabled > 0.5 &&
   uTerrainScale > 0.0 &&
-  vSurfaceRadius > uWaterInnerRadius + 0.000001
+  vSurfaceRadius > uWaterInnerRadius + 0.000001 &&
+  vSurfaceRadius <= uWaterSurfaceRadius + coastClipHeight
 ) {
   vec2 seaUv = vSeaUv + vec2(uTerrainUvOffset, 0.0);
   float mask = texture2D(uWaterMask, seaUv).r;
   float fullDepth = seafloorDepthAt(seaUv);
-  const float coastClipHeight = 0.002;
   float landOffset = vLandRelief.x;
   bool mountainTriangle = vLandRelief.y > 0.0;
   bool nearWaterline = 1.0 + max(landOffset, 0.0) <= uWaterSurfaceRadius + coastClipHeight;
