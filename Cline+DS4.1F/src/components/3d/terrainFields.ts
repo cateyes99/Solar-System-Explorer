@@ -10,6 +10,9 @@ import {
 } from 'three'
 import type { SphereGeometry, Texture } from 'three'
 
+/** The minimum masked alpha at which the layered ocean draws a fragment. */
+export const WATER_MASK_ALPHA_CUTOFF = 0.004
+
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
   return t * t * (3 - 2 * t)
@@ -26,11 +29,47 @@ export interface ScalarField {
   data: Float32Array
 }
 
+/**
+ * Water that the layered ocean can cover at full sea level and full alpha.
+ * Lowering either control can only remove coverage, so this remains conservative
+ * without rebuilding the terrain fields whenever a slider moves.
+ */
+export function potentialWaterCoverage(water: ScalarField, bathymetry: ScalarField): ScalarField {
+  if (water.width !== bathymetry.width || water.height !== bathymetry.height) {
+    throw new Error('Water and bathymetry fields must have matching dimensions')
+  }
+  const data = new Float32Array(water.data.length)
+  for (let index = 0; index < data.length; index += 1) {
+    data[index] = water.data[index] >= WATER_MASK_ALPHA_CUTOFF && bathymetry.data[index] > 0 ? 1 : 0
+  }
+  return { width: water.width, height: water.height, data }
+}
+
+/** Bilinear sample in top-down map UV, with periodic longitude and clamped latitude. */
+function sampleBilinear(field: ScalarField, u: number, v: number): number {
+  const x = u * field.width - 0.5
+  const y = Math.max(0, Math.min(1, v)) * field.height - 0.5
+  const left = Math.floor(x)
+  const top = Math.floor(y)
+  const fx = x - left
+  const fy = y - top
+  const at = (column: number, row: number): number => {
+    const wrapped = ((column % field.width) + field.width) % field.width
+    const clamped = Math.max(0, Math.min(field.height - 1, row))
+    return field.data[clamped * field.width + wrapped]
+  }
+  const a = at(left, top)
+  const b = at(left + 1, top)
+  const c = at(left, top + 1)
+  const d = at(left + 1, top + 1)
+  return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
+}
+
 /** The two fields sampled at the vertices of one actual sphere geometry. */
 export interface TerrainLevelFields {
   columns: number
   rows: number
-  /** Area-filtered elevation, one value per geometry vertex. */
+  /** Raw DEM inland, easing into area-filtered elevation through the coast apron. */
   heights: Float32Array
   /** Conservative coastal relief weight, one value per geometry vertex. */
   weights: Uint8Array
@@ -136,8 +175,53 @@ function gridIndex(columns: number, row: number, column: number): number {
   return row * (columns + 1) + wrapped
 }
 
-function triangleHasWater(
-  water: IntegralField,
+function distanceToSegmentSquared(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax
+  const dy = by - ay
+  const lengthSquared = dx * dx + dy * dy
+  const t = lengthSquared > 0
+    ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared))
+    : 0
+  const x = ax + t * dx - px
+  const y = ay + t * dy - py
+  return x * x + y * y
+}
+
+/** Point-in-triangle with a one-source-texel allowance for texture filtering. */
+function pointNearTriangle(px: number, py: number, xs: number[], ys: number[]): boolean {
+  const [ax, bx, cx] = xs
+  const [ay, by, cy] = ys
+  const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+  if (Math.abs(area) > 1e-8) {
+    const d0 = (px - bx) * (ay - by) - (py - by) * (ax - bx)
+    const d1 = (px - cx) * (by - cy) - (py - cy) * (bx - cx)
+    const d2 = (px - ax) * (cy - ay) - (py - ay) * (cx - ax)
+    const negative = d0 < 0 || d1 < 0 || d2 < 0
+    const positive = d0 > 0 || d1 > 0 || d2 > 0
+    if (!(negative && positive)) return true
+  }
+  const paddingSquared = 1
+  return (
+    distanceToSegmentSquared(px, py, ax, ay, bx, by) <= paddingSquared ||
+    distanceToSegmentSquared(px, py, bx, by, cx, cy) <= paddingSquared ||
+    distanceToSegmentSquared(px, py, cx, cy, ax, ay) <= paddingSquared
+  )
+}
+
+/**
+ * Whether actual water coverage lies in a triangle, rather than merely in its
+ * bounding rectangle. All arithmetic is in source-texel units; the one-texel
+ * border covers bilinear sampling at the triangle's edges.
+ */
+export function triangleHasWater(
+  water: ScalarField,
   uv: { getX(index: number): number; getY(index: number): number },
   a: number,
   b: number,
@@ -152,29 +236,32 @@ function triangleHasWater(
     while (longitudes[index] - longitudes[0] > 0.5) longitudes[index] -= 1
     while (longitudes[index] - longitudes[0] < -0.5) longitudes[index] += 1
   }
-  const latitudes = indices.map((index) => 1 - uv.getY(index))
-  const paddingU = 1 / water.field.width
-  const paddingV = 1 / water.field.height
-  return (
-    water.sum(
-      Math.min(...longitudes) - paddingU,
-      Math.min(...latitudes) - paddingV,
-      Math.max(...longitudes) + paddingU,
-      Math.max(...latitudes) + paddingV,
-    ) > 0
-  )
+  const xs = longitudes.map((longitude) => longitude * water.width)
+  const ys = indices.map((index) => (1 - uv.getY(index)) * water.height)
+  const left = Math.floor(Math.min(...xs)) - 1
+  const right = Math.ceil(Math.max(...xs)) + 1
+  const top = Math.max(0, Math.floor(Math.min(...ys)) - 1)
+  const bottom = Math.min(water.height - 1, Math.ceil(Math.max(...ys)) + 1)
+  for (let y = top; y <= bottom; y += 1) {
+    for (let x = left; x <= right; x += 1) {
+      const wrapped = ((x % water.width) + water.width) % water.width
+      if (water.data[y * water.width + wrapped] <= 0) continue
+      if (pointNearTriangle(x + 0.5, y + 0.5, xs, ys)) return true
+    }
+  }
+  return false
 }
 
 /**
  * Builds the two fields directly from a sphere's actual UVs and index buffer.
- * Every triangle whose expanded UV footprint contains water gets three exactly
- * zero land-relief weights. The dry apron is added afterwards without ever
- * smoothing across or reopening that blocked set.
+ * Every triangle containing potential ocean coverage gets three exactly zero
+ * land-relief weights. The dry apron is added afterwards without reopening that
+ * blocked set. Fully inland vertices retain the original DEM sample.
  */
 export function buildTerrainLevelFields(
   geometry: SphereGeometry,
   elevation: ScalarField,
-  waterField: ScalarField,
+  waterCoverage: ScalarField,
   uvOffset: number,
 ): TerrainLevelFields {
   const columns = geometry.parameters.widthSegments
@@ -182,12 +269,12 @@ export function buildTerrainLevelFields(
   const stride = columns + 1
   const count = stride * (rows + 1)
   const heights = new Float32Array(count)
+  const rawHeights = new Float32Array(count)
   const weights = new Uint8Array(count)
   const blocked = new Uint8Array(count)
   const uv = geometry.getAttribute('uv')
   const indices = geometry.index?.array
   const heightsIntegral = new IntegralField(elevation)
-  const waterIntegral = new IntegralField(waterField)
 
   const cellU = Math.max(1 / columns, TERRAIN_FILTER_MIN_TEXELS / elevation.width)
   const cellV = Math.max(1 / rows, TERRAIN_FILTER_MIN_TEXELS / elevation.height)
@@ -204,6 +291,7 @@ export function buildTerrainLevelFields(
           1,
           north ? cellV * 0.5 : 1,
         )
+        rawHeights[index] = sampleBilinear(elevation, uv.getX(index) + uvOffset, north ? 0 : 1)
       } else {
         const mapU = uv.getX(index) + uvOffset
         const topDownV = 1 - uv.getY(index)
@@ -213,6 +301,7 @@ export function buildTerrainLevelFields(
           mapU + cellU * 0.5,
           topDownV + cellV * 0.5,
         )
+        rawHeights[index] = sampleBilinear(elevation, mapU, topDownV)
       }
     }
   }
@@ -222,7 +311,7 @@ export function buildTerrainLevelFields(
       const a = indices[offset]
       const b = indices[offset + 1]
       const c = indices[offset + 2]
-      if (!triangleHasWater(waterIntegral, uv, a, b, c, uvOffset)) continue
+      if (!triangleHasWater(waterCoverage, uv, a, b, c, uvOffset)) continue
       blocked[a] = 1
       blocked[b] = 1
       blocked[c] = 1
@@ -239,14 +328,19 @@ export function buildTerrainLevelFields(
     const seamHeight = 0.5 * (heights[first] + heights[last])
     heights[first] = seamHeight
     heights[last] = seamHeight
+    const seamRawHeight = 0.5 * (rawHeights[first] + rawHeights[last])
+    rawHeights[first] = seamRawHeight
+    rawHeights[last] = seamRawHeight
   }
   for (const row of [0, rows]) {
     let poleBlocked = 0
     for (let column = 0; column <= columns; column += 1) poleBlocked |= blocked[row * stride + column]
     const poleHeight = heights[row * stride]
+    const poleRawHeight = rawHeights[row * stride]
     for (let column = 0; column <= columns; column += 1) {
       blocked[row * stride + column] = poleBlocked
       heights[row * stride + column] = poleHeight
+      rawHeights[row * stride + column] = poleRawHeight
     }
   }
 
@@ -306,6 +400,14 @@ export function buildTerrainLevelFields(
     for (let column = 0; column <= columns; column += 1) weights[row * stride + column] = value
   }
 
+  // Filtering exists to suppress coastal staircase blades, not to reshape the
+  // whole planet. Raw DEM returns exactly where the coast weight reaches one;
+  // only the neutral zone and outer apron use the area-averaged height.
+  for (let index = 0; index < count; index += 1) {
+    const coastWeight = weights[index] / 255
+    heights[index] = rawHeights[index] * coastWeight + heights[index] * (1 - coastWeight)
+  }
+
   return {
     columns,
     rows,
@@ -318,16 +420,16 @@ export function buildTerrainLevelFields(
 
 export function buildTerrainFieldSet(
   elevation: ScalarField,
-  water: ScalarField,
+  waterCoverage: ScalarField,
   uvOffset: number,
   geometries: readonly SphereGeometry[],
 ): Omit<TerrainFieldSet, 'generation'> {
   return {
-    levels: geometries.map((geometry) => buildTerrainLevelFields(geometry, elevation, water, uvOffset)),
+    levels: geometries.map((geometry) => buildTerrainLevelFields(geometry, elevation, waterCoverage, uvOffset)),
   }
 }
 
-function imagePixels(texture: Texture): ScalarField | null {
+function imagePixels(texture: Texture, targetWidth?: number, targetHeight?: number): ScalarField | null {
   const source = texture.image as CanvasImageSource | undefined
   if (!source || typeof document === 'undefined') return null
   const image = source as {
@@ -336,14 +438,16 @@ function imagePixels(texture: Texture): ScalarField | null {
     naturalWidth?: number
     naturalHeight?: number
   }
-  const width = image.naturalWidth ?? image.width ?? 0
-  const height = image.naturalHeight ?? image.height ?? 0
+  const width = targetWidth ?? image.naturalWidth ?? image.width ?? 0
+  const height = targetHeight ?? image.naturalHeight ?? image.height ?? 0
   if (width <= 0 || height <= 0) return null
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const context = canvas.getContext('2d', { willReadFrequently: true })
   if (!context) return null
+  context.imageSmoothingEnabled = true
+  context.imageSmoothingQuality = 'high'
   context.drawImage(source, 0, 0, width, height)
   const pixels = context.getImageData(0, 0, width, height).data
   const data = new Float32Array(width * height)
@@ -354,6 +458,7 @@ function imagePixels(texture: Texture): ScalarField | null {
 interface CachedFields extends TerrainFieldSet {
   heightImage: unknown
   waterImage: unknown
+  bathymetryImage: unknown
   uvOffset: number
   geometries: readonly SphereGeometry[]
 }
@@ -377,15 +482,18 @@ function disposeLevels(fields: TerrainFieldSet | null): void {
 export function getTerrainFields(
   heightMap: Texture,
   waterMask: Texture,
+  bathymetryMap: Texture,
   uvOffset: number,
   geometries: readonly SphereGeometry[],
 ): TerrainFieldSet | null {
   const heightImage = heightMap.image as unknown
   const waterImage = waterMask.image as unknown
+  const bathymetryImage = bathymetryMap.image as unknown
   if (
     cached &&
     cached.heightImage === heightImage &&
     cached.waterImage === waterImage &&
+    cached.bathymetryImage === bathymetryImage &&
     cached.uvOffset === uvOffset &&
     cached.geometries === geometries
   ) {
@@ -393,12 +501,18 @@ export function getTerrainFields(
   }
   const elevation = imagePixels(heightMap)
   const water = imagePixels(waterMask)
-  if (!elevation || !water) return null
+  // Bathymetry can be much finer than the mask. A high-quality downsample keeps
+  // any covered texel positive while avoiding a full 8K readback solely for a
+  // binary coverage test.
+  const bathymetry = water ? imagePixels(bathymetryMap, water.width, water.height) : null
+  if (!elevation || !water || !bathymetry) return null
+  const waterCoverage = potentialWaterCoverage(water, bathymetry)
   const next: CachedFields = {
-    ...buildTerrainFieldSet(elevation, water, uvOffset, geometries),
+    ...buildTerrainFieldSet(elevation, waterCoverage, uvOffset, geometries),
     generation: ++generation,
     heightImage,
     waterImage,
+    bathymetryImage,
     uvOffset,
     geometries,
   }
@@ -428,7 +542,7 @@ vec2 terrainFieldUv(vec2 sphereUv, vec2 meshSegments) {
 `
 
 export interface TerrainOffsetSample {
-  /** Interpolated filteredHeight × weight. */
+  /** Interpolated terrain height × coast weight. */
   height: number
   /** Interpolated weight. The final rise is height × scale + taper × bias. */
   taper: number

@@ -2,6 +2,7 @@ import { Color, Vector2, Vector3 } from 'three'
 import type { Texture } from 'three'
 import type { OceanColour } from '../../data/oceanColours'
 import type { WaterVisuals } from '../../data/visuals'
+import { WATER_MASK_ALPHA_CUTOFF } from './terrainFields'
 
 /**
  * The ocean surface's shader plumbing.
@@ -531,7 +532,7 @@ export const WATER_FRAGMENT_BODY = /* glsl */ `
 {
   vec2 seaUv = vSeaUv + vec2(uUvOffset, 0.0);
   float waterMask = texture2D(uWaterMask, seaUv).r;
-  if (waterMask * uWaterAlpha < 0.004) discard;
+  if (waterMask * uWaterAlpha < ${WATER_MASK_ALPHA_CUTOFF}) discard;
   // The depth fraction under this pixel, minus how far the surface has dropped:
   // 0 exactly at the waterline, 1 where the column is still at full depth.
   float waterDepth = pow(texture2D(uBathyMap, seaUv).r, uSeafloorExponent) - uSeaLevelDrop;

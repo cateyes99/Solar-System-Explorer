@@ -569,10 +569,11 @@ export function Planet({
   const sphereGeometry = SPHERE_LODS[sphereTier]
   // Bake once per source-map generation, then bind the field belonging to this
   // exact render's geometry. There is never a trailing-effect LOD mismatch.
-  const terrainFields = visuals.terrain && seawaterMode.layeredWater
+  const terrainFields = visuals.terrain && visuals.seafloor && seawaterMode.layeredWater
     ? getTerrainFields(
         getTexture(visuals.terrain.heightMapId),
         getTexture('earthRoughness'),
+        getTexture(visuals.seafloor.bathymetryMapId),
         visuals.textureOffsetU,
         SPHERE_LODS,
       )

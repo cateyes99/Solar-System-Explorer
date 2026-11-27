@@ -219,10 +219,11 @@ ${TERRAIN_FIELD_UV_GLSL}
 
 /**
  * Surface mode keeps the original raw DEM displacement. Volumetric mode uses
- * the active geometry's area-filtered elevation and conservative coast weight.
- * Every potentially water-covered triangle has zero land relief at all three
- * corners, so its existing non-positive seafloor term cannot raise it through
- * the ocean. Nothing is clipped: the original opaque mesh stays continuous.
+ * the active geometry's derived elevation and conservative coast weight: raw
+ * DEM inland, area filtering only through the coastal apron. Every potentially
+ * water-covered triangle has zero land relief at all three corners, so its
+ * existing non-positive seafloor term cannot raise it through the ocean.
+ * Nothing is clipped: the original opaque mesh stays continuous.
  */
 export const TERRAIN_VERTEX_DISPLACE = /* glsl */ `
 {

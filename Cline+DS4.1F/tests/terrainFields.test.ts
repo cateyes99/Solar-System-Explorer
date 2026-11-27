@@ -5,14 +5,35 @@ import { SPHERE_LODS } from '../src/components/3d/geometry.ts'
 import {
   buildTerrainFieldSet,
   buildTerrainLevelFields,
+  potentialWaterCoverage,
   sampleTerrainLevelAt,
   terrainVertexFieldUv,
+  triangleHasWater,
+  WATER_MASK_ALPHA_CUTOFF,
   type ScalarField,
   type TerrainLevelFields,
 } from '../src/components/3d/terrainFields.ts'
 
 function scalar(width: number, height: number, value = 0): ScalarField {
   return { width, height, data: new Float32Array(width * height).fill(value) }
+}
+
+function bilinear(field: ScalarField, u: number, v: number): number {
+  const x = u * field.width - 0.5
+  const y = v * field.height - 0.5
+  const left = Math.floor(x)
+  const top = Math.floor(y)
+  const fx = x - left
+  const fy = y - top
+  const at = (column: number, row: number): number => {
+    const wrapped = ((column % field.width) + field.width) % field.width
+    const clamped = Math.max(0, Math.min(field.height - 1, row))
+    return field.data[clamped * field.width + wrapped]
+  }
+  return (
+    (at(left, top) * (1 - fx) + at(left + 1, top) * fx) * (1 - fy) +
+    (at(left, top + 1) * (1 - fx) + at(left + 1, top + 1) * fx) * fy
+  )
 }
 
 function dispose(level: TerrainLevelFields): void {
@@ -24,7 +45,7 @@ function disposeSet(levels: TerrainLevelFields[]): void {
   levels.forEach(dispose)
 }
 
-test('dry geometry keeps full relief and constant elevation is area-filtered exactly', () => {
+test('dry geometry keeps full relief and constant elevation exactly', () => {
   const level = buildTerrainLevelFields(new SphereGeometry(1, 8, 4), scalar(8, 4, 0.375), scalar(8, 4), 0)
   for (const height of level.heights) assert.ok(Math.abs(height - 0.375) < 1e-7)
   for (const weight of level.weights) assert.equal(weight, 255)
@@ -35,6 +56,51 @@ test('dry geometry keeps full relief and constant elevation is area-filtered exa
   assert.equal(level.heightTexture.generateMipmaps, false)
   assert.equal(level.weightTexture.generateMipmaps, false)
   dispose(level)
+})
+
+test('potential ocean coverage requires both sufficient mask and real bathymetry', () => {
+  const water = scalar(4, 1)
+  const bathymetry = scalar(4, 1)
+  water.data.set([1, 1, WATER_MASK_ALPHA_CUTOFF / 2, WATER_MASK_ALPHA_CUTOFF])
+  bathymetry.data.set([0, 0.2, 1, 0.01])
+  const coverage = potentialWaterCoverage(water, bathymetry)
+  assert.deepEqual([...coverage.data], [0, 1, 0, 1])
+})
+
+test('zero-bathymetry blue regions preserve raw low and high inland DEM heights', () => {
+  const elevation = scalar(4, 4)
+  for (let index = 0; index < elevation.data.length; index += 1) elevation.data[index] = index / 15
+  const noCoveredWater = potentialWaterCoverage(scalar(4, 4, 1), scalar(4, 4))
+  const geometry = new SphereGeometry(1, 4, 4)
+  const level = buildTerrainLevelFields(geometry, elevation, noCoveredWater, 0)
+  const uv = geometry.getAttribute('uv')
+  for (let row = 1; row < level.rows; row += 1) {
+    for (let column = 0; column < level.columns; column += 1) {
+      const index = row * (level.columns + 1) + column
+      assert.equal(level.weights[index], 255)
+      assert.ok(Math.abs(level.heights[index] - bilinear(elevation, uv.getX(index), 1 - uv.getY(index))) < 1e-7)
+    }
+  }
+  dispose(level)
+})
+
+test('water in only a triangle bounding-box corner does not block that triangle', () => {
+  const water = scalar(100, 100)
+  const coordinates = [
+    { x: 0.1, y: 0.9 },
+    { x: 0.5, y: 0.9 },
+    { x: 0.1, y: 0.5 },
+  ]
+  const uv = {
+    getX: (index: number) => coordinates[index].x,
+    getY: (index: number) => coordinates[index].y,
+  }
+  // The centre is inside the 10…50 texel bounds, but 13 texels beyond the
+  // triangle's x + y = 60 hypotenuse. The old rectangle-only test blocked it.
+  water.data[39 * 100 + 39] = 1
+  assert.equal(triangleHasWater(water, uv, 0, 1, 2, 0), false)
+  water.data[20 * 100 + 20] = 1
+  assert.equal(triangleHasWater(water, uv, 0, 1, 2, 0), true)
 })
 
 test('an all-water globe has exactly zero land relief at every vertex', () => {
