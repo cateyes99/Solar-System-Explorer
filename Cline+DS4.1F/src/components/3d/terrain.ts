@@ -1,7 +1,8 @@
-import { Color, Vector3 } from 'three'
+import { Color, Vector2, Vector3 } from 'three'
 import type { Texture } from 'three'
 import type { SeafloorVisuals, TerrainVisuals } from '../../data/visuals'
 import { EARTH_RADIUS_M, seafloorDepthRadius } from '../../utils/seawater'
+import { TERRAIN_FIELD_UV_GLSL } from './terrainFields'
 
 /**
  * The solid Earth: land relief, and the seafloor the ocean sits on.
@@ -101,6 +102,12 @@ export interface TerrainUniforms {
     uTerrainScale: { value: number }
     uTerrainBias: { value: number }
     uTerrainUvOffset: { value: number }
+    /** Active-LOD filtered elevation and conservative coast-relief weight. */
+    uTerrainHeightField: { value: Texture }
+    uTerrainCoastWeight: { value: Texture }
+    uTerrainMesh: { value: Vector2 }
+    /** 1 only when Volumetric mode has its derived fields available. */
+    uLayeredWater: { value: number }
     /* Seafloor (Earth only; inert while uBathyEnabled is 0) */
     uBathyMap: { value: Texture }
     uWaterMask: { value: Texture }
@@ -170,6 +177,10 @@ export function createTerrainUniforms(
       uTerrainScale: { value: start.scale },
       uTerrainBias: { value: start.bias },
       uTerrainUvOffset: { value: uvOffset },
+      uTerrainHeightField: { value: map },
+      uTerrainCoastWeight: { value: map },
+      uTerrainMesh: { value: new Vector2(1, 1) },
+      uLayeredWater: { value: 0 },
       uBathyMap: { value: seafloor?.maps.bathymetry ?? map },
       uWaterMask: { value: seafloor?.maps.waterMask ?? map },
       uSeafloorRamp: { value: seafloor?.maps.ramp ?? map },
@@ -196,20 +207,34 @@ export function createTerrainUniforms(
 /** The uniform declarations a vertex shader needs to read the elevation model. */
 export const TERRAIN_VERTEX_PARS = /* glsl */ `
 uniform sampler2D uTerrainMap;
+uniform sampler2D uTerrainHeightField;
+uniform sampler2D uTerrainCoastWeight;
 uniform float uTerrainScale;
 uniform float uTerrainBias;
 uniform float uTerrainUvOffset;
+uniform vec2 uTerrainMesh;
+uniform float uLayeredWater;
+${TERRAIN_FIELD_UV_GLSL}
 `
 
 /**
- * The land relief: the ground is pushed out along its own normal by the height
- * field, exactly as the map says. Sea level has a scale of zero, so the oceans
- * stay on the mean radius and only land moves.
+ * Surface mode keeps the original raw DEM displacement. Volumetric mode uses
+ * the active geometry's area-filtered elevation and conservative coast weight.
+ * Every potentially water-covered triangle has zero land relief at all three
+ * corners, so its existing non-positive seafloor term cannot raise it through
+ * the ocean. Nothing is clipped: the original opaque mesh stays continuous.
  */
 export const TERRAIN_VERTEX_DISPLACE = /* glsl */ `
 {
   float terrainHeight = texture2D(uTerrainMap, uv + vec2(uTerrainUvOffset, 0.0)).x;
-  transformed += normalize(position) * (terrainHeight * uTerrainScale + uTerrainBias);
+  float landOffset = terrainHeight * uTerrainScale + uTerrainBias;
+  if (uLayeredWater > 0.5) {
+    vec2 fieldUv = terrainFieldUv(uv, uTerrainMesh);
+    float filteredHeight = texture2D(uTerrainHeightField, fieldUv).r;
+    float coastWeight = texture2D(uTerrainCoastWeight, fieldUv).r;
+    landOffset = (filteredHeight * uTerrainScale + uTerrainBias) * coastWeight;
+  }
+  transformed += normalize(position) * landOffset;
 }
 `
 

@@ -42,6 +42,7 @@ import { smoothstep } from '../../utils/random'
 import { SUN_POSITION } from './constants'
 import { EARTH_MAP_PARS, createEarthMapUniforms, type EarthMapUniforms } from './earthMapShader'
 import type { TerrainRelief } from './terrain'
+import { sampleTerrainLevelAt, type TerrainLevelFields } from './terrainFields'
 
 /**
  * The optional "World map" overlay: national borders, regional (state/province)
@@ -91,6 +92,11 @@ interface EarthMapProps {
    */
   meshColumns: number
   meshRows: number
+  /** Volumetric terrain uses the same derived fields as the solid globe. */
+  layeredWater: boolean
+  coastFields: TerrainLevelFields | null
+  /** Invalidates CPU placement data when the source-map generation changes. */
+  coastGeneration: number
   quality: QualityLevel
   showLabels: boolean
   /**
@@ -156,8 +162,22 @@ function createElevationSampler(
   uvOffsetU: number,
   meshColumns: number,
   meshRows: number,
-): ((lon: number, lat: number) => number) | null {
+  layeredWater: boolean,
+  coastFields: TerrainLevelFields | null,
+): ((lon: number, lat: number) => ElevationSample) | null {
   if (!hasTexture('earthHeightmap')) return null
+  if (
+    layeredWater &&
+    coastFields &&
+    coastFields.columns === meshColumns &&
+    coastFields.rows === meshRows
+  ) {
+    return (lon, lat) =>
+      sampleTerrainLevelAt(coastFields, uvOffsetU, (lon + 180) / 360, (90 + lat) / 180)
+  }
+
+  // Surface mode keeps its original raw-DEM path. Volumetric mode falls back to
+  // it only if the derived field could not be read from the uploaded maps.
   const image = getTexture('earthHeightmap').image as CanvasImageSource | undefined
   if (!image) return null
   const source = image as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }
@@ -170,7 +190,6 @@ function createElevationSampler(
   if (!context) return null
   context.drawImage(image, 0, 0, width, height)
   const pixels = context.getImageData(0, 0, width, height).data
-  // The texel at a map coordinate, in the sampler's own top-down layout.
   const texel = (mapU: number, mapV: number) => {
     const u = (((mapU % 1) + 1) % 1)
     const v = Math.min(0.999999, Math.max(0, 1 - mapV))
@@ -180,11 +199,11 @@ function createElevationSampler(
   }
   const columns = Math.max(meshColumns, 1)
   const rows = Math.max(meshRows, 1)
-  // Mirror of the shader's earthMapGroundHeight.
   return (lon, lat) => {
     const mapU = (lon + 180) / 360
     const mapV = (90 + lat) / 180
-    const gu = (mapU - uvOffsetU) * columns
+    const wrappedU = (((mapU - uvOffsetU) % 1) + 1) % 1
+    const gu = wrappedU * columns
     const gv = Math.min(Math.max((1 - mapV) * rows, 0), rows - 1e-3)
     const iu = Math.floor(gu)
     const iv = Math.floor(gv)
@@ -200,10 +219,10 @@ function createElevationSampler(
     const hD = texel(u1, v1)
     const northCap = iv < 0.5
     const southCap = iv > rows - 1.5
-    if (southCap || (!northCap && au >= av)) {
-      return hA * (au - av) + hB * (1 - au) + hD * av
-    }
-    return hB * (1 - av) + hC * (av - au) + hD * au
+    const height = southCap || (!northCap && au >= av)
+      ? hA * (au - av) + hB * (1 - au) + hD * av
+      : hB * (1 - av) + hC * (av - au) + hD * au
+    return { height, taper: 1 }
   }
 }
 
@@ -357,10 +376,17 @@ export interface MapLabelEntry {
   lat: number
 }
 
+interface ElevationSample {
+  /** Interpolated filteredHeight × weight, or raw height in Surface mode. */
+  height: number
+  /** Interpolated weight; 1 in Surface mode. */
+  taper: number
+}
+
 interface MapLabelsProps {
   entries: MapLabelEntry[]
   uvOffsetU: number
-  sampler: ((lon: number, lat: number) => number) | null
+  sampler: ((lon: number, lat: number) => ElevationSample) | null
   terrain: TerrainRelief | null
   /** The globe's own group, which carries the overlay's transform. */
   groupRef: RefObject<Group | null>
@@ -370,8 +396,10 @@ interface MapLabelsProps {
 interface MapLabelPlacement {
   /** The name's unit direction in the globe group's own space. */
   dir: Vector3
-  /** The elevation model's texel at the name, 0 where there is no model. */
+  /** The surface's interpolated filteredHeight × weight. */
   height: number
+  /** The surface's interpolated coast weight. */
+  taper: number
 }
 
 /**
@@ -416,9 +444,11 @@ function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: 
     () =>
       entries.map((entry) => {
         const [x, y, z] = lonLatToDirection(entry.lon, entry.lat, uvOffsetU)
+        const sample = sampler?.(entry.lon, entry.lat)
         return {
           dir: new Vector3(x, y, z),
-          height: sampler ? sampler(entry.lon, entry.lat) : 0,
+          height: sample?.height ?? 0,
+          taper: sample?.taper ?? 1,
         }
       }),
     [entries, uvOffsetU, sampler],
@@ -514,7 +544,7 @@ function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: 
       let visible = facing > facingMin
       let radius = 0
       if (visible) {
-        radius = 1 + placement.height * terrainScale + terrainBias + lift
+        radius = 1 + placement.height * terrainScale + placement.taper * terrainBias + lift
         // A DOM label is never depth-tested, so the globe and the other worlds
         // have to be tested by hand — otherwise the Moon, passing in front of
         // South America, has the names behind it drawn on top of it. The globe's
@@ -606,6 +636,7 @@ interface HoverCandidate {
   place: GeoPlace
   dir: Vector3
   height: number
+  taper: number
 }
 
 /** How near a marker the pointer has to come to name it, in CSS pixels. */
@@ -661,7 +692,7 @@ function pickUnlabelledCity(
     const dir = candidate.dir
     // 1 at the point facing the camera, 0 at the limb, negative behind it.
     if (dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z <= facingMin) continue
-    const radius = 1 + candidate.height * terrainScale + terrainBias + lift
+    const radius = 1 + candidate.height * terrainScale + candidate.taper * terrainBias + lift
     // The same hand-run occlusion test the names get: the globe and the other
     // worlds are never depth-tested against either.
     _anchor.copy(dir).multiplyScalar(radius).applyMatrix4(group.matrixWorld)
@@ -695,6 +726,9 @@ export function EarthMap({
   terrain,
   meshColumns,
   meshRows,
+  layeredWater,
+  coastFields,
+  coastGeneration,
   quality,
   showLabels,
   showCountryNames,
@@ -721,6 +755,21 @@ export function EarthMap({
     () => createEarthMapUniforms(getTexture('earthHeightmap'), uvOffsetU, visuals),
     [uvOffsetU, visuals],
   )
+  const useCoastFields =
+    layeredWater &&
+    coastFields &&
+    coastFields.columns === meshColumns &&
+    coastFields.rows === meshRows
+  // Match the parent's render-atomic geometry/field selection. These writes are
+  // deliberately not deferred to an effect, where one frame could use stale LODs.
+  uniforms.uTerrainHeightField.value = useCoastFields
+    ? coastFields.heightTexture
+    : getTexture('earthHeightmap')
+  uniforms.uTerrainCoastWeight.value = useCoastFields
+    ? coastFields.weightTexture
+    : getTexture('earthHeightmap')
+  uniforms.uLayeredWater.value = useCoastFields ? 1 : 0
+  uniforms.uMeshSegments.value.set(meshColumns, meshRows)
 
   // The relief slider moves the mountains under the overlay: keep the shared
   // uniforms in step instead of rebuilding any geometry.
@@ -730,18 +779,15 @@ export function EarthMap({
     uniforms.uTerrainScale.value = hasElevation ? (terrain?.scale ?? 0) : 0
     uniforms.uTerrainBias.value = hasElevation ? (terrain?.bias ?? 0) : 0
     uniforms.uTerrainUvOffset.value = uvOffsetU
-    // The mesh whose facets the overlay has to sit on. It changes with the level
-    // of detail, so it is a live uniform rather than a shader constant.
-    uniforms.uMeshSegments.value.set(meshColumns, meshRows)
     // A hair toward the camera, so a line coplanar with the ground it lies on
     // wins the depth test instead of stippling against it. The shader works in
     // world units, so the fraction of the radius becomes a world distance here.
     uniforms.uCameraLift.value = visuals.cameraLift * radius
-  }, [uniforms, terrain, uvOffsetU, radius, meshColumns, meshRows, visuals])
+  }, [uniforms, terrain, uvOffsetU, radius, meshColumns, meshRows, visuals, quality])
 
   const sampler = useMemo(
-    () => createElevationSampler(uvOffsetU, meshColumns, meshRows),
-    [uvOffsetU, meshColumns, meshRows],
+    () => createElevationSampler(uvOffsetU, meshColumns, meshRows, layeredWater, coastFields),
+    [uvOffsetU, meshColumns, meshRows, layeredWater, coastFields, coastGeneration, quality],
   )
 
   // The dots that answer the pointer: the cities that never carry a name. A city
@@ -753,10 +799,12 @@ export function EarthMap({
     for (const place of data.places) {
       if (place.label === 1) continue
       const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
+      const sample = sampler?.(place.lon, place.lat)
       candidates.push({
         place,
         dir: new Vector3(x, y, z),
-        height: sampler ? sampler(place.lon, place.lat) : 0,
+        height: sample?.height ?? 0,
+        taper: sample?.taper ?? 1,
       })
     }
     return candidates

@@ -1,0 +1,180 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { NearestFilter, RedFormat, SphereGeometry } from 'three'
+import { SPHERE_LODS } from '../src/components/3d/geometry.ts'
+import {
+  buildTerrainFieldSet,
+  buildTerrainLevelFields,
+  sampleTerrainLevelAt,
+  terrainVertexFieldUv,
+  type ScalarField,
+  type TerrainLevelFields,
+} from '../src/components/3d/terrainFields.ts'
+
+function scalar(width: number, height: number, value = 0): ScalarField {
+  return { width, height, data: new Float32Array(width * height).fill(value) }
+}
+
+function dispose(level: TerrainLevelFields): void {
+  level.heightTexture.dispose()
+  level.weightTexture.dispose()
+}
+
+function disposeSet(levels: TerrainLevelFields[]): void {
+  levels.forEach(dispose)
+}
+
+test('dry geometry keeps full relief and constant elevation is area-filtered exactly', () => {
+  const level = buildTerrainLevelFields(new SphereGeometry(1, 8, 4), scalar(8, 4, 0.375), scalar(8, 4), 0)
+  for (const height of level.heights) assert.ok(Math.abs(height - 0.375) < 1e-7)
+  for (const weight of level.weights) assert.equal(weight, 255)
+  assert.equal(level.heightTexture.format, RedFormat)
+  assert.equal(level.weightTexture.format, RedFormat)
+  assert.equal(level.heightTexture.magFilter, NearestFilter)
+  assert.equal(level.heightTexture.minFilter, NearestFilter)
+  assert.equal(level.heightTexture.generateMipmaps, false)
+  assert.equal(level.weightTexture.generateMipmaps, false)
+  dispose(level)
+})
+
+test('an all-water globe has exactly zero land relief at every vertex', () => {
+  const level = buildTerrainLevelFields(new SphereGeometry(1, 8, 4), scalar(8, 4, 0.8), scalar(8, 4, 1), 0)
+  for (const weight of level.weights) assert.equal(weight, 0)
+  dispose(level)
+})
+
+test('a one-texel inland lake forces zero on every water-triangle corner without flattening the whole map', () => {
+  const elevation = scalar(64, 64, 0.8)
+  const water = scalar(64, 64)
+  water.data[24 * 64 + 24] = 1
+  const geometry = new SphereGeometry(1, 16, 16)
+  const level = buildTerrainLevelFields(geometry, elevation, water, 0)
+  assert.ok(level.weights.some((weight) => weight === 0))
+  assert.ok(level.weights.some((weight) => weight === 255))
+
+  // Independent point-in-triangle check: any water-texel centre that really is
+  // inside a triangle must make all three of its relief weights exactly zero.
+  const uv = geometry.getAttribute('uv')
+  const indices = geometry.index?.array as ArrayLike<number> | undefined
+  assert.ok(indices)
+  const pointInside = (
+    px: number,
+    py: number,
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    cx: number,
+    cy: number,
+  ): boolean => {
+    const v0x = cx - ax
+    const v0y = cy - ay
+    const v1x = bx - ax
+    const v1y = by - ay
+    const v2x = px - ax
+    const v2y = py - ay
+    const dot00 = v0x * v0x + v0y * v0y
+    const dot01 = v0x * v1x + v0y * v1y
+    const dot02 = v0x * v2x + v0y * v2y
+    const dot11 = v1x * v1x + v1y * v1y
+    const dot12 = v1x * v2x + v1y * v2y
+    const denominator = dot00 * dot11 - dot01 * dot01
+    if (Math.abs(denominator) < 1e-12) return false
+    const u = (dot11 * dot02 - dot01 * dot12) / denominator
+    const v = (dot00 * dot12 - dot01 * dot02) / denominator
+    return u >= -1e-8 && v >= -1e-8 && u + v <= 1 + 1e-8
+  }
+
+  for (let offset = 0; offset < indices.length; offset += 3) {
+    const corners: number[] = [indices[offset], indices[offset + 1], indices[offset + 2]]
+    const coordinates = corners.map((index) => ({ x: uv.getX(index), y: 1 - uv.getY(index) }))
+    const waterX = (24 + 0.5) / 64
+    const waterY = (24 + 0.5) / 64
+    if (
+      pointInside(
+        waterX,
+        waterY,
+        coordinates[0].x,
+        coordinates[0].y,
+        coordinates[1].x,
+        coordinates[1].y,
+        coordinates[2].x,
+        coordinates[2].y,
+      )
+    ) {
+      for (const corner of corners) assert.equal(level.weights[corner], 0)
+    }
+  }
+  dispose(level)
+})
+
+test('seam duplicates and each coincident pole group share final height and weight', () => {
+  const elevation = scalar(16, 8)
+  const water = scalar(16, 8)
+  for (let index = 0; index < elevation.data.length; index += 1) {
+    elevation.data[index] = (index % 11) / 10
+    water.data[index] = index % 13 === 0 ? 1 : 0
+  }
+  const level = buildTerrainLevelFields(new SphereGeometry(1, 8, 4), elevation, water, 0.55)
+  const stride = level.columns + 1
+  for (let row = 0; row <= level.rows; row += 1) {
+    const first = row * stride
+    const last = first + level.columns
+    assert.equal(level.weights[first], level.weights[last])
+    assert.equal(level.heights[first], level.heights[last])
+  }
+  for (const row of [0, level.rows]) {
+    const first = row * stride
+    for (let column = 1; column <= level.columns; column += 1) {
+      assert.equal(level.weights[first], level.weights[first + column])
+      assert.equal(level.heights[first], level.heights[first + column])
+    }
+  }
+  dispose(level)
+})
+
+test('every supported LOD preserves the zero-water-relief contract', () => {
+  const fields = buildTerrainFieldSet(scalar(8, 4, 0.8), scalar(8, 4, 1), 0, SPHERE_LODS)
+  assert.equal(fields.levels.length, 6)
+  for (const level of fields.levels) {
+    assert.equal(level.weights.length, (level.columns + 1) * (level.rows + 1))
+    for (const weight of level.weights) assert.equal(weight, 0)
+  }
+  disposeSet(fields.levels)
+})
+
+test('field UV addressing recovers regular, north-pole and south-pole grid vertices', () => {
+  assert.deepEqual(terrainVertexFieldUv(0.5, 0.5, 4, 4), { u: 0.5, v: 0.5 })
+  assert.deepEqual(terrainVertexFieldUv(0.625, 1, 4, 4), { u: 0.5, v: 0.1 })
+  assert.deepEqual(terrainVertexFieldUv(0.375, 0, 4, 4), { u: 0.5, v: 0.9 })
+})
+
+test('overlay sampling interpolates filtered height × coast weight per corner', () => {
+  const level = buildTerrainLevelFields(new SphereGeometry(1, 4, 4), scalar(4, 4, 0.8), scalar(4, 4), 0)
+  const columns = level.columns
+  const stride = columns + 1
+  const row = 1
+  const aIndex = row * stride + 2
+  const bIndex = row * stride + 1
+  const dIndex = (row + 1) * stride + 2
+  level.heights[aIndex] = 0.2
+  level.heights[bIndex] = 0.4
+  level.heights[dIndex] = 0.8
+  level.weights[aIndex] = 0
+  level.weights[bIndex] = 128
+  level.weights[dIndex] = 255
+
+  // This point selects au = av = 0.5 in row 1's A-B-D triangle.
+  const sample = sampleTerrainLevelAt(level, 0, 0.375, 0.625)
+  const au = 0.5
+  const av = 0.5
+  const shares = { a: au - av, b: 1 - au, d: av }
+  const expectedHeight =
+    0.2 * 0 * shares.a +
+    0.4 * (128 / 255) * shares.b +
+    0.8 * 1 * shares.d
+  const expectedTaper = 0 * shares.a + (128 / 255) * shares.b + 1 * shares.d
+  assert.ok(Math.abs(sample.height - expectedHeight) < 1e-7)
+  assert.ok(Math.abs(sample.taper - expectedTaper) < 1e-7)
+  dispose(level)
+})

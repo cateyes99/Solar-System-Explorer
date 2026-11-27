@@ -43,6 +43,7 @@ import {
   terrainDisplacement,
   type SeafloorBinding,
 } from './terrain'
+import { getTerrainFields } from './terrainFields'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
 import { EarthMap } from './EarthMap'
@@ -566,6 +567,27 @@ export function Planet({
   })
 
   const sphereGeometry = SPHERE_LODS[sphereTier]
+  // Bake once per source-map generation, then bind the field belonging to this
+  // exact render's geometry. There is never a trailing-effect LOD mismatch.
+  const terrainFields = visuals.terrain && seawaterMode.layeredWater
+    ? getTerrainFields(
+        getTexture(visuals.terrain.heightMapId),
+        getTexture('earthRoughness'),
+        visuals.textureOffsetU,
+        SPHERE_LODS,
+      )
+    : null
+  const terrainLevel = terrainFields?.levels[sphereTier] ?? null
+  if (terrainUniforms) {
+    const { uniforms } = terrainUniforms
+    uniforms.uTerrainHeightField.value = terrainLevel?.heightTexture ?? terrainUniforms.map
+    uniforms.uTerrainCoastWeight.value = terrainLevel?.weightTexture ?? terrainUniforms.map
+    uniforms.uTerrainMesh.value.set(
+      sphereGeometry.parameters.widthSegments,
+      sphereGeometry.parameters.heightSegments,
+    )
+    uniforms.uLayeredWater.value = terrainLevel && seawaterMode.layeredWater ? 1 : 0
+  }
 
   const handleClick = (event: { altKey?: boolean }): void => {
     selectBody(body.id)
@@ -658,6 +680,9 @@ export function Planet({
               // mesh's own facets, so it has to know the mesh it is sitting on.
               meshColumns={sphereGeometry.parameters.widthSegments}
               meshRows={sphereGeometry.parameters.heightSegments}
+              layeredWater={seawaterMode.layeredWater}
+              coastFields={terrainLevel}
+              coastGeneration={terrainFields?.generation ?? 0}
               quality={quality}
               showLabels={showLabels}
               showCountryNames={showCountryNames}
