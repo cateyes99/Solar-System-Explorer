@@ -46,7 +46,7 @@ export function potentialWaterCoverage(water: ScalarField, bathymetry: ScalarFie
 }
 
 /** Bilinear sample in top-down map UV, with periodic longitude and clamped latitude. */
-function sampleBilinear(field: ScalarField, u: number, v: number): number {
+export function sampleBilinear(field: ScalarField, u: number, v: number): number {
   const x = u * field.width - 0.5
   const y = Math.max(0, Math.min(1, v)) * field.height - 0.5
   const left = Math.floor(x)
@@ -63,6 +63,72 @@ function sampleBilinear(field: ScalarField, u: number, v: number): number {
   const c = at(left, top + 1)
   const d = at(left + 1, top + 1)
   return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
+}
+
+/**
+ * The soft mask for the global ocean only. The largest connected water component
+ * is the open ocean; separate elevated lakes keep their raw DEM surface and
+ * painted day-map water. Below-sea inland water retains the existing treatment.
+ */
+export function oceanMaskField(
+  elevation: ScalarField,
+  water: ScalarField,
+  bathymetry: ScalarField,
+  seaLevelTexel: number,
+): ScalarField {
+  if (water.width !== bathymetry.width || water.height !== bathymetry.height) {
+    throw new Error('Water and bathymetry fields must have matching dimensions')
+  }
+  const count = water.data.length
+  const candidate = (index: number): boolean =>
+    water.data[index] >= WATER_MASK_ALPHA_CUTOFF && bathymetry.data[index] > 0
+  const labels = new Int32Array(count).fill(-1)
+  const sizes: number[] = []
+  const stack = new Int32Array(count)
+  for (let start = 0; start < count; start += 1) {
+    if (labels[start] >= 0 || !candidate(start)) continue
+    const label = sizes.length
+    let size = 0
+    let top = 0
+    labels[start] = label
+    stack[top++] = start
+    while (top > 0) {
+      const index = stack[--top]
+      size += 1
+      const x = index % water.width
+      const y = Math.floor(index / water.width)
+      for (let direction = 0; direction < 4; direction += 1) {
+        const nx = direction === 0 ? x - 1 : direction === 1 ? x + 1 : x
+        const ny = direction === 2 ? y - 1 : direction === 3 ? y + 1 : y
+        if (ny < 0 || ny >= water.height) continue
+        const wrapped = ((nx % water.width) + water.width) % water.width
+        const neighbour = ny * water.width + wrapped
+        if (labels[neighbour] >= 0 || !candidate(neighbour)) continue
+        labels[neighbour] = label
+        stack[top++] = neighbour
+      }
+    }
+    sizes.push(size)
+  }
+  let oceanComponent = -1
+  let largest = 0
+  for (let label = 0; label < sizes.length; label += 1) {
+    if (sizes[label] > largest) {
+      largest = sizes[label]
+      oceanComponent = label
+    }
+  }
+
+  const data = new Float32Array(count)
+  for (let y = 0; y < water.height; y += 1) {
+    for (let x = 0; x < water.width; x += 1) {
+      const index = y * water.width + x
+      if (!candidate(index)) continue
+      const height = sampleBilinear(elevation, (x + 0.5) / water.width, (y + 0.5) / water.height)
+      data[index] = labels[index] === oceanComponent || height <= seaLevelTexel ? water.data[index] : 0
+    }
+  }
+  return { width: water.width, height: water.height, data }
 }
 
 /** The two fields sampled at the vertices of one actual sphere geometry. */
@@ -429,7 +495,7 @@ export function buildTerrainFieldSet(
   }
 }
 
-function imagePixels(texture: Texture, targetWidth?: number, targetHeight?: number): ScalarField | null {
+export function imagePixels(texture: Texture, targetWidth?: number, targetHeight?: number): ScalarField | null {
   const source = texture.image as CanvasImageSource | undefined
   if (!source || typeof document === 'undefined') return null
   const image = source as {

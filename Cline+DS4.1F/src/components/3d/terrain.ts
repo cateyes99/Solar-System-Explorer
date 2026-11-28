@@ -108,6 +108,8 @@ export interface TerrainUniforms {
     uTerrainMesh: { value: Vector2 }
     /** 1 only when Volumetric mode has its derived fields available. */
     uLayeredWater: { value: number }
+    /** 1 when the active Volumetric mesh carries coast-conforming attributes. */
+    uCoastGeometry: { value: number }
     /* Seafloor (Earth only; inert while uBathyEnabled is 0) */
     uBathyMap: { value: Texture }
     uWaterMask: { value: Texture }
@@ -181,6 +183,7 @@ export function createTerrainUniforms(
       uTerrainCoastWeight: { value: map },
       uTerrainMesh: { value: new Vector2(1, 1) },
       uLayeredWater: { value: 0 },
+      uCoastGeometry: { value: 0 },
       uBathyMap: { value: seafloor?.maps.bathymetry ?? map },
       uWaterMask: { value: seafloor?.maps.waterMask ?? map },
       uSeafloorRamp: { value: seafloor?.maps.ramp ?? map },
@@ -214,6 +217,10 @@ uniform float uTerrainBias;
 uniform float uTerrainUvOffset;
 uniform vec2 uTerrainMesh;
 uniform float uLayeredWater;
+uniform float uCoastGeometry;
+attribute float aLandWeight;
+attribute float aOceanFloor;
+varying float vOceanFloor;
 ${TERRAIN_FIELD_UV_GLSL}
 `
 
@@ -229,11 +236,22 @@ export const TERRAIN_VERTEX_DISPLACE = /* glsl */ `
 {
   float terrainHeight = texture2D(uTerrainMap, uv + vec2(uTerrainUvOffset, 0.0)).x;
   float landOffset = terrainHeight * uTerrainScale + uTerrainBias;
+  vOceanFloor = 1.0;
   if (uLayeredWater > 0.5) {
-    vec2 fieldUv = terrainFieldUv(uv, uTerrainMesh);
-    float filteredHeight = texture2D(uTerrainHeightField, fieldUv).r;
-    float coastWeight = texture2D(uTerrainCoastWeight, fieldUv).r;
-    landOffset = (filteredHeight * uTerrainScale + uTerrainBias) * coastWeight;
+    if (uCoastGeometry > 0.5) {
+      // Coast-conforming geometry never tapers land. Ocean-floor and skirt-bottom
+      // vertices have zero land weight; land, ice, lakes and skirt tops stay raw.
+      landOffset *= aLandWeight;
+      vOceanFloor = aOceanFloor;
+      // The shared ocean/skirt boundary sits a hair inside the transparent sea,
+      // avoiding coplanar depth fighting without lowering either land cap.
+      if (aLandWeight < 0.5 && aOceanFloor < 0.5) landOffset = -0.000001;
+    } else {
+      vec2 fieldUv = terrainFieldUv(uv, uTerrainMesh);
+      float filteredHeight = texture2D(uTerrainHeightField, fieldUv).r;
+      float coastWeight = texture2D(uTerrainCoastWeight, fieldUv).r;
+      landOffset = (filteredHeight * uTerrainScale + uTerrainBias) * coastWeight;
+    }
   }
   transformed += normalize(position) * landOffset;
 }
@@ -276,7 +294,7 @@ if (uBathyEnabled > 0.5 && uSeawaterOpacity < 0.999) {
   // at sea level instead of dropping them to the floor.
   float water = texture2D(uWaterMask, seaUv).r;
   float drained = pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma);
-  transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water);
+  transformed += normalize(position) * (-seaDepth * uSeafloorScale * drained * water * vOceanFloor);
 }
 `
 
@@ -295,6 +313,7 @@ uniform vec3 uSeafloorWaterTint;
 uniform float uBathyEnabled;
 uniform float uTerrainUvOffset;
 varying vec2 vSeaUv;
+varying float vOceanFloor;
 
 // The depth fraction at a seafloor UV: 0 at sea level, 1 at the deepest point.
 float seafloorDepthAt(vec2 seaUv) {
@@ -318,7 +337,7 @@ float seafloorShelf(vec2 seaUv) {
 float seafloorReveal(vec2 seaUv) {
   float water = texture2D(uWaterMask, seaUv).r;
   return clamp(
-    water * seafloorShelf(seaUv) * pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma),
+    vOceanFloor * water * seafloorShelf(seaUv) * pow(1.0 - uSeawaterOpacity, uSeafloorRevealGamma),
     0.0,
     1.0
   );

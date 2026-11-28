@@ -44,6 +44,7 @@ import {
   type SeafloorBinding,
 } from './terrain'
 import { getTerrainFields } from './terrainFields'
+import { disposeCoastGeometrySet, getCoastGeometrySet } from './coastGeometryCache'
 import { Atmosphere } from './Atmosphere'
 import { Clouds } from './Clouds'
 import { EarthMap } from './EarthMap'
@@ -447,6 +448,10 @@ export function Planet({
 
   useEffect(() => () => surfaceMaterial.dispose(), [surfaceMaterial])
   useEffect(() => () => focusRingGeometry.dispose(), [focusRingGeometry])
+  useEffect(() => {
+    if (body.id !== 'earth') return
+    return () => disposeCoastGeometrySet()
+  }, [body.id])
 
   // The camera controller and the HUD look planets up by id.
   useEffect(() => {
@@ -567,9 +572,20 @@ export function Planet({
   })
 
   const sphereGeometry = SPHERE_LODS[sphereTier]
-  // Bake once per source-map generation, then bind the field belonging to this
-  // exact render's geometry. There is never a trailing-effect LOD mismatch.
-  const terrainFields = visuals.terrain && visuals.seafloor && seawaterMode.layeredWater
+  const coastGeometrySet = body.id === 'earth' && visuals.terrain && visuals.seafloor && seawaterMode.layeredWater
+    ? getCoastGeometrySet(
+        getTexture(visuals.terrain.heightMapId),
+        getTexture('earthRoughness'),
+        getTexture(visuals.seafloor.bathymetryMapId),
+        visuals.textureOffsetU,
+        visuals.terrain.seaLevelTexel,
+        SPHERE_LODS,
+      )
+    : null
+  const coastGeometry = coastGeometrySet?.levels[sphereTier] ?? null
+  const surfaceGeometry = coastGeometry ?? sphereGeometry
+  // The older derived fields remain a fallback if a coast mesh cannot be built.
+  const terrainFields = !coastGeometry && visuals.terrain && visuals.seafloor && seawaterMode.layeredWater
     ? getTerrainFields(
         getTexture(visuals.terrain.heightMapId),
         getTexture('earthRoughness'),
@@ -587,7 +603,8 @@ export function Planet({
       sphereGeometry.parameters.widthSegments,
       sphereGeometry.parameters.heightSegments,
     )
-    uniforms.uLayeredWater.value = terrainLevel && seawaterMode.layeredWater ? 1 : 0
+    uniforms.uLayeredWater.value = coastGeometry || (terrainLevel && seawaterMode.layeredWater) ? 1 : 0
+    uniforms.uCoastGeometry.value = coastGeometry ? 1 : 0
   }
 
   const handleClick = (event: { altKey?: boolean }): void => {
@@ -607,7 +624,7 @@ export function Planet({
         <group ref={spinRef} scale={flattenScale}>
           <mesh
             ref={surfaceMeshRef}
-            geometry={sphereGeometry}
+            geometry={surfaceGeometry}
             material={surfaceMaterial}
             scale={radius}
             onPointerOver={(event) => {
@@ -640,7 +657,7 @@ export function Planet({
               radius={radius}
               visuals={visuals.water}
               bathymetry={getTexture(visuals.seafloor.bathymetryMapId)}
-              waterMask={getTexture('earthRoughness')}
+              waterMask={coastGeometrySet?.oceanMask ?? getTexture('earthRoughness')}
               depthExponent={visuals.seafloor.depthExponent}
               uvOffset={visuals.textureOffsetU}
               maxDepthRadius={seafloorFloor?.maxDepthRadius ?? 0}
@@ -681,7 +698,7 @@ export function Planet({
               // mesh's own facets, so it has to know the mesh it is sitting on.
               meshColumns={sphereGeometry.parameters.widthSegments}
               meshRows={sphereGeometry.parameters.heightSegments}
-              layeredWater={seawaterMode.layeredWater}
+              layeredWater={seawaterMode.layeredWater && !coastGeometry}
               coastFields={terrainLevel}
               coastGeneration={terrainFields?.generation ?? 0}
               quality={quality}
@@ -716,7 +733,7 @@ export function Planet({
                 uvOffsetU={visuals.textureOffsetU}
                 // The lights are painted on the ground, so they ride the same
                 // displaced surface as the terrain instead of hovering over it.
-                geometry={sphereGeometry}
+                geometry={surfaceGeometry}
                 terrain={terrainUniforms}
               />
             </group>

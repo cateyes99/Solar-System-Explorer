@@ -5,6 +5,7 @@ import { SPHERE_LODS } from '../src/components/3d/geometry.ts'
 import {
   buildTerrainFieldSet,
   buildTerrainLevelFields,
+  oceanMaskField,
   potentialWaterCoverage,
   sampleTerrainLevelAt,
   terrainVertexFieldUv,
@@ -65,6 +66,27 @@ test('potential ocean coverage requires both sufficient mask and real bathymetry
   bathymetry.data.set([0, 0.2, 1, 0.01])
   const coverage = potentialWaterCoverage(water, bathymetry)
   assert.deepEqual([...coverage.data], [0, 1, 0, 1])
+})
+
+test('the ocean-only mask excludes separate elevated lakes but preserves soft ocean alpha', () => {
+  const elevation = scalar(5, 1)
+  const water = scalar(5, 1)
+  const bathymetry = scalar(5, 1, 1)
+  elevation.data.set([0.4, 0.4, 0.6, 0.4, 0.4])
+  water.data.set([1, 0, 0.5, 0, 0.5])
+  const mask = oceanMaskField(elevation, water, bathymetry, 0.5)
+  // The first component is the ocean; the elevated lake at x=2 is excluded;
+  // another low/below-sea water component keeps its existing soft ocean mask.
+  assert.deepEqual([...mask.data], [1, 0, 0, 0, 0.5])
+})
+
+test('high DEM inside the open-ocean component is not mistaken for an inland lake', () => {
+  const elevation = scalar(3, 1)
+  const water = scalar(3, 1, 1)
+  const bathymetry = scalar(3, 1, 1)
+  elevation.data.set([0.4, 0.6, 0.4])
+  const mask = oceanMaskField(elevation, water, bathymetry, 0.5)
+  assert.deepEqual([...mask.data], [1, 1, 1])
 })
 
 test('zero-bathymetry blue regions preserve raw low and high inland DEM heights', () => {

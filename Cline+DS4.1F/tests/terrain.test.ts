@@ -28,6 +28,7 @@ test('terrain and seafloor vertex declarations remain unique', () => {
     'uTerrainCoastWeight',
     'uTerrainMesh',
     'uLayeredWater',
+    'uCoastGeometry',
     'uWaterMask',
     'uSeawaterOpacity',
     'uBathyEnabled',
@@ -43,9 +44,22 @@ test('terrain and seafloor vertex declarations remain unique', () => {
 test('geometry and its derived field are selected from the same render tier', () => {
   assert.match(planet, /const sphereGeometry = SPHERE_LODS\[sphereTier\]/)
   assert.match(planet, /const terrainLevel = terrainFields\?\.levels\[sphereTier\] \?\? null/)
-  assert.match(planet, /uniforms\.uLayeredWater\.value = terrainLevel && seawaterMode\.layeredWater \? 1 : 0/)
+  assert.match(planet, /uniforms\.uLayeredWater\.value = coastGeometry \|\| \(terrainLevel && seawaterMode\.layeredWater\) \? 1 : 0/)
+  assert.match(planet, /uniforms\.uCoastGeometry\.value = coastGeometry \? 1 : 0/)
+  assert.match(planet, /getCoastGeometrySet\(/)
   assert.doesNotMatch(terrain, /SEAFLOOR_COAST_CLIP|COAST_BACKING/)
   assert.doesNotMatch(planet, /coastBackingMaterial/)
+})
+
+test('coast-conforming geometry preserves raw land and gates the seafloor by its attribute', () => {
+  const displacement = shaderChunk('TERRAIN_VERTEX_DISPLACE')
+  const seafloor = shaderChunk('SEAFLOOR_VERTEX_DISPLACE')
+  const fragment = shaderChunk('SEAFLOOR_FRAGMENT_PARS')
+  assert.match(displacement, /if \(uCoastGeometry > 0\.5\)/)
+  assert.match(displacement, /landOffset \*= aLandWeight/)
+  assert.match(displacement, /vOceanFloor = aOceanFloor/)
+  assert.match(seafloor, /drained \* water \* vOceanFloor/)
+  assert.match(fragment, /vOceanFloor \* water \* seafloorShelf/)
 })
 
 test('the overlay interpolates final corner coefficients rather than averaging first', () => {
