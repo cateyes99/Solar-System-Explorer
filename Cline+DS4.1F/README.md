@@ -257,6 +257,14 @@ A few decisions worth knowing about:
   rises over the cells that lead inland. The bump map still reads the full-resolution model, so the
   shading keeps every ridge the geometry cannot hold, and the World map's overlay and labels read
   the same band-limited sample, so they stay on the ground the mesh draws.
+- **A coast is a slope, not a wall.** Averaging the height cannot remove the step at the waterline,
+  because the rise has to happen somewhere: a vertex just inland is genuinely a thousand metres up
+  while its seaward neighbour is at sea level, and at 160× that step is a cliff leaning over the
+  ocean. So the land rise is faded to zero at the waterline and reaches its full value inland, over
+  an apron that is never narrower than one mesh cell — the shortest distance over which the mesh can
+  draw a slope, and therefore wider on the coarse rungs and narrower as the globe fills the view.
+  The apron reads the ocean's own water mask, so lakes are treated as coasts too, and the World map
+  draws its borders and names on the same tapered rise, so nothing floats above the bevelled shore.
 - **The World map is real map data too — and it is public domain.** Earth's optional overlay
   (national and regional borders, country names, capitals and cities) is **Natural Earth** vector
   data in

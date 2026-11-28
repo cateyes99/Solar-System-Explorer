@@ -577,8 +577,6 @@ export function Planet({
       sphereGeometry.parameters.heightSegments,
     )
   }
-  // TEMP-DEBUG: expose the terrain uniforms so a probe can A/B the kernel.
-  ;(window as unknown as Record<string, unknown>).__terrain = terrainUniforms?.uniforms ?? null
 
   const handleClick = (event: { altKey?: boolean }): void => {
     selectBody(body.id)

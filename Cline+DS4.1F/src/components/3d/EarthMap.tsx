@@ -41,7 +41,7 @@ import { getTexture, hasTexture } from '../../utils/textures'
 import { smoothstep } from '../../utils/random'
 import { SUN_POSITION } from './constants'
 import { EARTH_MAP_PARS, createEarthMapUniforms, type EarthMapUniforms } from './earthMapShader'
-import type { TerrainRelief } from './terrain'
+import { TERRAIN_COAST_TAPER_TEXELS, TERRAIN_KERNEL_MIN_TEXELS, type TerrainRelief } from './terrain'
 
 /**
  * The optional "World map" overlay: national borders, regional (state/province)
@@ -140,25 +140,10 @@ function useGeoData(quality: QualityLevel): GeoData | null {
   return data
 }
 
-/**
- * A cheap CPU copy of the elevation model, for placing the text labels (which
- * are DOM elements and cannot be displaced by a shader). The markers themselves
- * do not use it: they hug the terrain in the shader like the borders. Returns
- * null when there is no elevation model, and the labels then sit just above sea
- * level.
- *
- * It returns the height the *surface mesh* shows, not the model's own texel —
- * the same value `earthMapGroundHeight` gives the shader (see
- * `earthMapShader.ts`). A label placed on the raw texel would drift up off the
- * ground at a summit, and off its own marker, which is drawn on the mesh.
- */
-function createElevationSampler(
-  uvOffsetU: number,
-  meshColumns: number,
-  meshRows: number,
-): ((lon: number, lat: number) => number) | null {
-  if (!hasTexture('earthHeightmap')) return null
-  const image = getTexture('earthHeightmap').image as CanvasImageSource | undefined
+/** One of Earth's maps, read back as raw RGBA pixels for the CPU samplers. */
+function readMapPixels(textureId: 'earthHeightmap' | 'earthRoughness') {
+  if (!hasTexture(textureId)) return null
+  const image = getTexture(textureId).image as CanvasImageSource | undefined
   if (!image) return null
   const source = image as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }
   const width = source.naturalWidth ?? source.width ?? 2048
@@ -169,34 +154,92 @@ function createElevationSampler(
   const context = canvas.getContext('2d', { willReadFrequently: true })
   if (!context) return null
   context.drawImage(image, 0, 0, width, height)
-  const pixels = context.getImageData(0, 0, width, height).data
-  // The texel at a map coordinate, in the sampler's own top-down layout.
-  const texel = (mapU: number, mapV: number) => {
-    const u = (((mapU % 1) + 1) % 1)
-    const v = Math.min(0.999999, Math.max(0, 1 - mapV))
-    const x = Math.min(width - 1, Math.floor(u * width))
-    const y = Math.min(height - 1, Math.floor(v * height))
-    return pixels[(y * width + x) * 4] / 255
-  }
+  return { width, height, data: context.getImageData(0, 0, width, height).data }
+}
+
+/**
+ * The ground a name should sit on: the surface mesh's height and the fraction of
+ * the land relief the coastal apron still shows there.
+ *
+ * A cheap CPU copy of the elevation model, for placing the text labels (which are
+ * DOM elements and cannot be displaced by a shader). The markers themselves do
+ * not use it: they hug the terrain in the shader like the borders. Returns null
+ * when there is no elevation model, and the labels then sit just above sea level.
+ *
+ * It mirrors `earthMapGroundHeight` in `earthMapShader.ts` — the band-limited
+ * sampler, the mesh facet interpolation and the coastal taper — so a name lands on
+ * the ground the mesh draws rather than on a single raw texel or, at a coast, on
+ * the slope the taper has taken away. The height and the taper are returned
+ * separately because the caller knows the live relief numbers: the rise the
+ * shader draws is `height × scale + bias × taper`, and only that form keeps a
+ * name on its marker as the slider moves.
+ */
+function createElevationSampler(
+  uvOffsetU: number,
+  meshColumns: number,
+  meshRows: number,
+): ((lon: number, lat: number) => { height: number; taper: number }) | null {
+  const heights = readMapPixels('earthHeightmap')
+  if (!heights) return null
+  // The ocean's water mask (the roughness map's red channel) defines the coast.
+  // Without it the apron is switched off, exactly as in the shader.
+  const mask = readMapPixels('earthRoughness')
+  // A texel of a map, in the sampler's own top-down layout.
+  const texelOf = (map: { width: number; height: number; data: Uint8ClampedArray }) =>
+    (mapU: number, mapV: number) => {
+      const u = (((mapU % 1) + 1) % 1)
+      const v = Math.min(0.999999, Math.max(0, 1 - mapV))
+      const x = Math.min(map.width - 1, Math.floor(u * map.width))
+      const y = Math.min(map.height - 1, Math.floor(v * map.height))
+      return map.data[(y * map.width + x) * 4] / 255
+    }
+  const heightTexel = texelOf(heights)
+  const maskTexel = mask ? texelOf(mask) : null
   const columns = Math.max(meshColumns, 1)
   const rows = Math.max(meshRows, 1)
   // Mirror of `terrainHeightAt` in `terrain.ts`: the elevation averaged over one
-  // mesh cell, so a name sits on the ground the displaced mesh draws rather than
-  // on a single raw texel.
-  const cellU = 1 / columns
-  const cellV = 1 / rows
-  const heightAt = (mapU: number, mapV: number) =>
-    (texel(mapU, mapV) +
-      texel(mapU + cellU * 0.5, mapV) +
-      texel(mapU - cellU * 0.5, mapV) +
-      texel(mapU, mapV + cellV * 0.5) +
-      texel(mapU, mapV - cellV * 0.5) +
-      texel(mapU + cellU * 0.5, mapV + cellV * 0.5) +
-      texel(mapU + cellU * 0.5, mapV - cellV * 0.5) +
-      texel(mapU - cellU * 0.5, mapV + cellV * 0.5) +
-      texel(mapU - cellU * 0.5, mapV - cellV * 0.5)) /
+  // mesh cell (never finer than the model's texel staircase), so a name sits on
+  // the ground the displaced mesh draws rather than on a single raw texel.
+  const cellU = Math.max(1 / columns, (1 / heights.width) * TERRAIN_KERNEL_MIN_TEXELS)
+  const cellV = Math.max(1 / rows, (1 / heights.height) * TERRAIN_KERNEL_MIN_TEXELS)
+  // The nine-tap box, with the same offsets the shader uses: `terrainHeightAt`
+  // samples at half a cell, `terrainLandnessAt` at the full radius.
+  const average = (
+    sample: (u: number, v: number) => number,
+    u: number,
+    v: number,
+    offsetU: number,
+    offsetV: number,
+  ) =>
+    (sample(u, v) +
+      sample(u + offsetU, v) +
+      sample(u - offsetU, v) +
+      sample(u, v + offsetV) +
+      sample(u, v - offsetV) +
+      sample(u + offsetU, v + offsetV) +
+      sample(u + offsetU, v - offsetV) +
+      sample(u - offsetU, v + offsetV) +
+      sample(u - offsetU, v - offsetV)) /
     9
-  // Mirror of the shader's earthMapGroundHeight.
+  const heightAt = (u: number, v: number) =>
+    average(heightTexel, u, v, cellU * 0.5, cellV * 0.5)
+  // Mirror of `terrainLandnessAt` and the apron width in `TERRAIN_VERTEX_DISPLACE`:
+  // one mesh cell, or the floor, whichever is wider.
+  const taperTexels = Math.max(
+    TERRAIN_COAST_TAPER_TEXELS,
+    (1 / columns) / (1 / heights.width),
+    (1 / rows) / (1 / heights.height),
+  )
+  const taperU = (1 / heights.width) * taperTexels
+  const taperV = (1 / heights.height) * taperTexels
+  const taperAt = (u: number, v: number) => {
+    if (!maskTexel) return 1
+    const landness = 1 - average(maskTexel, u, v, taperU, taperV)
+    return smoothstep(0.5, 1, landness)
+  }
+  // Mirror of the shader's earthMapGroundHeight. The taper is applied per grid
+  // corner, before the triangle interpolation, exactly as the surface shader
+  // fades each corner's rise.
   return (lon, lat) => {
     const mapU = (lon + 180) / 360
     const mapV = (90 + lat) / 180
@@ -210,16 +253,26 @@ function createElevationSampler(
     const u1 = (iu + 1) / columns + uvOffsetU
     const v0 = 1 - iv / rows
     const v1 = 1 - (iv + 1) / rows
-    const hA = heightAt(u1, v0)
-    const hB = heightAt(u0, v0)
-    const hC = heightAt(u0, v1)
-    const hD = heightAt(u1, v1)
+    const tA = taperAt(u1, v0)
+    const tB = taperAt(u0, v0)
+    const tC = taperAt(u0, v1)
+    const tD = taperAt(u1, v1)
+    const hA = heightAt(u1, v0) * tA
+    const hB = heightAt(u0, v0) * tB
+    const hC = heightAt(u0, v1) * tC
+    const hD = heightAt(u1, v1) * tD
     const northCap = iv < 0.5
     const southCap = iv > rows - 1.5
     if (southCap || (!northCap && au >= av)) {
-      return hA * (au - av) + hB * (1 - au) + hD * av
+      return {
+        height: hA * (au - av) + hB * (1 - au) + hD * av,
+        taper: tA * (au - av) + tB * (1 - au) + tD * av,
+      }
     }
-    return hB * (1 - av) + hC * (av - au) + hD * au
+    return {
+      height: hB * (1 - av) + hC * (av - au) + hD * au,
+      taper: tB * (1 - av) + tC * (av - au) + tD * au,
+    }
   }
 }
 
@@ -376,7 +429,7 @@ export interface MapLabelEntry {
 interface MapLabelsProps {
   entries: MapLabelEntry[]
   uvOffsetU: number
-  sampler: ((lon: number, lat: number) => number) | null
+  sampler: ((lon: number, lat: number) => { height: number; taper: number }) | null
   terrain: TerrainRelief | null
   /** The globe's own group, which carries the overlay's transform. */
   groupRef: RefObject<Group | null>
@@ -386,8 +439,14 @@ interface MapLabelsProps {
 interface MapLabelPlacement {
   /** The name's unit direction in the globe group's own space. */
   dir: Vector3
-  /** The elevation model's texel at the name, 0 where there is no model. */
+  /**
+   * The elevation at the name, weighted by the coastal apron (`Σ w·h·t`), so the
+   * radius is `height · scale + bias · taper`: the same corner-by-corner
+   * interpolation the surface shader does, kept linear in the live scale and bias.
+   */
   height: number
+  /** The apron's own interpolated share there (`Σ w·t`), 0…1. */
+  taper: number
 }
 
 /**
@@ -426,15 +485,18 @@ function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: 
   const lastY = useRef<Float32Array>(new Float32Array(0))
 
   // Only the names and their directions are fixed here; the elevation is kept as
-  // a raw texel so that moving the relief slider never rebuilds anything — the
-  // radius is worked out in the frame loop from the live terrain numbers.
+  // a raw texel (and the apron's share of it) so that moving the relief slider
+  // never rebuilds anything — the radius is worked out in the frame loop from the
+  // live terrain numbers.
   const placements = useMemo<MapLabelPlacement[]>(
     () =>
       entries.map((entry) => {
         const [x, y, z] = lonLatToDirection(entry.lon, entry.lat, uvOffsetU)
+        const ground = sampler ? sampler(entry.lon, entry.lat) : { height: 0, taper: 1 }
         return {
           dir: new Vector3(x, y, z),
-          height: sampler ? sampler(entry.lon, entry.lat) : 0,
+          height: ground.height,
+          taper: ground.taper,
         }
       }),
     [entries, uvOffsetU, sampler],
@@ -530,7 +592,7 @@ function MapLabels({ entries, uvOffsetU, sampler, terrain, groupRef, visuals }: 
       let visible = facing > facingMin
       let radius = 0
       if (visible) {
-        radius = 1 + placement.height * terrainScale + terrainBias + lift
+        radius = 1 + placement.height * terrainScale + terrainBias * placement.taper + lift
         // A DOM label is never depth-tested, so the globe and the other worlds
         // have to be tested by hand — otherwise the Moon, passing in front of
         // South America, has the names behind it drawn on top of it. The globe's
@@ -622,6 +684,7 @@ interface HoverCandidate {
   place: GeoPlace
   dir: Vector3
   height: number
+  taper: number
 }
 
 /** How near a marker the pointer has to come to name it, in CSS pixels. */
@@ -677,7 +740,7 @@ function pickUnlabelledCity(
     const dir = candidate.dir
     // 1 at the point facing the camera, 0 at the limb, negative behind it.
     if (dir.x * _viewLocal.x + dir.y * _viewLocal.y + dir.z * _viewLocal.z <= facingMin) continue
-    const radius = 1 + candidate.height * terrainScale + terrainBias + lift
+    const radius = 1 + candidate.height * terrainScale + terrainBias * candidate.taper + lift
     // The same hand-run occlusion test the names get: the globe and the other
     // worlds are never depth-tested against either.
     _anchor.copy(dir).multiplyScalar(radius).applyMatrix4(group.matrixWorld)
@@ -734,7 +797,13 @@ export function EarthMap({
 
   const visuals = EARTH_MAP
   const uniforms = useMemo(
-    () => createEarthMapUniforms(getTexture('earthHeightmap'), uvOffsetU, visuals),
+    () =>
+      createEarthMapUniforms(
+        getTexture('earthHeightmap'),
+        getTexture('earthRoughness'),
+        uvOffsetU,
+        visuals,
+      ),
     [uvOffsetU, visuals],
   )
 
@@ -742,10 +811,22 @@ export function EarthMap({
   // uniforms in step instead of rebuilding any geometry.
   useEffect(() => {
     const hasElevation = hasTexture('earthHeightmap')
-    uniforms.uEarthHeightMap.value = getTexture('earthHeightmap')
+    const heightMap = getTexture('earthHeightmap')
+    uniforms.uEarthHeightMap.value = heightMap
+    // The ocean's water mask rides in the roughness map's red channel, and the
+    // overlay fades the coastal rise with it exactly as the surface does.
+    uniforms.uWaterMask.value = getTexture('earthRoughness')
     uniforms.uTerrainScale.value = hasElevation ? (terrain?.scale ?? 0) : 0
     uniforms.uTerrainBias.value = hasElevation ? (terrain?.bias ?? 0) : 0
     uniforms.uTerrainUvOffset.value = uvOffsetU
+    // One texel of the uploaded model: a quality switch can change its width.
+    const image = heightMap.image as
+      | { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }
+      | undefined
+    uniforms.uTerrainTexel.value.set(
+      1 / (image?.naturalWidth ?? image?.width ?? 2048),
+      1 / (image?.naturalHeight ?? image?.height ?? 1024),
+    )
     // The mesh whose facets the overlay has to sit on. It changes with the level
     // of detail, so it is a live uniform rather than a shader constant.
     uniforms.uMeshSegments.value.set(meshColumns, meshRows)
@@ -753,11 +834,13 @@ export function EarthMap({
     // wins the depth test instead of stippling against it. The shader works in
     // world units, so the fraction of the radius becomes a world distance here.
     uniforms.uCameraLift.value = visuals.cameraLift * radius
-  }, [uniforms, terrain, uvOffsetU, radius, meshColumns, meshRows, visuals])
+  }, [uniforms, terrain, uvOffsetU, radius, meshColumns, meshRows, visuals, quality])
 
   const sampler = useMemo(
     () => createElevationSampler(uvOffsetU, meshColumns, meshRows),
-    [uvOffsetU, meshColumns, meshRows],
+    // `quality` can swap in a differently sized elevation model, so the texel
+    // floor has to be measured again even when the mesh rung is unchanged.
+    [uvOffsetU, meshColumns, meshRows, quality],
   )
 
   // The dots that answer the pointer: the cities that never carry a name. A city
@@ -769,10 +852,12 @@ export function EarthMap({
     for (const place of data.places) {
       if (place.label === 1) continue
       const [x, y, z] = lonLatToDirection(place.lon, place.lat, uvOffsetU)
+      const ground = sampler ? sampler(place.lon, place.lat) : { height: 0, taper: 1 }
       candidates.push({
         place,
         dir: new Vector3(x, y, z),
-        height: sampler ? sampler(place.lon, place.lat) : 0,
+        height: ground.height,
+        taper: ground.taper,
       })
     }
     return candidates
