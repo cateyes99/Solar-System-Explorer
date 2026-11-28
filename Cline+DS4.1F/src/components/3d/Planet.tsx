@@ -567,6 +567,19 @@ export function Planet({
 
   const sphereGeometry = SPHERE_LODS[sphereTier]
 
+  // The displacement is band-limited to one cell of the mesh that is actually
+  // drawn (see `TERRAIN_HEIGHT_GLSL`), so the rung's tessellation is a live
+  // uniform rather than a number baked into the shader. A single render only
+  // ever draws one rung, and this is set before it is drawn.
+  if (terrainUniforms) {
+    terrainUniforms.uniforms.uTerrainMesh.value.set(
+      sphereGeometry.parameters.widthSegments,
+      sphereGeometry.parameters.heightSegments,
+    )
+  }
+  // TEMP-DEBUG: expose the terrain uniforms so a probe can A/B the kernel.
+  ;(window as unknown as Record<string, unknown>).__terrain = terrainUniforms?.uniforms ?? null
+
   const handleClick = (event: { altKey?: boolean }): void => {
     selectBody(body.id)
     // Holding Alt keeps the camera where it is, so a close-up is not thrown away

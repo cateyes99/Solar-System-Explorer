@@ -246,6 +246,17 @@ A few decisions worth knowing about:
   corona, the star and comet sprites, Earth's ocean-roughness map, Uranus's ring strip) is still
   painted procedurally, and if a file is ever missing the same painter covers for it, so no world
   can render blank.
+- **The relief is band-limited to the mesh that draws it.** Earth's ground is pushed out by a real
+  elevation model, exaggerated up to 160×, but a mesh can only hold what its own vertices resolve —
+  at the finest rung one vertex every ~50 km, and far less at the coarser rungs a small globe uses.
+  Reading the model's texel at each vertex turned every coast into a blade: one vertex landed on a
+  coastal mountain while its neighbour landed in the sea, and the exaggerated difference stood up as
+  a near-radial fin smeared over the water. The displacement therefore averages the model over one
+  cell of the rung actually drawn — a nine-tap box in the vertex shader, the same footprint the mesh
+  interpolates across — so a lone coastal texel contributes a ninth of its height and the ground
+  rises over the cells that lead inland. The bump map still reads the full-resolution model, so the
+  shading keeps every ridge the geometry cannot hold, and the World map's overlay and labels read
+  the same band-limited sample, so they stay on the ground the mesh draws.
 - **The World map is real map data too — and it is public domain.** Earth's optional overlay
   (national and regional borders, country names, capitals and cities) is **Natural Earth** vector
   data in

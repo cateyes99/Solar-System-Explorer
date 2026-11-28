@@ -180,6 +180,22 @@ function createElevationSampler(
   }
   const columns = Math.max(meshColumns, 1)
   const rows = Math.max(meshRows, 1)
+  // Mirror of `terrainHeightAt` in `terrain.ts`: the elevation averaged over one
+  // mesh cell, so a name sits on the ground the displaced mesh draws rather than
+  // on a single raw texel.
+  const cellU = 1 / columns
+  const cellV = 1 / rows
+  const heightAt = (mapU: number, mapV: number) =>
+    (texel(mapU, mapV) +
+      texel(mapU + cellU * 0.5, mapV) +
+      texel(mapU - cellU * 0.5, mapV) +
+      texel(mapU, mapV + cellV * 0.5) +
+      texel(mapU, mapV - cellV * 0.5) +
+      texel(mapU + cellU * 0.5, mapV + cellV * 0.5) +
+      texel(mapU + cellU * 0.5, mapV - cellV * 0.5) +
+      texel(mapU - cellU * 0.5, mapV + cellV * 0.5) +
+      texel(mapU - cellU * 0.5, mapV - cellV * 0.5)) /
+    9
   // Mirror of the shader's earthMapGroundHeight.
   return (lon, lat) => {
     const mapU = (lon + 180) / 360
@@ -194,10 +210,10 @@ function createElevationSampler(
     const u1 = (iu + 1) / columns + uvOffsetU
     const v0 = 1 - iv / rows
     const v1 = 1 - (iv + 1) / rows
-    const hA = texel(u1, v0)
-    const hB = texel(u0, v0)
-    const hC = texel(u0, v1)
-    const hD = texel(u1, v1)
+    const hA = heightAt(u1, v0)
+    const hB = heightAt(u0, v0)
+    const hC = heightAt(u0, v1)
+    const hD = heightAt(u1, v1)
     const northCap = iv < 0.5
     const southCap = iv > rows - 1.5
     if (southCap || (!northCap && au >= av)) {
